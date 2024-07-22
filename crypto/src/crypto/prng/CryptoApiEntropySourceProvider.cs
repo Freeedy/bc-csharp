@@ -1,4 +1,5 @@
-﻿using System;
+﻿#if !(NETCF_1_0 || PORTABLE)
+using System;
 using System.Security.Cryptography;
 
 namespace Org.BouncyCastle.Crypto.Prng
@@ -56,15 +57,6 @@ namespace Org.BouncyCastle.Crypto.Prng
                 return result;
             }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            int IEntropySource.GetEntropy(Span<byte> output)
-            {
-                int length = System.Math.Min(output.Length, (mEntropySize + 7) / 8);
-                mRng.GetBytes(output[..length]);
-                return length;
-            }
-#endif
-
             int IEntropySource.EntropySize
             {
                 get { return mEntropySize; }
@@ -74,3 +66,5 @@ namespace Org.BouncyCastle.Crypto.Prng
         }
     }
 }
+
+#endif

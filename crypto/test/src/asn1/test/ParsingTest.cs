@@ -37,7 +37,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 		public override void PerformTest()
 		{
-			InputStreamTest();
+			inputStreamTest();
 			parserTest();
 		}
 
@@ -49,7 +49,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 				try
 				{
-					object obj;
+					Object obj;
 					while ((obj = aIn.ReadObject()) != null)
 					{
 					}
@@ -68,32 +68,37 @@ namespace Org.BouncyCastle.Asn1.Tests
 			}
 		}
 
-		private void InputStreamTest()
+		private void inputStreamTest()
 		{
 			foreach (string stream in streams)
 			{
-				using (var aIn = new Asn1InputStream(Base64.Decode(stream)))
-				{
-                    try
-                    {
-                        object obj;
-                        while ((obj = aIn.ReadObject()) != null)
-                        {
-                        }
+				Asn1InputStream aIn = new Asn1InputStream(Base64.Decode(stream));
 
-                        Fail("bad stream parsed successfully!");
-                    }
-                    catch (IOException)
-                    {
-                        // ignore
-                    }
-                    // Note: C# may throw these instead, since no InMemoryRepresentable support
-                    catch (Asn1ParsingException)
-                    {
-                        // ignore
-                    }
-                }
-            }
+				try
+				{
+					Object obj;
+					while ((obj = aIn.ReadObject()) != null)
+					{
+					}
+
+					Fail("bad stream parsed successfully!");
+				}
+				catch (IOException)
+				{
+					// ignore
+				}
+				// Note: C# may throw these instead, since no InMemoryRepresentable support
+				catch (Asn1ParsingException)
+				{
+					// ignore
+				}
+			}
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new ParsingTest());
 		}
 	}
 }

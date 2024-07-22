@@ -2,12 +2,12 @@
 
 namespace Org.BouncyCastle.Asn1
 {
-    public class DLSet
+    internal class DLSet
         : DerSet
     {
-        public static new readonly DLSet Empty = new DLSet();
+        internal static new readonly DLSet Empty = new DLSet();
 
-        public static new DLSet FromVector(Asn1EncodableVector elementVector)
+        internal static new DLSet FromVector(Asn1EncodableVector elementVector)
         {
             return elementVector.Count < 1 ? Empty : new DLSet(elementVector);
         }
@@ -15,7 +15,7 @@ namespace Org.BouncyCastle.Asn1
         /**
          * create an empty set
          */
-        public DLSet()
+        internal DLSet()
             : base()
         {
         }
@@ -23,12 +23,12 @@ namespace Org.BouncyCastle.Asn1
         /**
          * create a set containing one object
          */
-        public DLSet(Asn1Encodable element)
+        internal DLSet(Asn1Encodable element)
             : base(element)
         {
         }
 
-        public DLSet(params Asn1Encodable[] elements)
+        internal DLSet(params Asn1Encodable[] elements)
             : base(elements, false)
         {
         }
@@ -36,7 +36,7 @@ namespace Org.BouncyCastle.Asn1
         /**
          * create a set containing a vector of objects.
          */
-        public DLSet(Asn1EncodableVector elementVector)
+        internal DLSet(Asn1EncodableVector elementVector)
             : base(elementVector, false)
         {
         }
@@ -52,7 +52,7 @@ namespace Org.BouncyCastle.Asn1
                 return base.GetEncoding(encoding);
 
             return new ConstructedDLEncoding(Asn1Tags.Universal, Asn1Tags.Set,
-                Asn1OutputStream.GetContentsEncodings(Asn1OutputStream.EncodingDL, m_elements));
+                Asn1OutputStream.GetContentsEncodings(encoding, elements));
         }
 
         internal override IAsn1Encoding GetEncodingImplicit(int encoding, int tagClass, int tagNo)
@@ -61,7 +61,7 @@ namespace Org.BouncyCastle.Asn1
                 return base.GetEncodingImplicit(encoding, tagClass, tagNo);
 
             return new ConstructedDLEncoding(tagClass, tagNo,
-                Asn1OutputStream.GetContentsEncodings(Asn1OutputStream.EncodingDL, m_elements));
+                Asn1OutputStream.GetContentsEncodings(encoding, elements));
         }
     }
 }

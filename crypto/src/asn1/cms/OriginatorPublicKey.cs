@@ -1,53 +1,75 @@
 using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cms
 {
     public class OriginatorPublicKey
         : Asn1Encodable
     {
-        public static OriginatorPublicKey GetInstance(object obj)
+        private readonly AlgorithmIdentifier mAlgorithm;
+        private readonly DerBitString        mPublicKey;
+
+        public OriginatorPublicKey(
+            AlgorithmIdentifier algorithm,
+            byte[]              publicKey)
         {
-            if (obj == null)
-                return null;
-            if (obj is OriginatorPublicKey originatorPublicKey)
-                return originatorPublicKey;
-            return new OriginatorPublicKey(Asn1Sequence.GetInstance(obj));
+            this.mAlgorithm = algorithm;
+            this.mPublicKey = new DerBitString(publicKey);
         }
 
-        public static OriginatorPublicKey GetInstance(Asn1TaggedObject obj, bool explicitly)
+        [Obsolete("Use 'GetInstance' instead")]
+		public OriginatorPublicKey(
+            Asn1Sequence seq)
         {
-            return new OriginatorPublicKey(Asn1Sequence.GetInstance(obj, explicitly));
+            this.mAlgorithm = AlgorithmIdentifier.GetInstance(seq[0]);
+            this.mPublicKey = DerBitString.GetInstance(seq[1]);
         }
 
-        private readonly AlgorithmIdentifier m_algorithm;
-        private readonly DerBitString m_publicKey;
-
-        public OriginatorPublicKey(AlgorithmIdentifier algorithm, byte[] publicKey)
-            : this(algorithm, new DerBitString(publicKey))
+		/**
+         * return an OriginatorPublicKey object from a tagged object.
+         *
+         * @param obj the tagged object holding the object we want.
+         * @param explicitly true if the object is meant to be explicitly
+         *              tagged false otherwise.
+         * @exception ArgumentException if the object held by the
+         *          tagged object cannot be converted.
+         */
+        public static OriginatorPublicKey GetInstance(
+            Asn1TaggedObject	obj,
+            bool				explicitly)
         {
+            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
         }
 
-        public OriginatorPublicKey(AlgorithmIdentifier algorithm, DerBitString publicKey)
+		/**
+         * return an OriginatorPublicKey object from the given object.
+         *
+         * @param obj the object we want converted.
+         * @exception ArgumentException if the object cannot be converted.
+         */
+        public static OriginatorPublicKey GetInstance(
+            object obj)
         {
-            m_algorithm = algorithm ?? throw new ArgumentNullException(nameof(algorithm));
-            m_publicKey = publicKey ?? throw new ArgumentNullException(nameof(publicKey));
+            if (obj == null || obj is OriginatorPublicKey)
+                return (OriginatorPublicKey)obj;
+
+			if (obj is Asn1Sequence)
+                return new OriginatorPublicKey(Asn1Sequence.GetInstance(obj));
+
+            throw new ArgumentException("Invalid OriginatorPublicKey: " + Platform.GetTypeName(obj));
         }
 
-        private OriginatorPublicKey(Asn1Sequence seq)
-        {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+		public AlgorithmIdentifier Algorithm
+		{
+			get { return mAlgorithm; }
+		}
 
-            m_algorithm = AlgorithmIdentifier.GetInstance(seq[0]);
-            m_publicKey = DerBitString.GetInstance(seq[1]);
-        }
-
-        public AlgorithmIdentifier Algorithm => m_algorithm;
-
-        public DerBitString PublicKey => m_publicKey;
+		public DerBitString PublicKey
+		{
+			get { return mPublicKey; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -58,6 +80,9 @@ namespace Org.BouncyCastle.Asn1.Cms
          * }
          * </pre>
          */
-        public override Asn1Object ToAsn1Object() => new DerSequence(m_algorithm, m_publicKey);
+        public override Asn1Object ToAsn1Object()
+        {
+			return new DerSequence(mAlgorithm, mPublicKey);
+        }
     }
 }

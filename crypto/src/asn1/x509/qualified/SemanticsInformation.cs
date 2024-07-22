@@ -1,4 +1,8 @@
 using System;
+using System.Collections;
+
+using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.X509.Qualified
 {
@@ -19,80 +23,97 @@ namespace Org.BouncyCastle.Asn1.X509.Qualified
     public class SemanticsInformation
 		: Asn1Encodable
     {
-        public static SemanticsInformation GetInstance(object obj)
+        private readonly DerObjectIdentifier	semanticsIdentifier;
+        private readonly GeneralName[]			nameRegistrationAuthorities;
+
+		public static SemanticsInformation GetInstance(
+			object obj)
         {
-            if (obj == null)
-                return null;
-            if (obj is SemanticsInformation semanticsInformation)
-                return semanticsInformation;
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new SemanticsInformation(Asn1Sequence.GetInstance(obj));
-#pragma warning restore CS0618 // Type or member is obsolete
+            if (obj == null || obj is SemanticsInformation)
+            {
+                return (SemanticsInformation) obj;
+            }
+
+			if (obj is Asn1Sequence)
+            {
+                return new SemanticsInformation(Asn1Sequence.GetInstance(obj));
+            }
+
+			throw new ArgumentException("unknown object in GetInstance: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public SemanticsInformation(
+			Asn1Sequence seq)
+        {
+            if (seq.Count < 1)
+            {
+                throw new ArgumentException("no objects in SemanticsInformation");
+            }
+
+			IEnumerator e = seq.GetEnumerator();
+			e.MoveNext();
+            object obj = e.Current;
+            if (obj is DerObjectIdentifier)
+            {
+                semanticsIdentifier = DerObjectIdentifier.GetInstance(obj);
+                if (e.MoveNext())
+                {
+                    obj  = e.Current;
+                }
+                else
+                {
+                    obj  = null;
+                }
+            }
+
+			if (obj  != null)
+            {
+                Asn1Sequence generalNameSeq = Asn1Sequence.GetInstance(obj );
+                nameRegistrationAuthorities = new GeneralName[generalNameSeq.Count];
+                for (int i= 0; i < generalNameSeq.Count; i++)
+                {
+                    nameRegistrationAuthorities[i] = GeneralName.GetInstance(generalNameSeq[i]);
+                }
+            }
         }
 
-        public static SemanticsInformation GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+		public SemanticsInformation(
+            DerObjectIdentifier semanticsIdentifier,
+            GeneralName[] generalNames)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new SemanticsInformation(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-#pragma warning restore CS0618 // Type or member is obsolete
+            this.semanticsIdentifier = semanticsIdentifier;
+            this.nameRegistrationAuthorities = generalNames;
         }
 
-        public static SemanticsInformation GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
+		public SemanticsInformation(
+			DerObjectIdentifier semanticsIdentifier)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new SemanticsInformation(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
-#pragma warning restore CS0618 // Type or member is obsolete
+            this.semanticsIdentifier = semanticsIdentifier;
         }
 
-        private readonly DerObjectIdentifier m_semanticsIdentifier;
-        private readonly GeneralName[] m_nameRegistrationAuthorities;
-
-        [Obsolete("Use 'GetInstance' instead")]
-        public SemanticsInformation(Asn1Sequence seq)
+        public SemanticsInformation(
+			GeneralName[] generalNames)
         {
-            int count = seq.Count, pos = 0;
-
-            // NOTE: At least one of 'semanticsIdentifier' or 'nameRegistrationAuthorities' must be present
-            if (count < 1 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_semanticsIdentifier = Asn1Utilities.ReadOptional(seq, ref pos, DerObjectIdentifier.GetOptional);
-            m_nameRegistrationAuthorities = Asn1Utilities.ReadOptional(seq, ref pos, Asn1Sequence.GetOptional)
-                ?.MapElements(GeneralName.GetInstance);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+            this.nameRegistrationAuthorities = generalNames;
         }
 
-        public SemanticsInformation(DerObjectIdentifier semanticsIdentifier)
-            : this(semanticsIdentifier, null)
+		public DerObjectIdentifier SemanticsIdentifier { get { return semanticsIdentifier; } }
+
+		public GeneralName[] GetNameRegistrationAuthorities()
         {
+            return nameRegistrationAuthorities;
         }
-
-        // TODO[api] Rename parameter
-        public SemanticsInformation(GeneralName[] generalNames)
-            : this(null, generalNames)
-        {
-        }
-
-        public SemanticsInformation(DerObjectIdentifier semanticsIdentifier, GeneralName[] generalNames)
-        {
-            if (semanticsIdentifier == null && generalNames == null)
-                throw new ArgumentException("At least one option must be present");
-
-            m_semanticsIdentifier = semanticsIdentifier;
-            m_nameRegistrationAuthorities = generalNames;
-        }
-
-		public DerObjectIdentifier SemanticsIdentifier  => m_semanticsIdentifier;
-
-        public GeneralName[] GetNameRegistrationAuthorities() => m_nameRegistrationAuthorities;
 
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(2);
-            v.AddOptional(m_semanticsIdentifier);
-            v.AddOptional(DerSequence.FromElementsOptional(m_nameRegistrationAuthorities));
+            Asn1EncodableVector v = new Asn1EncodableVector();
+            v.AddOptional(semanticsIdentifier);
+
+            if (null != nameRegistrationAuthorities)
+            {
+                v.Add(new DerSequence(nameRegistrationAuthorities));
+            }
+
             return new DerSequence(v);
         }
     }

@@ -2,92 +2,113 @@ using System;
 
 using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Pkcs
 {
-    public class RsassaPssParameters
+	public class RsassaPssParameters
 		: Asn1Encodable
 	{
+		private AlgorithmIdentifier hashAlgorithm;
+		private AlgorithmIdentifier maskGenAlgorithm;
+		private DerInteger saltLength;
+		private DerInteger trailerField;
+
 		public readonly static AlgorithmIdentifier DefaultHashAlgorithm = new AlgorithmIdentifier(OiwObjectIdentifiers.IdSha1, DerNull.Instance);
-        public readonly static AlgorithmIdentifier DefaultMaskGenAlgorithm = new AlgorithmIdentifier(PkcsObjectIdentifiers.IdMgf1, DefaultHashAlgorithm);
-        [Obsolete("Use 'DefaultMaskGenAlgorithm' instead")]
-        public readonly static AlgorithmIdentifier DefaultMaskGenFunction = DefaultMaskGenAlgorithm;
+		public readonly static AlgorithmIdentifier DefaultMaskGenFunction = new AlgorithmIdentifier(PkcsObjectIdentifiers.IdMgf1, DefaultHashAlgorithm);
 		public readonly static DerInteger DefaultSaltLength = new DerInteger(20);
-		public readonly static DerInteger DefaultTrailerField = DerInteger.One;
+		public readonly static DerInteger DefaultTrailerField = new DerInteger(1);
 
-        public static RsassaPssParameters GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is RsassaPssParameters rsassaPssParameters)
-                return rsassaPssParameters;
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new RsassaPssParameters(Asn1Sequence.GetInstance(obj));
-#pragma warning restore CS0618 // Type or member is obsolete
-        }
-
-        public static RsassaPssParameters GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new RsassaPssParameters(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-#pragma warning restore CS0618 // Type or member is obsolete
-        }
-
-        private readonly AlgorithmIdentifier m_hashAlgorithm;
-        private readonly AlgorithmIdentifier m_maskGenAlgorithm;
-        private readonly DerInteger m_saltLength;
-        private readonly DerInteger m_trailerField;
-
-        [Obsolete("Use 'GetInstance' instead")]
-        public RsassaPssParameters(Asn1Sequence seq)
+		public static RsassaPssParameters GetInstance(
+			object obj)
 		{
-            int count = seq.Count, pos = 0;
-            if (count < 0 || count > 4)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (obj == null || obj is RsassaPssParameters)
+			{
+				return (RsassaPssParameters)obj;
+			}
 
-            m_hashAlgorithm = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, AlgorithmIdentifier.GetTagged)
-                ?? DefaultHashAlgorithm;
+			if (obj is Asn1Sequence)
+			{
+				return new RsassaPssParameters((Asn1Sequence)obj);
+			}
 
-            m_maskGenAlgorithm = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, AlgorithmIdentifier.GetTagged)
-                ?? DefaultMaskGenAlgorithm;
-
-            m_saltLength = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 2, true, DerInteger.GetTagged)
-                ?? DefaultSaltLength;
-
-            m_trailerField = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 3, true, DerInteger.GetTagged)
-                ?? DefaultTrailerField;
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			throw new ArgumentException("Unknown object in factory: " + Platform.GetTypeName(obj), "obj");
 		}
 
-        /**
+		/**
 		 * The default version
 		 */
-        public RsassaPssParameters()
-        {
-            m_hashAlgorithm = DefaultHashAlgorithm;
-            m_maskGenAlgorithm = DefaultMaskGenAlgorithm;
-            m_saltLength = DefaultSaltLength;
-            m_trailerField = DefaultTrailerField;
-        }
+		public RsassaPssParameters()
+		{
+			hashAlgorithm = DefaultHashAlgorithm;
+			maskGenAlgorithm = DefaultMaskGenFunction;
+			saltLength = DefaultSaltLength;
+			trailerField = DefaultTrailerField;
+		}
 
-        public RsassaPssParameters(AlgorithmIdentifier hashAlgorithm, AlgorithmIdentifier maskGenAlgorithm,
-            DerInteger saltLength, DerInteger trailerField)
-        {
-            m_hashAlgorithm = hashAlgorithm ?? DefaultHashAlgorithm;
-            m_maskGenAlgorithm = maskGenAlgorithm ?? DefaultMaskGenAlgorithm;
-            m_saltLength = saltLength ?? DefaultSaltLength;
-            m_trailerField = trailerField ?? DefaultTrailerField;
-        }
+		public RsassaPssParameters(
+			AlgorithmIdentifier hashAlgorithm,
+			AlgorithmIdentifier maskGenAlgorithm,
+			DerInteger saltLength,
+			DerInteger trailerField)
+		{
+			this.hashAlgorithm = hashAlgorithm;
+			this.maskGenAlgorithm = maskGenAlgorithm;
+			this.saltLength = saltLength;
+			this.trailerField = trailerField;
+		}
 
-		public AlgorithmIdentifier HashAlgorithm => m_hashAlgorithm;
+		public RsassaPssParameters(
+			Asn1Sequence seq)
+		{
+			hashAlgorithm = DefaultHashAlgorithm;
+			maskGenAlgorithm = DefaultMaskGenFunction;
+			saltLength = DefaultSaltLength;
+			trailerField = DefaultTrailerField;
 
-		public AlgorithmIdentifier MaskGenAlgorithm => m_maskGenAlgorithm;
+			for (int i = 0; i != seq.Count; i++)
+			{
+				Asn1TaggedObject o = (Asn1TaggedObject)seq[i];
 
-		public DerInteger SaltLength => m_saltLength;
+				switch (o.TagNo)
+				{
+					case 0:
+						hashAlgorithm = AlgorithmIdentifier.GetInstance(o, true);
+						break;
+					case 1:
+						maskGenAlgorithm = AlgorithmIdentifier.GetInstance(o, true);
+						break;
+					case 2:
+						saltLength = DerInteger.GetInstance(o, true);
+						break;
+					case 3:
+						trailerField = DerInteger.GetInstance(o, true);
+						break;
+					default:
+						throw new ArgumentException("unknown tag");
+				}
+			}
+		}
 
-		public DerInteger TrailerField => m_trailerField;
+		public AlgorithmIdentifier HashAlgorithm
+		{
+			get { return hashAlgorithm; }
+		}
+
+		public AlgorithmIdentifier MaskGenAlgorithm
+		{
+			get { return maskGenAlgorithm; }
+		}
+
+		public DerInteger SaltLength
+		{
+			get { return saltLength; }
+		}
+
+		public DerInteger TrailerField
+		{
+			get { return trailerField; }
+		}
 
 		/**
 		 * <pre>
@@ -117,26 +138,26 @@ namespace Org.BouncyCastle.Asn1.Pkcs
 		 */
 		public override Asn1Object ToAsn1Object()
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(4);
+			Asn1EncodableVector v = new Asn1EncodableVector();
 
-			if (!DefaultHashAlgorithm.Equals(m_hashAlgorithm))
+			if (!hashAlgorithm.Equals(DefaultHashAlgorithm))
 			{
-				v.Add(new DerTaggedObject(true, 0, m_hashAlgorithm));
+				v.Add(new DerTaggedObject(true, 0, hashAlgorithm));
 			}
 
-			if (!DefaultMaskGenAlgorithm.Equals(m_maskGenAlgorithm))
+			if (!maskGenAlgorithm.Equals(DefaultMaskGenFunction))
 			{
-				v.Add(new DerTaggedObject(true, 1, m_maskGenAlgorithm));
+				v.Add(new DerTaggedObject(true, 1, maskGenAlgorithm));
 			}
 
-			if (!DefaultSaltLength.Equals(m_saltLength))
+			if (!saltLength.Equals(DefaultSaltLength))
 			{
-				v.Add(new DerTaggedObject(true, 2, m_saltLength));
+				v.Add(new DerTaggedObject(true, 2, saltLength));
 			}
 
-			if (!DefaultTrailerField.Equals(m_trailerField))
+			if (!trailerField.Equals(DefaultTrailerField))
 			{
-				v.Add(new DerTaggedObject(true, 3, m_trailerField));
+				v.Add(new DerTaggedObject(true, 3, trailerField));
 			}
 
 			return new DerSequence(v);

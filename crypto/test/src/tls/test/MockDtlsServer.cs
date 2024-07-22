@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Org.BouncyCastle.Tls.Tests
@@ -13,12 +14,7 @@ namespace Org.BouncyCastle.Tls.Tests
         : DefaultTlsServer
     {
         internal MockDtlsServer()
-            : this(new BcTlsCrypto())
-        {
-        }
-
-        internal MockDtlsServer(TlsCrypto crypto)
-            : base(crypto)
+            : base(new BcTlsCrypto(new SecureRandom()))
         {
         }
 
@@ -59,13 +55,13 @@ namespace Org.BouncyCastle.Tls.Tests
             short[] certificateTypes = new short[]{ ClientCertificateType.rsa_sign,
                 ClientCertificateType.dss_sign, ClientCertificateType.ecdsa_sign };
 
-            IList<SignatureAndHashAlgorithm> serverSigAlgs = null;
+            IList serverSigAlgs = null;
             if (TlsUtilities.IsSignatureAlgorithmsExtensionAllowed(m_context.ServerVersion))
             {
                 serverSigAlgs = TlsUtilities.GetDefaultSupportedSignatureAlgorithms(m_context);
             }
 
-            var certificateAuthorities = new List<X509Name>();
+            IList certificateAuthorities = new ArrayList();
             //certificateAuthorities.Add(TlsTestUtilities.LoadBcCertificateResource("x509-ca-dsa.pem").Subject);
             //certificateAuthorities.Add(TlsTestUtilities.LoadBcCertificateResource("x509-ca-ecdsa.pem").Subject);
             //certificateAuthorities.Add(TlsTestUtilities.LoadBcCertificateResource("x509-ca-rsa.pem").Subject);
@@ -125,7 +121,7 @@ namespace Org.BouncyCastle.Tls.Tests
             Console.WriteLine("Server 'tls-unique': " + ToHexString(tlsUnique));
         }
 
-        public override void ProcessClientExtensions(IDictionary<int, byte[]> clientExtensions)
+        public override void ProcessClientExtensions(IDictionary clientExtensions)
         {
             if (m_context.SecurityParameters.ClientRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -133,7 +129,7 @@ namespace Org.BouncyCastle.Tls.Tests
             base.ProcessClientExtensions(clientExtensions);
         }
 
-        public override IDictionary<int, byte[]> GetServerExtensions()
+        public override IDictionary GetServerExtensions()
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -141,7 +137,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return base.GetServerExtensions();
         }
 
-        public override void GetServerExtensionsForConnection(IDictionary<int, byte[]> serverExtensions)
+        public override void GetServerExtensionsForConnection(IDictionary serverExtensions)
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -157,7 +153,7 @@ namespace Org.BouncyCastle.Tls.Tests
 
         protected override TlsCredentialedSigner GetRsaSignerCredentials()
         {
-            var clientSigAlgs = m_context.SecurityParameters.ClientSigAlgs;
+            IList clientSigAlgs = m_context.SecurityParameters.ClientSigAlgs;
             return TlsTestUtilities.LoadSignerCredentialsServer(m_context, clientSigAlgs, SignatureAlgorithm.rsa);
         }
 

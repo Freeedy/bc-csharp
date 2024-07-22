@@ -1,49 +1,63 @@
 using System;
 
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Pkcs
 {
     public class Pkcs12PbeParams
         : Asn1Encodable
     {
-        public static Pkcs12PbeParams GetInstance(object obj)
+        private readonly DerInteger iterations;
+        private readonly Asn1OctetString iv;
+
+		public Pkcs12PbeParams(
+            byte[]	salt,
+            int		iterations)
         {
-            if (obj == null)
-                return null;
-            if (obj is Pkcs12PbeParams pkcs12PbeParams)
-                return pkcs12PbeParams;
-            return new Pkcs12PbeParams(Asn1Sequence.GetInstance(obj));
+            this.iv = new DerOctetString(salt);
+            this.iterations = new DerInteger(iterations);
         }
 
-        public static Pkcs12PbeParams GetInstance(Asn1TaggedObject tagged, bool declaredExplicit)
+		private Pkcs12PbeParams(
+            Asn1Sequence seq)
         {
-            return new Pkcs12PbeParams(Asn1Sequence.GetInstance(tagged, declaredExplicit));
+			if (seq.Count != 2)
+				throw new ArgumentException("Wrong number of elements in sequence", "seq");
+
+			iv = Asn1OctetString.GetInstance(seq[0]);
+            iterations = DerInteger.GetInstance(seq[1]);
         }
 
-        private readonly Asn1OctetString m_iv;
-        private readonly DerInteger m_iterations;
-
-        private Pkcs12PbeParams(Asn1Sequence seq)
+		public static Pkcs12PbeParams GetInstance(
+            object obj)
         {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+            if (obj is Pkcs12PbeParams)
+            {
+                return (Pkcs12PbeParams) obj;
+            }
 
-            m_iv = Asn1OctetString.GetInstance(seq[0]);
-            m_iterations = DerInteger.GetInstance(seq[1]);
+			if (obj is Asn1Sequence)
+            {
+                return new Pkcs12PbeParams((Asn1Sequence) obj);
+            }
+
+			throw new ArgumentException("Unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public BigInteger Iterations
+		{
+			get { return iterations.Value; }
+		}
+
+		public byte[] GetIV()
+        {
+            return iv.GetOctets();
         }
 
-        public Pkcs12PbeParams(byte[] salt, int iterations)
+		public override Asn1Object ToAsn1Object()
         {
-            m_iv = new DerOctetString(salt);
-            m_iterations = new DerInteger(iterations);
+			return new DerSequence(iv, iterations);
         }
-
-        public BigInteger Iterations => m_iterations.Value;
-
-        public byte[] GetIV() => m_iv.GetOctets();
-
-        public override Asn1Object ToAsn1Object() => new DerSequence(m_iv, m_iterations);
     }
 }

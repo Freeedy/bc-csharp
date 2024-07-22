@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 namespace Org.BouncyCastle.Asn1
 {
@@ -7,7 +7,7 @@ namespace Org.BouncyCastle.Asn1
      * Mutable class for building ASN.1 constructed objects such as SETs or SEQUENCEs.
      */
     public class Asn1EncodableVector
-        : IEnumerable<Asn1Encodable>
+        : IEnumerable
     {
         internal static readonly Asn1Encodable[] EmptyElements = new Asn1Encodable[0];
 
@@ -17,7 +17,7 @@ namespace Org.BouncyCastle.Asn1
         private int elementCount;
         private bool copyOnWrite;
 
-        public static Asn1EncodableVector FromEnumerable(IEnumerable<Asn1Encodable> e)
+        public static Asn1EncodableVector FromEnumerable(IEnumerable e)
         {
             Asn1EncodableVector v = new Asn1EncodableVector();
             foreach (Asn1Encodable obj in e)
@@ -35,24 +35,11 @@ namespace Org.BouncyCastle.Asn1
         public Asn1EncodableVector(int initialCapacity)
         {
             if (initialCapacity < 0)
-                throw new ArgumentException("must not be negative", nameof(initialCapacity));
+                throw new ArgumentException("must not be negative", "initialCapacity");
 
             this.elements = (initialCapacity == 0) ? EmptyElements : new Asn1Encodable[initialCapacity];
             this.elementCount = 0;
             this.copyOnWrite = false;
-        }
-
-        public Asn1EncodableVector(Asn1Encodable element)
-            : this()
-        {
-            Add(element);
-        }
-
-        public Asn1EncodableVector(Asn1Encodable element1, Asn1Encodable element2)
-            : this()
-        {
-            Add(element1);
-            Add(element2);
         }
 
         public Asn1EncodableVector(params Asn1Encodable[] v)
@@ -64,7 +51,7 @@ namespace Org.BouncyCastle.Asn1
         public void Add(Asn1Encodable element)
         {
             if (null == element)
-                throw new ArgumentNullException(nameof(element));
+                throw new ArgumentNullException("element");
 
             int capacity = elements.Length;
             int minCapacity = elementCount + 1;
@@ -77,12 +64,6 @@ namespace Org.BouncyCastle.Asn1
             this.elementCount = minCapacity;
         }
 
-        public void Add(Asn1Encodable element1, Asn1Encodable element2)
-        {
-            Add(element1);
-            Add(element2);
-        }
-
         public void Add(params Asn1Encodable[] objs)
         {
             foreach (Asn1Encodable obj in objs)
@@ -91,35 +72,15 @@ namespace Org.BouncyCastle.Asn1
             }
         }
 
-        public void AddOptional(Asn1Encodable element)
+        public void AddOptional(params Asn1Encodable[] objs)
         {
-            if (element != null)
+            if (objs != null)
             {
-                Add(element);
-            }
-        }
-
-        public void AddOptional(Asn1Encodable element1, Asn1Encodable element2)
-        {
-            if (element1 != null)
-            {
-                Add(element1);
-            }
-            if (element2 != null)
-            {
-                Add(element2);
-            }
-        }
-
-        public void AddOptional(params Asn1Encodable[] elements)
-        {
-            if (elements != null)
-            {
-                foreach (var element in elements)
+                foreach (Asn1Encodable obj in objs)
                 {
-                    if (element != null)
+                    if (obj != null)
                     {
-                        Add(element);
+                        Add(obj);
                     }
                 }
             }
@@ -133,18 +94,10 @@ namespace Org.BouncyCastle.Asn1
             }
         }
 
-        public void AddOptionalTagged(bool isExplicit, int tagClass, int tagNo, Asn1Encodable obj)
-        {
-            if (null != obj)
-            {
-                Add(new DerTaggedObject(isExplicit, tagClass, tagNo, obj));
-            }
-        }
-
         public void AddAll(Asn1EncodableVector other)
         {
             if (null == other)
-                throw new ArgumentNullException(nameof(other));
+                throw new ArgumentNullException("other");
 
             int otherElementCount = other.Count;
             if (otherElementCount < 1)
@@ -182,17 +135,14 @@ namespace Org.BouncyCastle.Asn1
             }
         }
 
-        public int Count => elementCount;
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        public int Count
         {
-            return GetEnumerator();
+            get { return elementCount; }
         }
 
-        public IEnumerator<Asn1Encodable> GetEnumerator()
+        public IEnumerator GetEnumerator()
         {
-            IEnumerable<Asn1Encodable> e = CopyElements();
-            return e.GetEnumerator();
+            return CopyElements().GetEnumerator();
         }
 
         internal Asn1Encodable[] CopyElements()

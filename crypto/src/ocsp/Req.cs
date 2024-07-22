@@ -1,5 +1,8 @@
 using System;
+using System.Collections;
+using System.IO;
 
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Ocsp;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.X509;

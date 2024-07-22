@@ -37,7 +37,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			try
 			{
-				ContentHints.GetInstance(new object());
+				ContentHints.GetInstance(new Object());
 
 				Fail("GetInstance() failed to detect bad object.");
 			}
@@ -74,6 +74,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 		{
 			checkMandatoryField("contentType", contentType, hints.ContentType);
 			checkOptionalField("description", description, hints.ContentDescription);
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new ContentHintsUnitTest());
 		}
 
 		[Test]

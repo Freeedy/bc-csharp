@@ -11,7 +11,6 @@ using Org.BouncyCastle.Utilities.Test;
 namespace Org.BouncyCastle.Asn1.Tests
 {
     [TestFixture]
-    [NonParallelizable] // Environment.SetEnvironmentVariable
     public class MiscTest
         : SimpleTest
     {
@@ -86,7 +85,11 @@ namespace Org.BouncyCastle.Asn1.Tests
 
         private void SetAllowUnsafeProperty(bool allowUnsafe)
         {
+#if NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || (PORTABLE && !DOTNET) || NET_1_1
+            // Can't SetEnvironmentVariable !
+#else
             Environment.SetEnvironmentVariable(DerInteger.AllowUnsafeProperty, allowUnsafe ? "true" : "false");
+#endif
         }
 
         public override void PerformTest()
@@ -105,33 +108,32 @@ namespace Org.BouncyCastle.Asn1.Tests
             byte[] data = Base64.Decode("MA4ECAECAwQFBgcIAgIAgAMCBSAWBWhlbGxvMAoECAECAwQFBgcIFgtodHRwOi8vdGVzdA==");
 
             MemoryStream bOut = new MemoryStream();
-            using (var asn1Out = Asn1OutputStream.Create(bOut))
+            Asn1OutputStream aOut = Asn1OutputStream.Create(bOut);
+
+            for (int i = 0; i != values.Length; i++)
             {
-                for (int i = 0; i != values.Length; i++)
-                {
-                    asn1Out.WriteObject(values[i]);
-                }
+                aOut.WriteObject(values[i]);
             }
 
-            byte[] output = bOut.ToArray();
-            if (!Arrays.AreEqual(output, data))
+            if (!Arrays.AreEqual(bOut.ToArray(), data))
             {
                 Fail("Failed data check");
             }
 
-            using (var asn1In = new Asn1InputStream(output))
+            Asn1InputStream aIn = new Asn1InputStream(bOut.ToArray());
+
+            for (int i = 0; i != values.Length; i++)
             {
-                for (int i = 0; i != values.Length; i++)
+                Asn1Object o = aIn.ReadObject();
+
+                if (!values[i].Equals(o))
                 {
-                    Asn1Object o = asn1In.ReadObject();
-                    if (!values[i].Equals(o))
-                    {
-                        Fail("Failed equality test for " + o);
-                    }
-                    if (o.GetHashCode() != values[i].GetHashCode())
-                    {
-                        Fail("Failed hashCode test for " + o);
-                    }
+                    Fail("Failed equality test for " + o);
+                }
+
+                if (o.GetHashCode() != values[i].GetHashCode())
+                {
+                    Fail("Failed hashCode test for " + o);
                 }
             }
 
@@ -142,6 +144,12 @@ namespace Org.BouncyCastle.Asn1.Tests
         public override string Name
         {
             get { return "Misc"; }
+        }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new MiscTest());
         }
 
         [Test]

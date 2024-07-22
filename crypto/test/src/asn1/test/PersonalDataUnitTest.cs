@@ -21,7 +21,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 		{
 			NameOrPseudonym nameOrPseudonym = new NameOrPseudonym("pseudonym");
 			BigInteger nameDistinguisher = BigInteger.ValueOf(10);
-            Asn1GeneralizedTime dateOfBirth = new Asn1GeneralizedTime("20070315173729Z");
+			DerGeneralizedTime dateOfBirth= new DerGeneralizedTime("20070315173729Z");
 			DirectoryString placeOfBirth = new DirectoryString("placeOfBirth");
 			string gender = "M";
 			DirectoryString postalAddress = new DirectoryString("address");
@@ -59,7 +59,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			try
 			{
-				PersonalData.GetInstance(new object());
+				PersonalData.GetInstance(new Object());
 
 				Fail("GetInstance() failed to detect bad object.");
 			}
@@ -73,7 +73,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			PersonalData		data,
 			NameOrPseudonym		nameOrPseudonym,
 			BigInteger			nameDistinguisher,
-            Asn1GeneralizedTime dateOfBirth,
+			DerGeneralizedTime	dateOfBirth,
 			DirectoryString		placeOfBirth,
 			string				gender,
 			DirectoryString		postalAddress)
@@ -97,7 +97,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			PersonalData		data,
 			NameOrPseudonym		nameOrPseudonym,
 			BigInteger			nameDistinguisher,
-            Asn1GeneralizedTime dateOfBirth,
+			DerGeneralizedTime	dateOfBirth,
 			DirectoryString		placeOfBirth,
 			string				gender,
 			DirectoryString		postalAddress)
@@ -108,6 +108,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 			checkOptionalField("placeOfBirth", placeOfBirth, data.PlaceOfBirth);
 			checkOptionalField("gender", gender, data.Gender);
 			checkOptionalField("postalAddress", postalAddress, data.PostalAddress);
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new PersonalDataUnitTest());
 		}
 
 		[Test]

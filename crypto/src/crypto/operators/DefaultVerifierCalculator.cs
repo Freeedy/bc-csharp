@@ -5,19 +5,24 @@ using Org.BouncyCastle.Crypto.IO;
 
 namespace Org.BouncyCastle.Crypto.Operators
 {
-    // TODO[api] sealed
     public class DefaultVerifierCalculator
-        : IStreamCalculator<IVerifier>
+        : IStreamCalculator
     {
-        private readonly SignerSink m_signerSink;
+        private readonly SignerSink mSignerSink;
 
         public DefaultVerifierCalculator(ISigner signer)
         {
-            m_signerSink = new SignerSink(signer);
+            this.mSignerSink = new SignerSink(signer);
         }
 
-        public Stream Stream => m_signerSink;
+        public Stream Stream
+        {
+            get { return mSignerSink; }
+        }
 
-        public IVerifier GetResult() => new DefaultVerifierResult(m_signerSink.Signer);
+        public object GetResult()
+        {
+            return new DefaultVerifierResult(mSignerSink.Signer);
+        }
     }
 }

@@ -1,7 +1,5 @@
 using System;
 
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Asn1
 {
 	/**
@@ -63,37 +61,29 @@ namespace Org.BouncyCastle.Asn1
 
         internal override IAsn1Encoding GetEncoding(int encoding)
         {
-            return new ConstructedDLEncoding(Asn1Tags.Universal, Asn1Tags.Set, GetSortedDerEncodings());
+            return new ConstructedDLEncoding(Asn1Tags.Universal, Asn1Tags.Set,
+                Asn1OutputStream.GetContentsEncodings(Asn1OutputStream.EncodingDer, GetSortedElements()));
         }
 
         internal override IAsn1Encoding GetEncodingImplicit(int encoding, int tagClass, int tagNo)
         {
-            return new ConstructedDLEncoding(tagClass, tagNo, GetSortedDerEncodings());
+            return new ConstructedDLEncoding(tagClass, tagNo,
+                Asn1OutputStream.GetContentsEncodings(Asn1OutputStream.EncodingDer, GetSortedElements()));
         }
 
-        internal sealed override DerEncoding GetEncodingDer()
+        private Asn1Encodable[] GetSortedElements()
         {
-            return new ConstructedDerEncoding(Asn1Tags.Universal, Asn1Tags.Set, GetSortedDerEncodings());
-        }
+            if (isSorted)
+                return elements;
 
-        internal sealed override DerEncoding GetEncodingDerImplicit(int tagClass, int tagNo)
-        {
-            return new ConstructedDerEncoding(tagClass, tagNo, GetSortedDerEncodings());
-        }
-
-        private DerEncoding[] GetSortedDerEncodings()
-        {
-            return Objects.EnsureSingletonInitialized(ref m_sortedDerEncodings, m_elements, CreateSortedDerEncodings);
-        }
-
-        private static DerEncoding[] CreateSortedDerEncodings(Asn1Encodable[] elements)
-        {
-            var derEncodings = Asn1OutputStream.GetContentsEncodingsDer(elements);
-            if (derEncodings.Length > 1)
+            int count = elements.Length;
+            Asn1Object[] asn1Objects = new Asn1Object[count];
+            for (int i = 0; i < count; ++i)
             {
-                Array.Sort(derEncodings);
+                asn1Objects[i] = elements[i].ToAsn1Object();
             }
-            return derEncodings;
+
+            return Sort(asn1Objects);
         }
     }
 }

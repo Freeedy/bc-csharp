@@ -1,11 +1,16 @@
+using System;
+
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
+
 namespace Org.BouncyCastle.Crypto.Generators
 {
 	/**
-	 * KFD1 generator for derived keys and ivs as defined by IEEE P1363a/ISO 18033
+	 * KFD2 generator for derived keys and ivs as defined by IEEE P1363a/ISO 18033
 	 * <br/>
 	 * This implementation is based on IEEE P1363/ISO 18033.
 	 */
-	public sealed class Kdf1BytesGenerator
+	public class Kdf1BytesGenerator
 		: BaseKdfBytesGenerator
 	{
 		/**

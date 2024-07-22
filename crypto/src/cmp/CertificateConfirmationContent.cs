@@ -1,52 +1,42 @@
 ﻿using System;
 
 using Org.BouncyCastle.Asn1.Cmp;
-using Org.BouncyCastle.Operators.Utilities;
+using Org.BouncyCastle.Cms;
 
 namespace Org.BouncyCastle.Cmp
 {
     public class CertificateConfirmationContent
     {
-        public static CertificateConfirmationContent FromPkiBody(PkiBody pkiBody) =>
-            FromPkiBody(pkiBody, DefaultDigestAlgorithmFinder.Instance);
-
-        public static CertificateConfirmationContent FromPkiBody(PkiBody pkiBody,
-            IDigestAlgorithmFinder digestAlgorithmFinder)
-        {
-            if (!IsCertificateConfirmationContent(pkiBody.Type))
-                throw new ArgumentException("content of PKIBody wrong type: " + pkiBody.Type);
-
-            var content = CertConfirmContent.GetInstance(pkiBody.Content);
-
-            return new CertificateConfirmationContent(content, digestAlgorithmFinder);
-        }
-
-        public static bool IsCertificateConfirmationContent(int bodyType) => PkiBody.TYPE_CERT_CONFIRM == bodyType;
-
-        private readonly CertConfirmContent m_content;
-        private readonly IDigestAlgorithmFinder m_digestAlgorithmFinder;
+        private readonly DefaultDigestAlgorithmIdentifierFinder digestAlgFinder;
+        private readonly CertConfirmContent content;
 
         public CertificateConfirmationContent(CertConfirmContent content)
-            : this(content, DefaultDigestAlgorithmFinder.Instance)
         {
+            this.content = content;
         }
 
-        [Obsolete("Use constructor taking 'IDigestAlgorithmFinder' instead")]
         public CertificateConfirmationContent(CertConfirmContent content,
-            Cms.DefaultDigestAlgorithmIdentifierFinder digestAlgFinder)
-            : this(content, (IDigestAlgorithmFinder)digestAlgFinder)
+            DefaultDigestAlgorithmIdentifierFinder digestAlgFinder)
         {
+            this.content = content;
+            this.digestAlgFinder = digestAlgFinder;
         }
 
-        public CertificateConfirmationContent(CertConfirmContent content, IDigestAlgorithmFinder digestAlgorithmFinder)
+        public CertConfirmContent ToAsn1Structure()
         {
-            m_content = content;
-            m_digestAlgorithmFinder = digestAlgorithmFinder;
+            return content;
         }
 
-        public CertConfirmContent ToAsn1Structure() => m_content;
+        public CertificateStatus[] GetStatusMessages()
+        {
+            CertStatus[] statusArray = content.ToCertStatusArray();
+            CertificateStatus[] ret = new CertificateStatus[statusArray.Length];
+            for (int i = 0; i != ret.Length; i++)
+            {
+                ret[i] = new CertificateStatus(digestAlgFinder, statusArray[i]);
+            }
 
-        public CertificateStatus[] GetStatusMessages() => Array.ConvertAll(m_content.ToCertStatusArray(),
-            element => new CertificateStatus(m_digestAlgorithmFinder, element));
+            return ret;
+        }
     }
 }

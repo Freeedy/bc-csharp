@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Tls
 {
-    [Serializable]
     public class TlsFatalAlert
         : TlsException
     {
@@ -17,10 +15,10 @@ namespace Org.BouncyCastle.Tls
             return msg;
         }
 
-        protected readonly byte m_alertDescription;
+        protected readonly short m_alertDescription;
 
         public TlsFatalAlert(short alertDescription)
-            : this(alertDescription, null, null)
+            : this(alertDescription, (string)null)
         {
         }
 
@@ -37,22 +35,7 @@ namespace Org.BouncyCastle.Tls
         public TlsFatalAlert(short alertDescription, string detailMessage, Exception alertCause)
             : base(GetMessage(alertDescription, detailMessage), alertCause)
         {
-            if (!TlsUtilities.IsValidUint8(alertDescription))
-                throw new ArgumentOutOfRangeException(nameof(alertDescription));
-
-            m_alertDescription = (byte)alertDescription;
-        }
-
-        protected TlsFatalAlert(SerializationInfo info, StreamingContext context)
-            : base(info, context)
-        {
-            m_alertDescription = info.GetByte("alertDescription");
-        }
-
-        public override void GetObjectData(SerializationInfo info, StreamingContext context)
-        {
-            base.GetObjectData(info, context);
-            info.AddValue("alertDescription", m_alertDescription);
+            this.m_alertDescription = alertDescription;
         }
 
         public virtual short AlertDescription

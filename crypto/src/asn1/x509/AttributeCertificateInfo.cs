@@ -56,7 +56,7 @@ namespace Org.BouncyCastle.Asn1.X509
             }
             else
             {
-                this.version = DerInteger.Zero;
+                this.version = new DerInteger(0);
                 start = 0;
             }
 
@@ -69,11 +69,11 @@ namespace Org.BouncyCastle.Asn1.X509
 
 			for (int i = start + 6; i < seq.Count; i++)
             {
-                Asn1Encodable obj = seq[i];
+                Asn1Encodable obj = (Asn1Encodable) seq[i];
 
-				if (obj is DerBitString bitString)
+				if (obj is DerBitString)
                 {
-                    this.issuerUniqueID = bitString;
+                    this.issuerUniqueID = DerBitString.GetInstance(seq[i]);
                 }
                 else if (obj is Asn1Sequence || obj is X509Extensions)
                 {

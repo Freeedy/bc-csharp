@@ -1,6 +1,7 @@
-﻿namespace Org.BouncyCastle.Asn1.Anssi
+﻿using System;
+
+namespace Org.BouncyCastle.Asn1.Anssi
 {
-    // TODO[api] Make static
     public sealed class AnssiObjectIdentifiers
     {
         private AnssiObjectIdentifiers()

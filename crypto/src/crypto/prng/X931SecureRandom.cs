@@ -12,7 +12,7 @@ namespace Org.BouncyCastle.Crypto.Prng
         private readonly X931Rng        mDrbg;
 
         internal X931SecureRandom(SecureRandom randomSource, X931Rng drbg, bool predictionResistant)
-            : base(null)
+            : base((IRandomGenerator)null)
         {
             this.mRandomSource = randomSource;
             this.mDrbg = drbg;
@@ -30,19 +30,6 @@ namespace Org.BouncyCastle.Crypto.Prng
             }
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override void SetSeed(Span<byte> seed)
-        {
-            lock (this)
-            {
-                if (mRandomSource != null)
-                {
-                    this.mRandomSource.SetSeed(seed);
-                }
-            }
-        }
-#endif
-
         public override void SetSeed(long seed)
         {
             lock (this)
@@ -57,51 +44,27 @@ namespace Org.BouncyCastle.Crypto.Prng
 
         public override void NextBytes(byte[] bytes)
         {
-            NextBytes(bytes, 0, bytes.Length);
+            lock (this)
+            {
+                // check if a reseed is required...
+                if (mDrbg.Generate(bytes, mPredictionResistant) < 0)
+                {
+                    mDrbg.Reseed();
+                    mDrbg.Generate(bytes, mPredictionResistant);
+                }
+            }
         }
 
         public override void NextBytes(byte[] buf, int off, int len)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            NextBytes(buf.AsSpan(off, len));
-#else
-            lock (this)
-            {
-                // check if a reseed is required...
-                if (mDrbg.Generate(buf, off, len, mPredictionResistant) < 0)
-                {
-                    mDrbg.Reseed();
-                    mDrbg.Generate(buf, off, len, mPredictionResistant);
-                }
-            }
-#endif
+            byte[] bytes = new byte[len];
+            NextBytes(bytes);
+            Array.Copy(bytes, 0, buf, off, len);
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override void NextBytes(Span<byte> buffer)
-        {
-            lock (this)
-            {
-                // check if a reseed is required...
-                if (mDrbg.Generate(buffer, mPredictionResistant) < 0)
-                {
-                    mDrbg.Reseed();
-                    mDrbg.Generate(buffer, mPredictionResistant);
-                }
-            }
-        }
-#endif
 
         public override byte[] GenerateSeed(int numBytes)
         {
             return EntropyUtilities.GenerateSeed(mDrbg.EntropySource, numBytes);
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override void GenerateSeed(Span<byte> seed)
-        {
-            EntropyUtilities.GenerateSeed(mDrbg.EntropySource, seed);
-        }
-#endif
     }
 }

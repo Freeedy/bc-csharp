@@ -36,22 +36,22 @@ namespace Org.BouncyCastle.Asn1
          */
         public static Asn1OctetString GetInstance(object obj)
         {
-            if (obj == null)
-                return null;
-
-            if (obj is Asn1OctetString asn1OctetString)
-                return asn1OctetString;
-
-            if (obj is IAsn1Convertible asn1Convertible)
+            if (obj == null || obj is Asn1OctetString)
             {
-                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is Asn1OctetString converted)
-                    return converted;
+                return (Asn1OctetString)obj;
             }
-            else if (obj is byte[] bytes)
+            //else if (obj is Asn1OctetStringParser)
+            else if (obj is IAsn1Convertible)
+            {
+                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
+                if (asn1Object is Asn1OctetString)
+                    return (Asn1OctetString)asn1Object;
+            }
+            else if (obj is byte[])
             {
                 try
                 {
-                    return (Asn1OctetString)Meta.Instance.FromByteArray(bytes);
+                    return (Asn1OctetString)Meta.Instance.FromByteArray((byte[])obj);
                 }
                 catch (IOException e)
                 {
@@ -74,22 +74,6 @@ namespace Org.BouncyCastle.Asn1
             return (Asn1OctetString)Meta.Instance.GetContextInstance(taggedObject, declaredExplicit);
         }
 
-        public static Asn1OctetString GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is Asn1OctetString existing)
-                return existing;
-
-            return null;
-        }
-
-        public static Asn1OctetString GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return (Asn1OctetString)Meta.Instance.GetTagged(taggedObject, declaredExplicit);
-        }
-
         internal readonly byte[] contents;
 
         /**
@@ -102,13 +86,6 @@ namespace Org.BouncyCastle.Asn1
 
 			this.contents = contents;
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        internal Asn1OctetString(ReadOnlySpan<byte> contents)
-        {
-            this.contents = contents.ToArray();
-        }
-#endif
 
         public Stream GetOctetStream()
 		{
@@ -125,29 +102,20 @@ namespace Org.BouncyCastle.Asn1
             return contents;
         }
 
-        public virtual int GetOctetsLength() => GetOctets().Length;
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        internal ReadOnlyMemory<byte> GetOctetsMemory()
-        {
-            return GetOctets().AsMemory();
-        }
-
-        internal ReadOnlySpan<byte> GetOctetsSpan()
-        {
-            return GetOctets().AsSpan();
-        }
-#endif
-
-        protected override int Asn1GetHashCode()
+		protected override int Asn1GetHashCode()
 		{
 			return Arrays.GetHashCode(GetOctets());
         }
 
-		protected override bool Asn1Equals(Asn1Object asn1Object)
+		protected override bool Asn1Equals(
+			Asn1Object asn1Object)
 		{
-            return asn1Object is Asn1OctetString that
-                && Arrays.AreEqual(this.GetOctets(), that.GetOctets());
+			DerOctetString other = asn1Object as DerOctetString;
+
+			if (other == null)
+				return false;
+
+			return Arrays.AreEqual(GetOctets(), other.GetOctets());
 		}
 
 		public override string ToString()

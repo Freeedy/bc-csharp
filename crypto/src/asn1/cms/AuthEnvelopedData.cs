@@ -1,98 +1,174 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Cms
 {
-    public class AuthEnvelopedData
+	public class AuthEnvelopedData
 		: Asn1Encodable
 	{
-        public static AuthEnvelopedData GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is AuthEnvelopedData authEnvelopedData)
-                return authEnvelopedData;
-            return new AuthEnvelopedData(Asn1Sequence.GetInstance(obj));
-        }
+		private DerInteger				version;
+		private OriginatorInfo			originatorInfo;
+		private Asn1Set					recipientInfos;
+		private EncryptedContentInfo	authEncryptedContentInfo;
+		private Asn1Set					authAttrs;
+		private Asn1OctetString			mac;
+		private Asn1Set					unauthAttrs;
 
-        public static AuthEnvelopedData GetInstance(Asn1TaggedObject obj, bool isExplicit)
-        {
-            return new AuthEnvelopedData(Asn1Sequence.GetInstance(obj, isExplicit));
-        }
-
-        private readonly DerInteger m_version;
-        private readonly OriginatorInfo m_originatorInfo;
-        private readonly Asn1Set m_recipientInfos;
-        private readonly EncryptedContentInfo m_authEncryptedContentInfo;
-        private readonly Asn1Set m_authAttrs;
-        private readonly Asn1OctetString m_mac;
-        private readonly Asn1Set m_unauthAttrs;
-
-        public AuthEnvelopedData(OriginatorInfo originatorInfo, Asn1Set recipientInfos,
-			EncryptedContentInfo authEncryptedContentInfo, Asn1Set authAttrs, Asn1OctetString mac,
-			Asn1Set unauthAttrs)
-        {
-            m_version = DerInteger.Zero;
-			m_originatorInfo = originatorInfo;
-			m_recipientInfos = recipientInfos ?? throw new ArgumentNullException(nameof(recipientInfos));
-			m_authEncryptedContentInfo = authEncryptedContentInfo ?? throw new ArgumentNullException(nameof(authEncryptedContentInfo));
-            m_authAttrs = authAttrs;
-			m_mac = mac ?? throw new ArgumentNullException(nameof(mac));
-			m_unauthAttrs = unauthAttrs;
-
-            Validate();
-        }
-
-        private AuthEnvelopedData(Asn1Sequence seq)
+		public AuthEnvelopedData(
+			OriginatorInfo			originatorInfo,
+			Asn1Set					recipientInfos,
+			EncryptedContentInfo	authEncryptedContentInfo,
+			Asn1Set					authAttrs,
+			Asn1OctetString			mac,
+			Asn1Set					unauthAttrs)
 		{
-            int count = seq.Count, pos = 0;
-            if (count < 4 || count > 7)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			// "It MUST be set to 0."
+			this.version = new DerInteger(0);
 
-            m_version = DerInteger.GetInstance(seq[pos++]);
-            m_originatorInfo = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, false, OriginatorInfo.GetTagged);
-            m_recipientInfos = Asn1Set.GetInstance(seq[pos++]);
-            m_authEncryptedContentInfo = EncryptedContentInfo.GetInstance(seq[pos++]);
-            m_authAttrs = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, false, Asn1Set.GetTagged);
-            m_mac = Asn1OctetString.GetInstance(seq[pos++]);
-            m_unauthAttrs = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 2, false, Asn1Set.GetTagged);
+			this.originatorInfo = originatorInfo;
 
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			// "There MUST be at least one element in the collection."
+			this.recipientInfos = recipientInfos;
+			if (this.recipientInfos.Count < 1)
+				throw new ArgumentException("AuthEnvelopedData requires at least 1 RecipientInfo");
 
-            Validate();
+			this.authEncryptedContentInfo = authEncryptedContentInfo;
+
+			// "The authAttrs MUST be present if the content type carried in
+			// EncryptedContentInfo is not id-data."
+			this.authAttrs = authAttrs;
+			if (!authEncryptedContentInfo.ContentType.Equals(CmsObjectIdentifiers.Data))
+			{
+				if (authAttrs == null || authAttrs.Count < 1)
+					throw new ArgumentException("authAttrs must be present with non-data content");
+			}
+
+			this.mac = mac;
+
+			this.unauthAttrs = unauthAttrs;
+	    }
+
+		private AuthEnvelopedData(
+			Asn1Sequence	seq)
+		{
+			int index = 0;
+
+			// "It MUST be set to 0."
+			Asn1Object tmp = seq[index++].ToAsn1Object();
+			version = DerInteger.GetInstance(tmp);
+			if (!version.HasValue(0))
+				throw new ArgumentException("AuthEnvelopedData version number must be 0");
+
+			tmp = seq[index++].ToAsn1Object();
+			if (tmp is Asn1TaggedObject)
+			{
+				originatorInfo = OriginatorInfo.GetInstance((Asn1TaggedObject)tmp, false);
+				tmp = seq[index++].ToAsn1Object();
+			}
+
+			// "There MUST be at least one element in the collection."
+			recipientInfos = Asn1Set.GetInstance(tmp);
+			if (recipientInfos.Count < 1)
+				throw new ArgumentException("AuthEnvelopedData requires at least 1 RecipientInfo");
+
+			tmp = seq[index++].ToAsn1Object();
+			authEncryptedContentInfo = EncryptedContentInfo.GetInstance(tmp);
+
+			tmp = seq[index++].ToAsn1Object();
+			if (tmp is Asn1TaggedObject)
+			{
+				authAttrs = Asn1Set.GetInstance((Asn1TaggedObject)tmp, false);
+				tmp = seq[index++].ToAsn1Object();
+			}
+			else
+			{
+				// "The authAttrs MUST be present if the content type carried in
+				// EncryptedContentInfo is not id-data."
+				if (!authEncryptedContentInfo.ContentType.Equals(CmsObjectIdentifiers.Data))
+				{
+					if (authAttrs == null || authAttrs.Count < 1)
+						throw new ArgumentException("authAttrs must be present with non-data content");
+				}
+			}
+
+			mac = Asn1OctetString.GetInstance(tmp);
+
+			if (seq.Count > index)
+			{
+				tmp = seq[index++].ToAsn1Object();
+				unauthAttrs = Asn1Set.GetInstance((Asn1TaggedObject)tmp, false);
+			}
 		}
 
-        private void Validate()
-        {
-            // "It MUST be set to 0."
-            if (!m_version.HasValue(0))
-                throw new ArgumentException("AuthEnvelopedData version number must be 0");
+		/**
+		 * return an AuthEnvelopedData object from a tagged object.
+		 *
+		 * @param obj      the tagged object holding the object we want.
+		 * @param isExplicit true if the object is meant to be explicitly
+		 *                 tagged false otherwise.
+		 * @throws ArgumentException if the object held by the
+		 *                                  tagged object cannot be converted.
+		 */
+		public static AuthEnvelopedData GetInstance(
+			Asn1TaggedObject	obj,
+			bool				isExplicit)
+		{
+			return GetInstance(Asn1Sequence.GetInstance(obj, isExplicit));
+		}
 
-            // "There MUST be at least one element in the collection."
-            if (m_recipientInfos.Count < 1)
-                throw new ArgumentException("AuthEnvelopedData requires at least 1 RecipientInfo");
+		/**
+		 * return an AuthEnvelopedData object from the given object.
+		 *
+		 * @param obj the object we want converted.
+		 * @throws ArgumentException if the object cannot be converted.
+		 */
+		public static AuthEnvelopedData GetInstance(
+			object	obj)
+		{
+			if (obj == null || obj is AuthEnvelopedData)
+				return (AuthEnvelopedData)obj;
 
-            // "The authAttrs MUST be present if the content type carried in EncryptedContentInfo is not id-data."
-            if (!CmsObjectIdentifiers.Data.Equals(m_authEncryptedContentInfo.ContentType))
-            {
-                if (m_authAttrs == null || m_authAttrs.Count < 1)
-                    throw new ArgumentException("authAttrs must be present with non-data content");
-            }
-        }
+			if (obj is Asn1Sequence)
+				return new AuthEnvelopedData((Asn1Sequence)obj);
 
-        public DerInteger Version => m_version;
+            throw new ArgumentException("Invalid AuthEnvelopedData: " + Platform.GetTypeName(obj));
+		}
 
-		public OriginatorInfo OriginatorInfo => m_originatorInfo;
+		public DerInteger Version
+		{
+			get { return version; }
+		}
 
-		public Asn1Set RecipientInfos => m_recipientInfos;
+		public OriginatorInfo OriginatorInfo
+		{
+			get { return originatorInfo; }
+		}
 
-		public EncryptedContentInfo AuthEncryptedContentInfo => m_authEncryptedContentInfo;
+		public Asn1Set RecipientInfos
+		{
+			get { return recipientInfos; }
+		}
 
-		public Asn1Set AuthAttrs => m_authAttrs;
+		public EncryptedContentInfo AuthEncryptedContentInfo
+		{
+			get { return authEncryptedContentInfo; }
+		}
 
-		public Asn1OctetString Mac => m_mac;
+		public Asn1Set AuthAttrs
+		{
+			get { return authAttrs; }
+		}
 
-		public Asn1Set UnauthAttrs => m_unauthAttrs;
+		public Asn1OctetString Mac
+		{
+			get { return mac; }
+		}
+
+		public Asn1Set UnauthAttrs
+		{
+			get { return unauthAttrs; }
+		}
 
 		/**
 		 * Produce an object suitable for an Asn1OutputStream.
@@ -109,20 +185,19 @@ namespace Org.BouncyCastle.Asn1.Cms
 		 */
 	    public override Asn1Object ToAsn1Object()
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(7);
-			v.Add(m_version);
-            v.AddOptionalTagged(false, 0, m_originatorInfo);
-			v.Add(m_recipientInfos, m_authEncryptedContentInfo);
+			Asn1EncodableVector v = new Asn1EncodableVector(version);
+            v.AddOptionalTagged(false, 0, originatorInfo);
+			v.Add(recipientInfos, authEncryptedContentInfo);
 
 			// "authAttrs optionally contains the authenticated attributes."
             // "AuthAttributes MUST be DER encoded, even if the rest of the
             // AuthEnvelopedData structure is BER encoded."
-            v.AddOptionalTagged(false, 1, m_authAttrs);
+            v.AddOptionalTagged(false, 1, authAttrs);
 
-            v.Add(m_mac);
+            v.Add(mac);
 
             // "unauthAttrs optionally contains the unauthenticated attributes."
-            v.AddOptionalTagged(false, 2, m_unauthAttrs);
+            v.AddOptionalTagged(false, 2, unauthAttrs);
 
             return new BerSequence(v);
 		}

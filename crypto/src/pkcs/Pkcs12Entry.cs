@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+using System;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Utilities.Collections;
@@ -7,21 +8,57 @@ namespace Org.BouncyCastle.Pkcs
 {
     public abstract class Pkcs12Entry
     {
-		private readonly IDictionary<DerObjectIdentifier, Asn1Encodable> m_attributes;
+        private readonly IDictionary attributes;
 
-		protected internal Pkcs12Entry(IDictionary<DerObjectIdentifier, Asn1Encodable> attributes)
+		protected internal Pkcs12Entry(
+            IDictionary attributes)
         {
-            m_attributes = attributes;
+            this.attributes = attributes;
+
+			foreach (DictionaryEntry entry in attributes)
+			{
+				if (!(entry.Key is string))
+					throw new ArgumentException("Attribute keys must be of type: " + typeof(string).FullName, "attributes");
+				if (!(entry.Value is Asn1Encodable))
+					throw new ArgumentException("Attribute values must be of type: " + typeof(Asn1Encodable).FullName, "attributes");
+			}
         }
 
-		public Asn1Encodable this[DerObjectIdentifier oid]
+		[Obsolete("Use 'object[index]' syntax instead")]
+		public Asn1Encodable GetBagAttribute(
+            DerObjectIdentifier oid)
+        {
+            return (Asn1Encodable)this.attributes[oid.Id];
+        }
+
+		[Obsolete("Use 'object[index]' syntax instead")]
+		public Asn1Encodable GetBagAttribute(
+            string oid)
+        {
+            return (Asn1Encodable)this.attributes[oid];
+        }
+
+		[Obsolete("Use 'BagAttributeKeys' property")]
+        public IEnumerator GetBagAttributeKeys()
+        {
+            return this.attributes.Keys.GetEnumerator();
+        }
+
+		public Asn1Encodable this[
+			DerObjectIdentifier oid]
 		{
-			get { return CollectionUtilities.GetValueOrNull(m_attributes, oid); }
+			get { return (Asn1Encodable) this.attributes[oid.Id]; }
 		}
 
-		public IEnumerable<DerObjectIdentifier> BagAttributeKeys
+		public Asn1Encodable this[
+			string oid]
 		{
-			get { return CollectionUtilities.Proxy(m_attributes.Keys); }
+			get { return (Asn1Encodable) this.attributes[oid]; }
+		}
+
+		public IEnumerable BagAttributeKeys
+		{
+			get { return new EnumerableProxy(this.attributes.Keys); }
 		}
     }
 }

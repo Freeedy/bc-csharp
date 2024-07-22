@@ -1,30 +1,51 @@
 using System;
 
+using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.Cms
 {
-    // TODO[api] sealed
+    /**
+    * a basic index for a signer.
+    */
     public class SignerID
-        : X509CertStoreSelector, IEquatable<SignerID>
+        : X509CertStoreSelector
     {
-        public virtual bool Equals(SignerID other)
-        {
-            return other == null ? false
-                :  other == this ? true
-                :  MatchesSubjectKeyIdentifier(other)
-                && MatchesSerialNumber(other)
-                && MatchesIssuer(other);
-        }
-
-        public override bool Equals(object obj) => Equals(obj as SignerID);
-
         public override int GetHashCode()
         {
-            return GetHashCodeOfSubjectKeyIdentifier()
-                ^  Objects.GetHashCode(SerialNumber)
-                ^  Objects.GetHashCode(Issuer);
+            int code = Arrays.GetHashCode(this.SubjectKeyIdentifier);
+
+			BigInteger serialNumber = this.SerialNumber;
+			if (serialNumber != null)
+            {
+                code ^= serialNumber.GetHashCode();
+            }
+
+			X509Name issuer = this.Issuer;
+            if (issuer != null)
+            {
+                code ^= issuer.GetHashCode();
+            }
+
+			return code;
+        }
+
+        public override bool Equals(
+            object obj)
+        {
+			if (obj == this)
+				return false;
+
+			SignerID id = obj as SignerID;
+
+			if (id == null)
+				return false;
+
+			return Arrays.AreEqual(SubjectKeyIdentifier, id.SubjectKeyIdentifier)
+				&& Platform.Equals(SerialNumber, id.SerialNumber)
+				&& IssuersMatch(Issuer, id.Issuer);
         }
     }
 }

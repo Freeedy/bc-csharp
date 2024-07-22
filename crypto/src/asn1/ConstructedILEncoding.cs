@@ -27,7 +27,9 @@ namespace Org.BouncyCastle.Asn1
 
         int IAsn1Encoding.GetLength()
         {
-            return Asn1OutputStream.GetLengthOfEncodingIL(m_tagNo, m_contentsElements);
+            return Asn1OutputStream.GetLengthOfIdentifier(m_tagNo)
+                +  3
+                +  Asn1OutputStream.GetLengthOfContents(m_contentsElements);
         }
     }
 }

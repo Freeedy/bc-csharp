@@ -1,15 +1,16 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Tls.Crypto;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tls
 {
     public class DefaultTlsSrpConfigVerifier
         : TlsSrpConfigVerifier
     {
-        private static readonly List<Srp6Group> DefaultGroups = new List<Srp6Group>();
+        private static readonly IList DefaultGroups = Platform.CreateArrayList();
 
         static DefaultTlsSrpConfigVerifier()
         {
@@ -23,7 +24,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         // IList is (SRP6Group)
-        protected readonly IList<Srp6Group> m_groups;
+        protected readonly IList m_groups;
 
         /// <summary>Accept only the group parameters specified in RFC 5054 Appendix A.</summary>
         public DefaultTlsSrpConfigVerifier()
@@ -32,10 +33,10 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <summary>Specify a custom set of acceptable group parameters.</summary>
-        /// <param name="groups">an <see cref="IList{T}"/> of acceptable <see cref="Srp6Group"/>.</param>
-        public DefaultTlsSrpConfigVerifier(IList<Srp6Group> groups)
+        /// <param name="groups">an <see cref="IList"/> of acceptable <see cref="Srp6Group"/>.</param>
+        public DefaultTlsSrpConfigVerifier(IList groups)
         {
-            this.m_groups = new List<Srp6Group>(groups);
+            this.m_groups = Platform.CreateArrayList(groups);
         }
 
         public virtual bool Accept(TlsSrpConfig srpConfig)

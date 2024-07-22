@@ -49,7 +49,18 @@ namespace Org.BouncyCastle.Asn1.X509
         {
         }
 
-        private UserNotice(Asn1Sequence seq)
+        /**
+         * Creates a new <code>UserNotice</code> instance.
+         * <p>Useful from reconstructing a <code>UserNotice</code> instance
+         * from its encodable/encoded form.
+         *
+         * @param as an <code>ASN1Sequence</code> value obtained from either
+         * calling @{link toASN1Object()} for a <code>UserNotice</code>
+         * instance or from parsing it from a DER-encoded stream.</p>
+         */
+        [Obsolete("Use GetInstance() instead")]
+        public UserNotice(
+            Asn1Sequence seq)
         {
             if (seq.Count == 2)
             {
@@ -101,7 +112,7 @@ namespace Org.BouncyCastle.Asn1.X509
 
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(2);
+            Asn1EncodableVector v = new Asn1EncodableVector();
             v.AddOptional(noticeRef, explicitText);
             return new DerSequence(v);
         }

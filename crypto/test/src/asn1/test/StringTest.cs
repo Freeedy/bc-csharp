@@ -88,6 +88,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 			}
 		}
 
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new StringTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{

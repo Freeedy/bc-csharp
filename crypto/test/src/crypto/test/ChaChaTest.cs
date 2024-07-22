@@ -302,6 +302,12 @@ namespace Org.BouncyCastle.Crypto.Tests
             }
         }
 
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new ChaChaTest());
+        }
+
         [Test]
         public void TestFunction()
         {

@@ -41,7 +41,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			v.Add(new DerInteger(100));
 			v.Add(DerBoolean.True);
 
-			checkSortedSet(0, DerSet.FromVector(v));
+			checkSortedSet(0, new DerSet(v));
 
 			v = new Asn1EncodableVector();
 			v.Add(new DerInteger(100));
@@ -49,7 +49,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			v.Add(new DerOctetString(data));
 			v.Add(new DerBitString(data));
 
-			checkSortedSet(1, DerSet.FromVector(v));
+			checkSortedSet(1, new DerSet(v));
 
 			v = new Asn1EncodableVector();
 			v.Add(DerBoolean.True);
@@ -58,7 +58,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			v.Add(new DerInteger(100));
 
 
-			checkSortedSet(2, DerSet.FromVector(v));
+			checkSortedSet(2, new DerSet(v));
 
 			v = new Asn1EncodableVector();
 			v.Add(new DerBitString(data));
@@ -66,7 +66,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			v.Add(new DerInteger(100));
 			v.Add(DerBoolean.True);
 
-			checkSortedSet(3, DerSet.FromVector(v));
+			checkSortedSet(3, new DerSet(v));
 
 			v = new Asn1EncodableVector();
 			v.Add(new DerOctetString(data));
@@ -74,7 +74,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			v.Add(new DerInteger(100));
 			v.Add(DerBoolean.True);
 
-			Asn1Set s = BerSet.FromVector(v);
+			Asn1Set s = new BerSet(v);
 
 			if (!(s[0] is DerOctetString))
 			{
@@ -101,7 +101,13 @@ namespace Org.BouncyCastle.Asn1.Tests
 			v.Add(DerBoolean.True);
 			v.Add(DerBoolean.True);
 
-			s = DerSet.FromVector(v);
+			s = new DerSet(v);
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new SetTest());
 		}
 
 		[Test]

@@ -1,30 +1,14 @@
 using System;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Security
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
-    public class SignatureException
-		: GeneralSecurityException
+#endif
+    public class SignatureException : GeneralSecurityException
 	{
-		public SignatureException()
-			: base()
-		{
-		}
-
-		public SignatureException(string message)
-			: base(message)
-		{
-		}
-
-		public SignatureException(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected SignatureException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
-		{
-		}
+		public SignatureException() : base() { }
+		public SignatureException(string message) : base(message) { }
+		public SignatureException(string message, Exception exception) : base(message, exception) { }
 	}
 }

@@ -1,60 +1,77 @@
 using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Ocsp
 {
     public class RevokedInfo
         : Asn1Encodable
     {
-        public static RevokedInfo GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is RevokedInfo revokedInfo)
-                return revokedInfo;
-            return new RevokedInfo(Asn1Sequence.GetInstance(obj));
-        }
+        private readonly DerGeneralizedTime revocationTime;
+        private readonly CrlReason revocationReason;
 
-        public static RevokedInfo GetInstance(Asn1TaggedObject obj, bool explicitly)
-        {
-            return new RevokedInfo(Asn1Sequence.GetInstance(obj, explicitly));
-        }
+		public static RevokedInfo GetInstance(
+			Asn1TaggedObject	obj,
+			bool				explicitly)
+		{
+			return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
+		}
 
-        private readonly Asn1GeneralizedTime m_revocationTime;
-        private readonly CrlReason m_revocationReason;
+		public static RevokedInfo GetInstance(
+			object obj)
+		{
+			if (obj == null || obj is RevokedInfo)
+			{
+				return (RevokedInfo) obj;
+			}
 
-        public RevokedInfo(Asn1GeneralizedTime revocationTime)
+			if (obj is Asn1Sequence)
+			{
+				return new RevokedInfo((Asn1Sequence) obj);
+			}
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public RevokedInfo(
+			DerGeneralizedTime revocationTime)
 			: this(revocationTime, null)
 		{
 		}
 
-        public RevokedInfo(Asn1GeneralizedTime revocationTime, CrlReason revocationReason)
+		public RevokedInfo(
+            DerGeneralizedTime  revocationTime,
+            CrlReason           revocationReason)
         {
-			m_revocationTime = revocationTime ?? throw new ArgumentNullException("revocationTime");
-            m_revocationReason = revocationReason;
+			if (revocationTime == null)
+				throw new ArgumentNullException("revocationTime");
+
+			this.revocationTime = revocationTime;
+            this.revocationReason = revocationReason;
         }
 
-        private RevokedInfo(Asn1Sequence seq)
+		private RevokedInfo(
+            Asn1Sequence seq)
         {
-            int count = seq.Count;
-            if (count < 1 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+            this.revocationTime = (DerGeneralizedTime) seq[0];
 
-            int pos = 0;
-
-            m_revocationTime = Asn1GeneralizedTime.GetInstance(seq[pos++]);
-
-            m_revocationReason = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true,
-                (t, e) => new CrlReason(DerEnumerated.GetTagged(t, e)));
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			if (seq.Count > 1)
+            {
+                this.revocationReason = new CrlReason(
+					DerEnumerated.GetInstance((Asn1TaggedObject) seq[1], true));
+            }
         }
 
-        public Asn1GeneralizedTime RevocationTime => m_revocationTime;
+		public DerGeneralizedTime RevocationTime
+		{
+			get { return revocationTime; }
+		}
 
-        public CrlReason RevocationReason => m_revocationReason;
+		public CrlReason RevocationReason
+		{
+			get { return revocationReason; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -66,9 +83,8 @@ namespace Org.BouncyCastle.Asn1.Ocsp
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(2);
-            v.Add(m_revocationTime);
-            v.AddOptionalTagged(true, 0, m_revocationReason);
+            Asn1EncodableVector v = new Asn1EncodableVector(revocationTime);
+            v.AddOptionalTagged(true, 0, revocationReason);
             return new DerSequence(v);
         }
     }

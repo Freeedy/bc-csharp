@@ -28,16 +28,18 @@ namespace Org.BouncyCastle.Crypto.Engines
         * @exception ArgumentException if the parameters argument is
         * inappropriate.
         */
-        public virtual void Init(bool forEncryption, ICipherParameters parameters)
+        public virtual void Init(
+            bool				forEncryption,
+            ICipherParameters	parameters)
         {
-            if (parameters is KeyParameter keyParameter)
+            if (parameters is KeyParameter)
             {
                 /*
                 * RC4 encryption and decryption is completely
                 * symmetrical, so the 'forEncryption' is
                 * irrelevant.
                 */
-                workingKey = keyParameter.GetKey();
+                workingKey = ((KeyParameter)parameters).GetKey();
                 SetKey(workingKey);
 
                 return;
@@ -66,7 +68,12 @@ namespace Org.BouncyCastle.Crypto.Engines
             return (byte)(input ^ engineState[(engineState[x] + engineState[y]) & 0xff]);
         }
 
-        public virtual void ProcessBytes(byte[]	input, int inOff, int length, byte[] output, int outOff)
+        public virtual void ProcessBytes(
+            byte[]	input,
+            int		inOff,
+            int		length,
+            byte[]	output,
+            int		outOff)
         {
             Check.DataLength(input, inOff, length, "input buffer too short");
             Check.OutputLength(output, outOff, length, "output buffer too short");
@@ -76,40 +83,16 @@ namespace Org.BouncyCastle.Crypto.Engines
                 x = (x + 1) & 0xff;
                 y = (engineState[x] + y) & 0xff;
 
-                byte sx = engineState[x];
-                byte sy = engineState[y];
-
                 // swap
-                engineState[x] = sy;
-                engineState[y] = sx;
+                byte tmp = engineState[x];
+                engineState[x] = engineState[y];
+                engineState[y] = tmp;
 
                 // xor
-                output[i+outOff] = (byte)(input[i + inOff] ^ engineState[(sx + sy) & 0xff]);
+                output[i+outOff] = (byte)(input[i + inOff]
+                        ^ engineState[(engineState[x] + engineState[y]) & 0xff]);
             }
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void ProcessBytes(ReadOnlySpan<byte> input, Span<byte> output)
-        {
-            Check.OutputLength(output, input.Length, "output buffer too short");
-
-            for (int i = 0; i < input.Length; i++)
-            {
-                x = (x + 1) & 0xff;
-                y = (engineState[x] + y) & 0xff;
-
-                byte sx = engineState[x];
-                byte sy = engineState[y];
-
-                // swap
-                engineState[x] = sy;
-                engineState[y] = sx;
-
-                // xor
-                output[i] = (byte)(input[i] ^ engineState[(sx + sy) & 0xff]);
-            }
-        }
-#endif
 
         public virtual void Reset()
         {

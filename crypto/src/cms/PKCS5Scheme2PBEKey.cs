@@ -14,6 +14,23 @@ namespace Org.BouncyCastle.Cms
 	public class Pkcs5Scheme2PbeKey
 		: CmsPbeKey
 	{
+		[Obsolete("Use version taking 'char[]' instead")]
+		public Pkcs5Scheme2PbeKey(
+			string	password,
+			byte[]	salt,
+			int		iterationCount)
+			: this(password.ToCharArray(), salt, iterationCount)
+		{
+		}
+
+		[Obsolete("Use version taking 'char[]' instead")]
+		public Pkcs5Scheme2PbeKey(
+			string				password,
+			AlgorithmIdentifier keyDerivationAlgorithm)
+			: this(password.ToCharArray(), keyDerivationAlgorithm)
+		{
+		}
+		
 		public Pkcs5Scheme2PbeKey(
 			char[]	password,
 			byte[]	salt,
@@ -29,19 +46,7 @@ namespace Org.BouncyCastle.Cms
 		{
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public Pkcs5Scheme2PbeKey(ReadOnlySpan<char> password, ReadOnlySpan<byte> salt, int iterationCount)
-            : base(password, salt, iterationCount)
-        {
-        }
-
-        public Pkcs5Scheme2PbeKey(ReadOnlySpan<char> password, AlgorithmIdentifier keyDerivationAlgorithm)
-            : base(password, keyDerivationAlgorithm)
-        {
-        }
-#endif
-
-        internal override KeyParameter GetEncoded(
+		internal override KeyParameter GetEncoded(
 			string algorithmOid)
 		{
 			Pkcs5S2ParametersGenerator gen = new Pkcs5S2ParametersGenerator();
@@ -53,7 +58,7 @@ namespace Org.BouncyCastle.Cms
 
 			return (KeyParameter) gen.GenerateDerivedParameters(
 				algorithmOid,
-				CmsEnvelopedHelper.GetKeySize(algorithmOid));
+				CmsEnvelopedHelper.Instance.GetKeySize(algorithmOid));
 		}
 	}
 }

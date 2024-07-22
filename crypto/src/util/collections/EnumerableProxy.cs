@@ -1,29 +1,25 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 namespace Org.BouncyCastle.Utilities.Collections
 {
-	internal sealed class EnumerableProxy<T>
-		: IEnumerable<T>
+	public sealed class EnumerableProxy
+		: IEnumerable
 	{
-		private readonly IEnumerable<T> m_target;
+		private readonly IEnumerable inner;
 
-		internal EnumerableProxy(IEnumerable<T> target)
+		public EnumerableProxy(
+			IEnumerable inner)
 		{
-			if (target == null)
-				throw new ArgumentNullException(nameof(target));
+			if (inner == null)
+				throw new ArgumentNullException("inner");
 
-			m_target = target;
+			this.inner = inner;
 		}
 
-		System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+		public IEnumerator GetEnumerator()
 		{
-			return m_target.GetEnumerator();
-		}
-
-		public IEnumerator<T> GetEnumerator()
-		{
-			return m_target.GetEnumerator();
+			return inner.GetEnumerator();
 		}
 	}
 }

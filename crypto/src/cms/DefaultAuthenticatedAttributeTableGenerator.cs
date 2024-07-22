@@ -1,8 +1,9 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Cms
 {
@@ -12,14 +13,14 @@ namespace Org.BouncyCastle.Cms
 	public class DefaultAuthenticatedAttributeTableGenerator
 		: CmsAttributeTableGenerator
 	{
-		private readonly IDictionary<DerObjectIdentifier, object> m_table;
+		private readonly IDictionary table;
 
 		/**
 		 * Initialise to use all defaults
 		 */
 		public DefaultAuthenticatedAttributeTableGenerator()
 		{
-			m_table = new Dictionary<DerObjectIdentifier, object>();
+			table = Platform.CreateHashtable();
 		}
 
 		/**
@@ -32,11 +33,11 @@ namespace Org.BouncyCastle.Cms
 		{
 			if (attributeTable != null)
 			{
-				m_table = attributeTable.ToDictionary();
+				table = attributeTable.ToDictionary();
 			}
 			else
 			{
-				m_table = new Dictionary<DerObjectIdentifier, object>();
+				table = Platform.CreateHashtable();
 			}
 		}
 
@@ -50,12 +51,12 @@ namespace Org.BouncyCastle.Cms
 		 *
 		 * @return a filled in IDictionary of attributes.
 		 */
-		protected virtual IDictionary<DerObjectIdentifier, object> CreateStandardAttributeTable(
-			IDictionary<CmsAttributeTableParameter, object> parameters)
+		protected virtual IDictionary CreateStandardAttributeTable(
+			IDictionary parameters)
 		{
-            var std = new Dictionary<DerObjectIdentifier, object>(m_table);
+            IDictionary std = Platform.CreateHashtable(table);
 
-			if (!std.ContainsKey(CmsAttributes.ContentType))
+			if (!std.Contains(CmsAttributes.ContentType))
             {
                 DerObjectIdentifier contentType = (DerObjectIdentifier)
                     parameters[CmsAttributeTableParameter.ContentType];
@@ -64,7 +65,7 @@ namespace Org.BouncyCastle.Cms
                 std[attr.AttrType] = attr;
             }
 
-			if (!std.ContainsKey(CmsAttributes.MessageDigest))
+			if (!std.Contains(CmsAttributes.MessageDigest))
             {
                 byte[] messageDigest = (byte[])parameters[CmsAttributeTableParameter.Digest];
                 Asn1.Cms.Attribute attr = new Asn1.Cms.Attribute(CmsAttributes.MessageDigest,
@@ -75,13 +76,14 @@ namespace Org.BouncyCastle.Cms
             return std;
 		}
 
-		/**
+        /**
 		 * @param parameters source parameters
 		 * @return the populated attribute table
 		 */
-		public virtual AttributeTable GetAttributes(IDictionary<CmsAttributeTableParameter, object> parameters)
+		public virtual AttributeTable GetAttributes(
+			IDictionary parameters)
 		{
-            var table = CreateStandardAttributeTable(parameters);
+            IDictionary table = CreateStandardAttributeTable(parameters);
 			return new AttributeTable(table);
 		}
 	}

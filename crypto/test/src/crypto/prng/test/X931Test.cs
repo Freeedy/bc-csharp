@@ -23,6 +23,11 @@ namespace Org.BouncyCastle.Crypto.Prng.Test
             get { return "X931"; }
         }
 
+        public static void Main(string[] args)
+        {
+            RunTest(new X931Test());
+        }
+
         [Test]
         public void TestFunction()
         {
@@ -36,7 +41,7 @@ namespace Org.BouncyCastle.Crypto.Prng.Test
             return new X931TestVector[]
             {
                 new X931TestVector(
-                    AesUtilities.CreateEngine(),
+                    new AesEngine(),
                     new Aes128EntropyProvider(),
                     "f7d36762b9915f1ed585eb8e91700eb2",
                     "259e67249288597a4d61e7c0e690afae",

@@ -494,6 +494,12 @@ namespace Org.BouncyCastle.Crypto.Tests
             TestECHMacDeterministic();
         }
 
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new DeterministicDsaTest());
+        }
+
         [Test]
         public void TestFunction()
         {

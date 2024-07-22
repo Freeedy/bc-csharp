@@ -18,8 +18,12 @@ using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Pkcs
 {
-    public static class PrivateKeyInfoFactory
+    public sealed class PrivateKeyInfoFactory
     {
+        private PrivateKeyInfoFactory()
+        {
+        }
+
         public static PrivateKeyInfo CreatePrivateKeyInfo(
             AsymmetricKeyParameter privateKey)
         {
@@ -112,28 +116,18 @@ namespace Org.BouncyCastle.Pkcs
                 return new PrivateKeyInfo(algID, keyStruct.ToAsn1Object(), attributes);
             }
 
-            if (privateKey is ECPrivateKeyParameters priv)
+            if (privateKey is ECPrivateKeyParameters)
             {
-                var pub = ECKeyPairGenerator.GetCorrespondingPublicKey(priv);
-                var q = pub.Q;
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                int encodedLength = q.GetEncodedLength(false);
-                Span<byte> pubEncoding = encodedLength <= 512
-                    ? stackalloc byte[encodedLength]
-                    : new byte[encodedLength];
-                q.EncodeTo(false, pubEncoding);
-#else
-                byte[] pubEncoding = q.GetEncoded(false);
-#endif
-
-                DerBitString publicKey = new DerBitString(pubEncoding);
+                ECPrivateKeyParameters priv = (ECPrivateKeyParameters) privateKey;                 
+                DerBitString publicKey = new DerBitString(ECKeyPairGenerator.GetCorrespondingPublicKey(priv).Q.GetEncoded(false));
 
                 ECDomainParameters dp = priv.Parameters;
 
                 // ECGOST3410
-                if (dp is ECGost3410Parameters domainParameters)
+                if (dp is ECGost3410Parameters)
                 {
+                    ECGost3410Parameters domainParameters = (ECGost3410Parameters) dp;
+
                     Gost3410PublicKeyAlgParameters gostParams = new Gost3410PublicKeyAlgParameters(
                         (domainParameters).PublicKeyParamSet,
                         (domainParameters).DigestParamSet,
@@ -161,7 +155,7 @@ namespace Org.BouncyCastle.Pkcs
                 if (priv.AlgorithmName == "ECGOST3410")
                 {
                     if (priv.PublicKeyParamSet == null)
-                        throw new NotImplementedException("Not a CryptoPro parameter set");
+                        throw Platform.CreateNotImplementedException("Not a CryptoPro parameter set");
 
                     Gost3410PublicKeyAlgParameters gostParams = new Gost3410PublicKeyAlgParameters(
                         priv.PublicKeyParamSet, CryptoProObjectIdentifiers.GostR3411x94CryptoProParamSet);
@@ -176,8 +170,7 @@ namespace Org.BouncyCastle.Pkcs
                     X962Parameters x962;
                     if (priv.PublicKeyParamSet == null)
                     {
-                        X9ECParameters ecP = new X9ECParameters(dp.Curve, new X9ECPoint(dp.G, false), dp.N, dp.H,
-                            dp.GetSeed());
+                        X9ECParameters ecP = new X9ECParameters(dp.Curve, dp.G, dp.N, dp.H, dp.GetSeed());
                         x962 = new X962Parameters(ecP);
                     }
                     else
@@ -198,7 +191,7 @@ namespace Org.BouncyCastle.Pkcs
                 Gost3410PrivateKeyParameters _key = (Gost3410PrivateKeyParameters)privateKey;
 
                 if (_key.PublicKeyParamSet == null)
-                    throw new NotImplementedException("Not a CryptoPro parameter set");
+                    throw Platform.CreateNotImplementedException("Not a CryptoPro parameter set");
 
                 byte[] keyEnc = _key.X.ToByteArrayUnsigned();
                 byte[] keyBytes = new byte[keyEnc.Length];

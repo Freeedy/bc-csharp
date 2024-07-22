@@ -3,7 +3,7 @@ using System.IO;
 
 namespace Org.BouncyCastle.Asn1
 {
-	internal class IndefiniteLengthInputStream
+	class IndefiniteLengthInputStream
 		: LimitedInputStream
 	{
         private int _lookAhead;
@@ -57,28 +57,7 @@ namespace Org.BouncyCastle.Asn1
 			return numRead + 1;
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int Read(Span<byte> buffer)
-        {
-            // Only use this optimisation if we aren't checking for 00
-            if (_eofOn00 || buffer.Length <= 1)
-                return base.Read(buffer);
-
-            if (_lookAhead < 0)
-                return 0;
-
-            int numRead = _in.Read(buffer[1..]);
-            if (numRead <= 0)
-                throw new EndOfStreamException();
-
-            buffer[0] = (byte)_lookAhead;
-            _lookAhead = RequireByte();
-
-            return numRead + 1;
-        }
-#endif
-
-        public override int ReadByte()
+		public override int ReadByte()
 		{
             if (_eofOn00 && _lookAhead <= 0)
             {

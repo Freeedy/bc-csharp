@@ -1,42 +1,31 @@
 using System;
 
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Crypto.Parameters
 {
 	/// <remarks>Parameters for mask derivation functions.</remarks>
-    public sealed class MgfParameters
+    public class MgfParameters
 		: IDerivationParameters
     {
-        private readonly byte[] m_seed;
+        private readonly byte[] seed;
 
-		public MgfParameters(byte[] seed)
+		public MgfParameters(
+            byte[] seed)
 			: this(seed, 0, seed.Length)
         {
         }
 
-		public MgfParameters(byte[] seed, int off, int len)
+		public MgfParameters(
+            byte[]  seed,
+            int     off,
+            int     len)
         {
-            m_seed = Arrays.CopyOfRange(seed, off, len);
+            this.seed = new byte[len];
+            Array.Copy(seed, off, this.seed, 0, len);
         }
 
-        public byte[] GetSeed()
+		public byte[] GetSeed()
         {
-            return (byte[])m_seed.Clone();
+            return (byte[]) seed.Clone();
         }
-
-        public void GetSeed(byte[] buffer, int offset)
-        {
-            m_seed.CopyTo(buffer, offset);
-        }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public void GetSeed(Span<byte> output)
-        {
-            m_seed.CopyTo(output);
-        }
-#endif
-
-        public int SeedLength => m_seed.Length;
     }
 }

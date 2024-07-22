@@ -15,14 +15,13 @@ using Org.BouncyCastle.Crypto.Parameters;
 
 namespace Org.BouncyCastle.Crypto.Utilities
 {
-    // TODO[api] Make static
     public class CipherFactory
     {
         private CipherFactory()
         {
         }
 
-        private static readonly byte[] RC2Ekb =
+        private static readonly short[] rc2Ekb =
         {
             0x5d, 0xbe, 0x9b, 0x8b, 0x11, 0x99, 0x6e, 0x4d, 0x59, 0xf3, 0x85, 0xa6, 0x3f, 0xb7, 0x83, 0xc5,
             0xe4, 0x73, 0x6b, 0x3a, 0x68, 0x5a, 0xc0, 0x47, 0xa0, 0x64, 0x34, 0x0c, 0xf1, 0xd0, 0x52, 0xa5,
@@ -42,20 +41,6 @@ namespace Org.BouncyCastle.Crypto.Utilities
             0x3b, 0x05, 0x03, 0x54, 0x60, 0x48, 0x65, 0x18, 0xd2, 0xcd, 0x5f, 0x32, 0x88, 0x0e, 0x35, 0xfd
         };
 
-        private static int GetRC2EffectiveKeyBits(RC2CbcParameter rc2CbcParameter)
-        {
-            var version = rc2CbcParameter.RC2ParameterVersionData;
-            if (version == null)
-                return 32;
-
-            int encoding = version.IntPositiveValueExact;
-            if (encoding >= 256)
-                return encoding;
-
-            // TODO Why an entire table when RFC 8018 B.2.3. says only 160, 120, 58, 256+ are defined?
-            return RC2Ekb[encoding];
-        }
-
         public static object CreateContentCipher(bool forEncryption, ICipherParameters encKey,
             AlgorithmIdentifier encryptionAlgID)
         {
@@ -63,76 +48,75 @@ namespace Org.BouncyCastle.Crypto.Utilities
 
             if (encAlg.Equals(PkcsObjectIdentifiers.rc4))
             {
-                var rc4Engine = new RC4Engine();
-                rc4Engine.Init(forEncryption, encKey);
-                return rc4Engine;
-            }
-
-            BufferedBlockCipher cipher = CreateCipher(encryptionAlgID.Algorithm);
-            Asn1Object sParams = encryptionAlgID.Parameters.ToAsn1Object();
-
-            if (sParams != null && !(sParams is DerNull))
-            {
-                if (encAlg.Equals(PkcsObjectIdentifiers.DesEde3Cbc)
-                    || encAlg.Equals(AlgorithmIdentifierFactory.IDEA_CBC)
-                    || encAlg.Equals(NistObjectIdentifiers.IdAes128Cbc)
-                    || encAlg.Equals(NistObjectIdentifiers.IdAes192Cbc)
-                    || encAlg.Equals(NistObjectIdentifiers.IdAes256Cbc)
-                    || encAlg.Equals(NttObjectIdentifiers.IdCamellia128Cbc)
-                    || encAlg.Equals(NttObjectIdentifiers.IdCamellia192Cbc)
-                    || encAlg.Equals(NttObjectIdentifiers.IdCamellia256Cbc)
-                    || encAlg.Equals(KisaObjectIdentifiers.IdSeedCbc)
-                    || encAlg.Equals(OiwObjectIdentifiers.DesCbc))
-                {
-                    cipher.Init(forEncryption, new ParametersWithIV(encKey,
-                        Asn1OctetString.GetInstance(sParams).GetOctets()));
-                }
-                else if (encAlg.Equals(AlgorithmIdentifierFactory.CAST5_CBC))
-                {
-                    Cast5CbcParameters cbcParams = Cast5CbcParameters.GetInstance(sParams);
-
-                    cipher.Init(forEncryption, new ParametersWithIV(encKey, cbcParams.GetIV()));
-                }
-                else if (encAlg.Equals(PkcsObjectIdentifiers.RC2Cbc))
-                {
-                    var rc2CbcParameter = RC2CbcParameter.GetInstance(sParams);
-                    var rc2Parameters = new RC2Parameters(
-                        ((KeyParameter)encKey).GetKey(),
-                        GetRC2EffectiveKeyBits(rc2CbcParameter));
-
-                    cipher.Init(forEncryption, new ParametersWithIV(rc2Parameters, rc2CbcParameter.IV.GetOctets()));
-                }
-                else
-                {
-                    throw new InvalidOperationException("cannot match parameters");
-                }
+                IStreamCipher cipher = new RC4Engine();
+                cipher.Init(forEncryption, encKey);
+                return cipher;
             }
             else
             {
-                if (encAlg.Equals(PkcsObjectIdentifiers.DesEde3Cbc)
-                    || encAlg.Equals(AlgorithmIdentifierFactory.IDEA_CBC)
-                    || encAlg.Equals(AlgorithmIdentifierFactory.CAST5_CBC))
+                BufferedBlockCipher cipher = CreateCipher(encryptionAlgID.Algorithm);
+                Asn1Object sParams = encryptionAlgID.Parameters.ToAsn1Object();
+
+                if (sParams != null && !(sParams is DerNull))
                 {
-                    cipher.Init(forEncryption, new ParametersWithIV(encKey, new byte[8]));
+                    if (encAlg.Equals(PkcsObjectIdentifiers.DesEde3Cbc)
+                        || encAlg.Equals(AlgorithmIdentifierFactory.IDEA_CBC)
+                        || encAlg.Equals(NistObjectIdentifiers.IdAes128Cbc)
+                        || encAlg.Equals(NistObjectIdentifiers.IdAes192Cbc)
+                        || encAlg.Equals(NistObjectIdentifiers.IdAes256Cbc)
+                        || encAlg.Equals(NttObjectIdentifiers.IdCamellia128Cbc)
+                        || encAlg.Equals(NttObjectIdentifiers.IdCamellia192Cbc)
+                        || encAlg.Equals(NttObjectIdentifiers.IdCamellia256Cbc)
+                        || encAlg.Equals(KisaObjectIdentifiers.IdSeedCbc)
+                        || encAlg.Equals(OiwObjectIdentifiers.DesCbc))
+                    {
+                        cipher.Init(forEncryption, new ParametersWithIV(encKey,
+                            Asn1OctetString.GetInstance(sParams).GetOctets()));
+                    }
+                    else if (encAlg.Equals(AlgorithmIdentifierFactory.CAST5_CBC))
+                    {
+                        Cast5CbcParameters cbcParams = Cast5CbcParameters.GetInstance(sParams);
+
+                        cipher.Init(forEncryption, new ParametersWithIV(encKey, cbcParams.GetIV()));
+                    }
+                    else if (encAlg.Equals(PkcsObjectIdentifiers.RC2Cbc))
+                    {
+                        RC2CbcParameter cbcParams = RC2CbcParameter.GetInstance(sParams);
+
+                        cipher.Init(forEncryption, new ParametersWithIV(new RC2Parameters(((KeyParameter)encKey).GetKey(), rc2Ekb[cbcParams.RC2ParameterVersion.IntValue]), cbcParams.GetIV()));
+                    }
+                    else
+                    {
+                        throw new InvalidOperationException("cannot match parameters");
+                    }
                 }
                 else
                 {
-                    cipher.Init(forEncryption, encKey);
+                    if (encAlg.Equals(PkcsObjectIdentifiers.DesEde3Cbc)
+                        || encAlg.Equals(AlgorithmIdentifierFactory.IDEA_CBC)
+                        || encAlg.Equals(AlgorithmIdentifierFactory.CAST5_CBC))
+                    {
+                        cipher.Init(forEncryption, new ParametersWithIV(encKey, new byte[8]));
+                    }
+                    else
+                    {
+                        cipher.Init(forEncryption, encKey);
+                    }
                 }
-            }
 
-            return cipher;
+                return cipher;
+            }
         }
 
         private static BufferedBlockCipher CreateCipher(DerObjectIdentifier algorithm)
         {
-            IBlockCipherMode cipher;
+            IBlockCipher cipher;
 
             if (NistObjectIdentifiers.IdAes128Cbc.Equals(algorithm)
                 || NistObjectIdentifiers.IdAes192Cbc.Equals(algorithm)
                 || NistObjectIdentifiers.IdAes256Cbc.Equals(algorithm))
             {
-                cipher = new CbcBlockCipher(AesUtilities.CreateEngine());
+                cipher = new CbcBlockCipher(new AesEngine());
             }
             else if (PkcsObjectIdentifiers.DesEde3Cbc.Equals(algorithm))
             {

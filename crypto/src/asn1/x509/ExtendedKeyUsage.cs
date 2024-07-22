@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Utilities;
 
@@ -38,10 +38,11 @@ namespace Org.BouncyCastle.Asn1.X509
             return GetInstance(X509Extensions.GetExtensionParsedValue(extensions, X509Extensions.ExtendedKeyUsage));
         }
 
-        internal readonly HashSet<DerObjectIdentifier> m_usageTable = new HashSet<DerObjectIdentifier>();
+        internal readonly IDictionary usageTable = Platform.CreateHashtable();
         internal readonly Asn1Sequence seq;
 
-        private ExtendedKeyUsage(Asn1Sequence seq)
+        private ExtendedKeyUsage(
+            Asn1Sequence seq)
         {
             this.seq = seq;
 
@@ -49,51 +50,73 @@ namespace Org.BouncyCastle.Asn1.X509
             {
                 DerObjectIdentifier oid = DerObjectIdentifier.GetInstance(element);
 
-                m_usageTable.Add(oid);
+                this.usageTable[oid] = oid;
             }
         }
 
-        public ExtendedKeyUsage(params KeyPurposeID[] usages)
+        public ExtendedKeyUsage(
+            params KeyPurposeID[] usages)
         {
             this.seq = new DerSequence(usages);
 
             foreach (KeyPurposeID usage in usages)
             {
-                m_usageTable.Add(usage);
+                this.usageTable[usage] = usage;
             }
         }
 
-        public ExtendedKeyUsage(IEnumerable<DerObjectIdentifier> usages)
+#if !(SILVERLIGHT || PORTABLE)
+        [Obsolete]
+        public ExtendedKeyUsage(
+            ArrayList usages)
+            : this((IEnumerable)usages)
+        {
+        }
+#endif
+
+        public ExtendedKeyUsage(
+            IEnumerable usages)
         {
             Asn1EncodableVector v = new Asn1EncodableVector();
 
-            foreach (var oid in usages)
+            foreach (object usage in usages)
             {
+                DerObjectIdentifier oid = DerObjectIdentifier.GetInstance(usage);
+
                 v.Add(oid);
-                m_usageTable.Add(oid);
+                this.usageTable[oid] = oid;
             }
 
             this.seq = new DerSequence(v);
         }
 
-        public bool HasKeyPurposeId(KeyPurposeID keyPurposeId)
+        public bool HasKeyPurposeId(
+            KeyPurposeID keyPurposeId)
         {
-            return m_usageTable.Contains(keyPurposeId);
+            return usageTable.Contains(keyPurposeId);
         }
+
+#if !(SILVERLIGHT || PORTABLE)
+        [Obsolete("Use 'GetAllUsages'")]
+        public ArrayList GetUsages()
+        {
+            return new ArrayList(usageTable.Values);
+        }
+#endif
 
         /**
          * Returns all extended key usages.
          * The returned ArrayList contains DerObjectIdentifier instances.
          * @return An ArrayList with all key purposes.
          */
-        public IList<DerObjectIdentifier> GetAllUsages()
+        public IList GetAllUsages()
         {
-            return new List<DerObjectIdentifier>(m_usageTable);
+            return Platform.CreateArrayList(usageTable.Values);
         }
 
         public int Count
         {
-            get { return m_usageTable.Count; }
+            get { return usageTable.Count; }
         }
 
         public override Asn1Object ToAsn1Object()

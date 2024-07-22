@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Nist;
@@ -9,6 +9,7 @@ using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto.Encodings;
 using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Crypto.Operators
@@ -20,18 +21,13 @@ namespace Org.BouncyCastle.Crypto.Operators
         private IKeyWrapper wrapper;
 
         public Asn1KeyWrapper(string algorithm, X509Certificate cert)
-             : this(algorithm, cert.GetPublicKey())
-        {
-        }
-
-        public Asn1KeyWrapper(string algorithm, ICipherParameters key)
         {
             this.algorithm = algorithm;
-            wrapper = KeyWrapperUtil.WrapperForName(algorithm, key);
+            wrapper = KeyWrapperUtil.WrapperForName(algorithm, cert.GetPublicKey());
         }
 
         public Asn1KeyWrapper(DerObjectIdentifier algorithm, X509Certificate cert)
-             : this(algorithm, null, cert.GetPublicKey())
+             : this(algorithm, cert.GetPublicKey())
         {
         }
 
@@ -40,18 +36,8 @@ namespace Org.BouncyCastle.Crypto.Operators
         {
         }
 
-        public Asn1KeyWrapper(AlgorithmIdentifier algorithm, X509Certificate cert)
-            : this(algorithm.Algorithm, algorithm.Parameters, cert.GetPublicKey())
-        {
-        }
-
         public Asn1KeyWrapper(DerObjectIdentifier algorithm, Asn1Encodable parameters, X509Certificate cert)
-            : this(algorithm, parameters, cert.GetPublicKey())
-        {
-        }
-
-        public Asn1KeyWrapper(AlgorithmIdentifier algorithm, ICipherParameters key)
-            : this(algorithm.Algorithm, algorithm.Parameters, key)
+            :this(algorithm, parameters, cert.GetPublicKey())
         {
         }
 
@@ -169,24 +155,26 @@ namespace Org.BouncyCastle.Crypto.Operators
         //
         // Provider 
         //
-        private static readonly Dictionary<string, WrapperProvider> m_providerMap =
-            new Dictionary<string, WrapperProvider>(StringComparer.OrdinalIgnoreCase);
+        private static readonly IDictionary providerMap = Platform.CreateHashtable();
 
         static KeyWrapperUtil()
+            
         {
-            m_providerMap.Add("RSA/ECB/PKCS1PADDING", new RsaOaepWrapperProvider(OiwObjectIdentifiers.IdSha1));
-            m_providerMap.Add("RSA/NONE/PKCS1PADDING", new RsaOaepWrapperProvider(OiwObjectIdentifiers.IdSha1));
-            m_providerMap.Add("RSA/NONE/OAEPWITHSHA1ANDMGF1PADDING", new RsaOaepWrapperProvider(OiwObjectIdentifiers.IdSha1));
-            m_providerMap.Add("RSA/NONE/OAEPWITHSHA224ANDMGF1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha224));
-            m_providerMap.Add("RSA/NONE/OAEPWITHSHA256ANDMGF1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha256));
-            m_providerMap.Add("RSA/NONE/OAEPWITHSHA384ANDMGF1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha384));
-            m_providerMap.Add("RSA/NONE/OAEPWITHSHA512ANDMGF1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha512));
-            m_providerMap.Add("RSA/NONE/OAEPWITHSHA256ANDMGF1WITHSHA1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha256, OiwObjectIdentifiers.IdSha1));
+            providerMap.Add("RSA/ECB/PKCS1PADDING", new RsaOaepWrapperProvider(OiwObjectIdentifiers.IdSha1));
+            providerMap.Add("RSA/NONE/PKCS1PADDING", new RsaOaepWrapperProvider(OiwObjectIdentifiers.IdSha1));
+            providerMap.Add("RSA/NONE/OAEPWITHSHA1ANDMGF1PADDING", new RsaOaepWrapperProvider(OiwObjectIdentifiers.IdSha1));
+            providerMap.Add("RSA/NONE/OAEPWITHSHA224ANDMGF1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha224));
+            providerMap.Add("RSA/NONE/OAEPWITHSHA256ANDMGF1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha256));
+            providerMap.Add("RSA/NONE/OAEPWITHSHA384ANDMGF1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha384));
+            providerMap.Add("RSA/NONE/OAEPWITHSHA512ANDMGF1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha512));
+            providerMap.Add("RSA/NONE/OAEPWITHSHA256ANDMGF1WITHSHA1PADDING", new RsaOaepWrapperProvider(NistObjectIdentifiers.IdSha256, OiwObjectIdentifiers.IdSha1));
         }
 
         public static IKeyWrapper WrapperForName(string algorithm, ICipherParameters parameters)
         {
-            if (!m_providerMap.TryGetValue(algorithm, out var provider))
+            WrapperProvider provider = (WrapperProvider)providerMap[Strings.ToUpperCase(algorithm)];
+
+            if (provider == null)
                 throw new ArgumentException("could not resolve " + algorithm + " to a KeyWrapper");
 
             return (IKeyWrapper)provider.CreateWrapper(true, parameters);
@@ -194,7 +182,8 @@ namespace Org.BouncyCastle.Crypto.Operators
 
         public static IKeyUnwrapper UnwrapperForName(string algorithm, ICipherParameters parameters)
         {
-            if (!m_providerMap.TryGetValue(algorithm, out var provider))
+            WrapperProvider provider = (WrapperProvider)providerMap[Strings.ToUpperCase(algorithm)];
+            if (provider == null)
                 throw new ArgumentException("could not resolve " + algorithm + " to a KeyUnwrapper");
 
             return (IKeyUnwrapper)provider.CreateWrapper(false, parameters);

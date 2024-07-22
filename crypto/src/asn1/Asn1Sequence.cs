@@ -1,6 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Utilities;
@@ -9,7 +8,7 @@ using Org.BouncyCastle.Utilities.Collections;
 namespace Org.BouncyCastle.Asn1
 {
     public abstract class Asn1Sequence
-        : Asn1Object, IEnumerable<Asn1Encodable>
+        : Asn1Object, IEnumerable
     {
         internal class Meta : Asn1UniversalType
         {
@@ -31,22 +30,22 @@ namespace Org.BouncyCastle.Asn1
          */
         public static Asn1Sequence GetInstance(object obj)
         {
-            if (obj == null)
-                return null;
-
-            if (obj is Asn1Sequence asn1Sequence)
-                return asn1Sequence;
-
-            if (obj is IAsn1Convertible asn1Convertible)
+            if (obj == null || obj is Asn1Sequence)
             {
-                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is Asn1Sequence converted)
-                    return converted;
+                return (Asn1Sequence)obj;
             }
-            else if (obj is byte[] bytes)
+            //else if (obj is Asn1SequenceParser)
+            else if (obj is IAsn1Convertible)
+            {
+                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
+                if (asn1Object is Asn1Sequence)
+                    return (Asn1Sequence)asn1Object;
+            }
+            else if (obj is byte[])
             {
                 try
                 {
-                    return (Asn1Sequence)Meta.Instance.FromByteArray(bytes);
+                    return (Asn1Sequence)Meta.Instance.FromByteArray((byte[])obj);
                 }
                 catch (IOException e)
                 {
@@ -76,67 +75,20 @@ namespace Org.BouncyCastle.Asn1
             return (Asn1Sequence)Meta.Instance.GetContextInstance(taggedObject, declaredExplicit);
         }
 
-        public static Asn1Sequence GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is Asn1Sequence existing)
-                return existing;
-
-            return null;
-        }
-
-        public static Asn1Sequence GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return (Asn1Sequence)Meta.Instance.GetTagged(taggedObject, declaredExplicit);
-        }
-
-        internal static Asn1Encodable[] ConcatenateElements(Asn1Sequence[] sequences)
-        {
-            int count = sequences.Length;
-            int totalElements = 0;
-            for (int i = 0; i < count; ++i)
-            {
-                totalElements += sequences[i].Count;
-            }
-
-            Asn1Encodable[] concatElements = new Asn1Encodable[totalElements];
-            int pos = 0;
-            for (int i = 0; i < count; ++i)
-            {
-                Asn1Encodable[] elements = sequences[i].m_elements;
-                Array.Copy(elements, 0, concatElements, pos, elements.Length);
-                pos += elements.Length;
-            }
-
-            Debug.Assert(pos == totalElements);
-            return concatElements;
-        }
-
-        internal readonly Asn1Encodable[] m_elements;
+        // NOTE: Only non-readonly to support LazyDLSequence
+        internal Asn1Encodable[] elements;
 
         protected internal Asn1Sequence()
         {
-            m_elements = Asn1EncodableVector.EmptyElements;
+            this.elements = Asn1EncodableVector.EmptyElements;
         }
 
         protected internal Asn1Sequence(Asn1Encodable element)
         {
             if (null == element)
-                throw new ArgumentNullException(nameof(element));
+                throw new ArgumentNullException("element");
 
-            m_elements = new Asn1Encodable[]{ element };
-        }
-
-        protected internal Asn1Sequence(Asn1Encodable element1, Asn1Encodable element2)
-        {
-            if (null == element1)
-                throw new ArgumentNullException(nameof(element1));
-            if (null == element2)
-                throw new ArgumentNullException(nameof(element2));
-
-            m_elements = new Asn1Encodable[]{ element1, element2 };
+            this.elements = new Asn1Encodable[]{ element };
         }
 
         protected internal Asn1Sequence(params Asn1Encodable[] elements)
@@ -144,12 +96,12 @@ namespace Org.BouncyCastle.Asn1
             if (Arrays.IsNullOrContainsNull(elements))
                 throw new NullReferenceException("'elements' cannot be null, or contain null");
 
-            m_elements = Asn1EncodableVector.CloneElements(elements);
+            this.elements = Asn1EncodableVector.CloneElements(elements);
         }
 
         internal Asn1Sequence(Asn1Encodable[] elements, bool clone)
         {
-            m_elements = clone ? Asn1EncodableVector.CloneElements(elements) : elements;
+            this.elements = clone ? Asn1EncodableVector.CloneElements(elements) : elements;
         }
 
         protected internal Asn1Sequence(Asn1EncodableVector elementVector)
@@ -157,52 +109,53 @@ namespace Org.BouncyCastle.Asn1
             if (null == elementVector)
                 throw new ArgumentNullException("elementVector");
 
-            m_elements = elementVector.TakeElements();
+            this.elements = elementVector.TakeElements();
         }
 
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()
+        public virtual IEnumerator GetEnumerator()
         {
-            return GetEnumerator();
-        }
-
-        public virtual IEnumerator<Asn1Encodable> GetEnumerator()
-        {
-            IEnumerable<Asn1Encodable> e = m_elements;
-            return e.GetEnumerator();
+            return elements.GetEnumerator();
         }
 
         private class Asn1SequenceParserImpl
             : Asn1SequenceParser
         {
-            private readonly Asn1Sequence m_outer;
-            private int m_index;
+            private readonly Asn1Sequence outer;
+            private readonly int max;
+            private int index;
 
-            public Asn1SequenceParserImpl(Asn1Sequence outer)
+            public Asn1SequenceParserImpl(
+                Asn1Sequence outer)
             {
-                m_outer = outer;
-                m_index = 0;
+                this.outer = outer;
+                // NOTE: Call Count here to 'force' a LazyDerSequence
+                this.max = outer.Count;
             }
 
             public IAsn1Convertible ReadObject()
             {
-                var elements = m_outer.m_elements;
-                if (m_index >= elements.Length)
+                if (index == max)
                     return null;
 
-                Asn1Encodable obj = elements[m_index++];
+                Asn1Encodable obj = outer[index++];
 
-                if (obj is Asn1Sequence asn1Sequence)
-                    return asn1Sequence.Parser;
+                if (obj is Asn1Sequence)
+                    return ((Asn1Sequence)obj).Parser;
 
-                if (obj is Asn1Set asn1Set)
-                    return asn1Set.Parser;
+                if (obj is Asn1Set)
+                    return ((Asn1Set)obj).Parser;
 
                 // NB: Asn1OctetString implements Asn1OctetStringParser directly
+//				if (obj is Asn1OctetString)
+//					return ((Asn1OctetString)obj).Parser;
 
                 return obj;
             }
 
-            public Asn1Object ToAsn1Object() => m_outer;
+            public Asn1Object ToAsn1Object()
+            {
+                return outer;
+            }
         }
 
         public virtual Asn1SequenceParser Parser
@@ -218,39 +171,29 @@ namespace Org.BouncyCastle.Asn1
          */
         public virtual Asn1Encodable this[int index]
         {
-            get { return m_elements[index]; }
+            get { return elements[index]; }
         }
 
         public virtual int Count
         {
-            get { return m_elements.Length; }
-        }
-
-        public virtual T[] MapElements<T>(Func<Asn1Encodable, T> func)
-        {
-            int count = Count;
-            T[] result = new T[count];
-            for (int i = 0; i < count; ++i)
-            {
-                result[i] = func(m_elements[i]);
-            }
-            return result;
+            get { return elements.Length; }
         }
 
         public virtual Asn1Encodable[] ToArray()
         {
-            return Asn1EncodableVector.CloneElements(m_elements);
+            return Asn1EncodableVector.CloneElements(elements);
         }
 
         protected override int Asn1GetHashCode()
         {
+            // NOTE: Call Count here to 'force' a LazyDerSequence
             int i = Count;
             int hc = i + 1;
 
             while (--i >= 0)
             {
                 hc *= 257;
-                hc ^= m_elements[i].ToAsn1Object().CallAsn1GetHashCode();
+                hc ^= elements[i].ToAsn1Object().CallAsn1GetHashCode();
             }
 
             return hc;
@@ -258,17 +201,19 @@ namespace Org.BouncyCastle.Asn1
 
         protected override bool Asn1Equals(Asn1Object asn1Object)
         {
-            if (!(asn1Object is Asn1Sequence that))
+            Asn1Sequence that = asn1Object as Asn1Sequence;
+            if (null == that)
                 return false;
 
+            // NOTE: Call Count here (on both) to 'force' a LazyDerSequence
             int count = this.Count;
             if (that.Count != count)
                 return false;
 
             for (int i = 0; i < count; ++i)
             {
-                Asn1Object o1 = this.m_elements[i].ToAsn1Object();
-                Asn1Object o2 = that.m_elements[i].ToAsn1Object();
+                Asn1Object o1 = this.elements[i].ToAsn1Object();
+                Asn1Object o2 = that.elements[i].ToAsn1Object();
 
                 if (!o1.Equals(o2))
                     return false;
@@ -279,18 +224,32 @@ namespace Org.BouncyCastle.Asn1
 
         public override string ToString()
         {
-            return CollectionUtilities.ToString(m_elements);
+            return CollectionUtilities.ToString(elements);
         }
 
         // TODO[asn1] Preferably return an Asn1BitString[] (doesn't exist yet)
         internal DerBitString[] GetConstructedBitStrings()
         {
-            return MapElements(DerBitString.GetInstance);
+            // NOTE: Call Count here to 'force' a LazyDerSequence
+            int count = Count;
+            DerBitString[] bitStrings = new DerBitString[count];
+            for (int i = 0; i < count; ++i)
+            {
+                bitStrings[i] = DerBitString.GetInstance(elements[i]);
+            }
+            return bitStrings;
         }
 
         internal Asn1OctetString[] GetConstructedOctetStrings()
         {
-            return MapElements(Asn1OctetString.GetInstance);
+            // NOTE: Call Count here to 'force' a LazyDerSequence
+            int count = Count;
+            Asn1OctetString[] octetStrings = new Asn1OctetString[count];
+            for (int i = 0; i < count; ++i)
+            {
+                octetStrings[i] = Asn1OctetString.GetInstance(elements[i]);
+            }
+            return octetStrings;
         }
 
         // TODO[asn1] Preferably return an Asn1BitString (doesn't exist yet)

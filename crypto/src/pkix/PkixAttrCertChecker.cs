@@ -1,7 +1,7 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
-using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Pkix
@@ -27,7 +27,7 @@ namespace Org.BouncyCastle.Pkix
 		 *         <code>PkixAttrCertChecker</code>, or <code>null</code> if no
 		 *         extensions are supported
 		 */
-		public abstract ISet<DerObjectIdentifier> GetSupportedExtensions();
+		public abstract ISet GetSupportedExtensions();
 
 		/**
 		* Performs checks on the specified attribute certificate. Every handled
@@ -44,8 +44,8 @@ namespace Org.BouncyCastle.Pkix
 		* @throws CertPathValidatorException if the specified attribute certificate
 		*             does not pass the check.
 		*/
-		public abstract void Check(X509V2AttributeCertificate attrCert, PkixCertPath certPath,
-			PkixCertPath holderCertPath, ICollection<string> unresolvedCritExts);
+		public abstract void Check(IX509AttributeCertificate attrCert, PkixCertPath certPath,
+			PkixCertPath holderCertPath, ICollection unresolvedCritExts);
 
 		/**
 		* Returns a clone of this object.

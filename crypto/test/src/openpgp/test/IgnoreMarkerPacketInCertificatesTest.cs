@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 using System.Text;
 
@@ -71,12 +71,12 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
             PgpPublicKeyRing certificate = (PgpPublicKeyRing)objectFactory.NextPgpObject();
             IsEquals("Bob Babbage <bob@openpgp.example>", First(certificate.GetPublicKey().GetUserIds()));
-            var publicKeys = certificate.GetPublicKeys();
-            var publicKeyEnum = publicKeys.GetEnumerator();
+            IEnumerable publicKeys = certificate.GetPublicKeys();
+            IEnumerator publicKeyEnum = publicKeys.GetEnumerator();
             IsTrue(publicKeyEnum.MoveNext());
             PgpPublicKey primaryKey = (PgpPublicKey)publicKeyEnum.Current;
             IsEquals(new BigInteger("FBFCC82A015E7330", 16).LongValue, primaryKey.KeyId);
-            var signatures = primaryKey.GetSignatures();
+            IEnumerable signatures = primaryKey.GetSignatures();
             IsEquals(1, Count(signatures));
 
             IsTrue(publicKeyEnum.MoveNext());
@@ -86,6 +86,11 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             IsEquals(1, Count(signatures));
         }
 
+		public static void Main(string[] args)
+		{
+			RunTest(new IgnoreMarkerPacketInCertificatesTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{
@@ -94,19 +99,19 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 			Assert.AreEqual(Name + ": Okay", resultText);
 		}
 
-        private int Count<T>(IEnumerable<T> e)
+        private int Count(IEnumerable e)
         {
             int count = 0;
-            foreach (T t in e)
+            foreach (object o in e)
             {
                 ++count;
             }
             return count;
         }
 
-        private T First<T>(IEnumerable<T> e)
+        private object First(IEnumerable e)
         {
-            var enumerator = e.GetEnumerator();
+            IEnumerator enumerator = e.GetEnumerator();
             IsTrue(enumerator.MoveNext());
             return enumerator.Current;
         }

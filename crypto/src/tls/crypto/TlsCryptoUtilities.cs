@@ -4,7 +4,6 @@ using System.IO;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.Pkcs;
-using Org.BouncyCastle.Asn1.Rosstandart;
 using Org.BouncyCastle.Asn1.X509;
 
 namespace Org.BouncyCastle.Tls.Crypto
@@ -69,8 +68,6 @@ namespace Org.BouncyCastle.Tls.Crypto
                 return CryptoHashAlgorithm.sha384;
             case PrfAlgorithm.tls13_hkdf_sm3:
                 return CryptoHashAlgorithm.sm3;
-            case PrfAlgorithm.tls_prf_gostr3411_2012_256:
-                return CryptoHashAlgorithm.gostr3411_2012_256;
             default:
                 throw new ArgumentException("unknown PrfAlgorithm: " + PrfAlgorithm.GetText(prfAlgorithm));
             }
@@ -85,7 +82,6 @@ namespace Org.BouncyCastle.Tls.Crypto
             case CryptoHashAlgorithm.sha224:
             case CryptoHashAlgorithm.sha256:
             case CryptoHashAlgorithm.sm3:
-            case CryptoHashAlgorithm.gostr3411_2012_256:
                 return 64;
             case CryptoHashAlgorithm.sha384:
             case CryptoHashAlgorithm.sha512:
@@ -107,7 +103,6 @@ namespace Org.BouncyCastle.Tls.Crypto
                 return 28;
             case CryptoHashAlgorithm.sha256:
             case CryptoHashAlgorithm.sm3:
-            case CryptoHashAlgorithm.gostr3411_2012_256:
                 return 32;
             case CryptoHashAlgorithm.sha384:
                 return 48;
@@ -137,8 +132,6 @@ namespace Org.BouncyCastle.Tls.Crypto
             // TODO[RFC 8998]
             //case CryptoHashAlgorithm.sm3:
             //    return GMObjectIdentifiers.sm3;
-            case CryptoHashAlgorithm.gostr3411_2012_256:
-                return RosstandartObjectIdentifiers.id_tc26_gost_3411_12_256;
             default:
                 throw new ArgumentException();
             }
@@ -190,9 +183,6 @@ namespace Org.BouncyCastle.Tls.Crypto
         public static TlsSecret HkdfExpandLabel(TlsSecret secret, int cryptoHashAlgorithm, string label,
             byte[] context, int length)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return HkdfExpandLabel(secret, cryptoHashAlgorithm, label.AsSpan(), context.AsSpan(), length);
-#else
             int labelLength = label.Length;
             if (labelLength < 1)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -229,53 +219,6 @@ namespace Org.BouncyCastle.Tls.Crypto
             }
 
             return secret.HkdfExpand(cryptoHashAlgorithm, hkdfLabel, length);
-#endif
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        /// <exception cref="IOException"/>
-        public static TlsSecret HkdfExpandLabel(TlsSecret secret, int cryptoHashAlgorithm, ReadOnlySpan<char> label,
-            ReadOnlySpan<byte> context, int length)
-        {
-            int labelLength = label.Length;
-            if (labelLength < 1)
-                throw new TlsFatalAlert(AlertDescription.internal_error);
-
-            int contextLength = context.Length;
-            int expandedLabelLength = Tls13Prefix.Length + labelLength;
-
-            int hkdfLabelLength = 2 + (1 + expandedLabelLength) + (1 + contextLength);
-            Span<byte> hkdfLabel = hkdfLabelLength <= 512
-                ? stackalloc byte[hkdfLabelLength]
-                : new byte[hkdfLabelLength];
-
-            // uint16 length
-            {
-                TlsUtilities.CheckUint16(length);
-                TlsUtilities.WriteUint16(length, hkdfLabel);
-            }
-
-            // opaque label<7..255>
-            {
-                TlsUtilities.CheckUint8(expandedLabelLength);
-                TlsUtilities.WriteUint8(expandedLabelLength, hkdfLabel[2..]);
-
-                Tls13Prefix.CopyTo(hkdfLabel[3..]);
-
-                int labelPos = 2 + (1 + Tls13Prefix.Length);
-                for (int i = 0; i < labelLength; ++i)
-                {
-                    hkdfLabel[labelPos + i] = (byte)label[i];
-                }
-            }
-
-            // context
-            {
-                TlsUtilities.WriteOpaque8(context, hkdfLabel.Slice(2 + (1 + expandedLabelLength)));
-            }
-
-            return secret.HkdfExpand(cryptoHashAlgorithm, hkdfLabel, length);
-        }
-#endif
     }
 }

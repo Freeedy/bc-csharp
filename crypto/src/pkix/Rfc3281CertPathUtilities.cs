@@ -1,6 +1,9 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
+using System.Globalization;
+using System.IO;
 
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Security.Certificates;
@@ -10,10 +13,10 @@ using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.Pkix
 {
-	internal static class Rfc3281CertPathUtilities
+	internal class Rfc3281CertPathUtilities
 	{
 		internal static void ProcessAttrCert7(
-			X509V2AttributeCertificate	attrCert,
+			IX509AttributeCertificate	attrCert,
 			PkixCertPath				certPath,
 			PkixCertPath				holderCertPath,
 			PkixParameters				pkixParams)
@@ -22,7 +25,7 @@ namespace Org.BouncyCastle.Pkix
 			// AA Controls
 			// Attribute encryption
 			// Proxy
-			var critExtOids = attrCert.GetCriticalExtensionOids();
+			ISet critExtOids = attrCert.GetCriticalExtensionOids();
 
 			// 7.1
 			// process extensions
@@ -46,10 +49,11 @@ namespace Org.BouncyCastle.Pkix
 			{
 				checker.Check(attrCert, certPath, holderCertPath, critExtOids);
 			}
-			if (critExtOids.Count > 0)
+			if (!critExtOids.IsEmpty)
 			{
 				throw new PkixCertPathValidatorException(
-					"Attribute certificate contains unsupported critical extensions: " + critExtOids);
+					"Attribute certificate contains unsupported critical extensions: "
+						+ critExtOids);
 			}
 		}
 
@@ -69,20 +73,22 @@ namespace Org.BouncyCastle.Pkix
 		*             status cannot be checked or some error occurs.
 		*/
 		internal static void CheckCrls(
-			X509V2AttributeCertificate  attrCert,
+			IX509AttributeCertificate	attrCert,
 			PkixParameters				paramsPKIX,
 			X509Certificate				issuerCert,
 			DateTime					validDate,
-			IList<X509Certificate>		certPathCerts)
+			IList						certPathCerts)
 		{
 			if (!paramsPKIX.IsRevocationEnabled)
+            {
                 return;
+            }
 
             // check if revocation is available
             if (attrCert.GetExtensionValue(X509Extensions.NoRevAvail) != null)
             {
-                if (attrCert.GetExtensionValue(X509Extensions.CrlDistributionPoints) != null ||
-                    attrCert.GetExtensionValue(X509Extensions.AuthorityInfoAccess) != null)
+                if (attrCert.GetExtensionValue(X509Extensions.CrlDistributionPoints) != null
+                    || attrCert.GetExtensionValue(X509Extensions.AuthorityInfoAccess) != null)
                 {
                     throw new PkixCertPathValidatorException(
                         "No rev avail extension is set, but also an AC revocation pointer.");
@@ -91,20 +97,22 @@ namespace Org.BouncyCastle.Pkix
                 return;
             }
 
-            CrlDistPoint crldp;
+            CrlDistPoint crldp = null;
 			try
 			{
 				crldp = CrlDistPoint.GetInstance(
-					PkixCertPathValidatorUtilities.GetExtensionValue(attrCert, X509Extensions.CrlDistributionPoints));
+					PkixCertPathValidatorUtilities.GetExtensionValue(
+						attrCert, X509Extensions.CrlDistributionPoints));
 			}
 			catch (Exception e)
 			{
-				throw new PkixCertPathValidatorException("CRL distribution point extension could not be read.", e);
+				throw new PkixCertPathValidatorException(
+					"CRL distribution point extension could not be read.", e);
 			}
-
 			try
 			{
-				PkixCertPathValidatorUtilities.AddAdditionalStoresFromCrlDistributionPoint(crldp, paramsPKIX);
+				PkixCertPathValidatorUtilities
+					.AddAdditionalStoresFromCrlDistributionPoint(crldp, paramsPKIX);
 			}
 			catch (Exception e)
 			{
@@ -120,30 +128,34 @@ namespace Org.BouncyCastle.Pkix
 			// for each distribution point
 			if (crldp != null)
 			{
-				DistributionPoint[] dps;
+				DistributionPoint[] dps = null;
 				try
 				{
 					dps = crldp.GetDistributionPoints();
 				}
 				catch (Exception e)
 				{
-					throw new PkixCertPathValidatorException("Distribution points could not be read.", e);
+					throw new PkixCertPathValidatorException(
+						"Distribution points could not be read.", e);
 				}
 				try
 				{
-					for (int i = 0;
-						i < dps.Length && certStatus.Status == CertStatus.Unrevoked && !reasonsMask.IsAllReasons;
-						i++)
+					for (int i = 0; i < dps.Length
+						&& certStatus.Status == CertStatus.Unrevoked
+						&& !reasonsMask.IsAllReasons; i++)
 					{
-						PkixParameters paramsPKIXClone = (PkixParameters)paramsPKIX.Clone();
-						CheckCrl(dps[i], attrCert, paramsPKIXClone,validDate, issuerCert, certStatus, reasonsMask,
+						PkixParameters paramsPKIXClone = (PkixParameters) paramsPKIX
+							.Clone();
+						CheckCrl(dps[i], attrCert, paramsPKIXClone,
+							validDate, issuerCert, certStatus, reasonsMask,
 							certPathCerts);
 						validCrlFound = true;
 					}
 				}
 				catch (Exception e)
 				{
-					lastException = new Exception("No valid CRL for distribution point found.", e);
+					lastException = new Exception(
+						"No valid CRL for distribution point found.", e);
 				}
 			}
 
@@ -153,7 +165,8 @@ namespace Org.BouncyCastle.Pkix
 			* distribution point but issued by the certificate issuer.
 			*/
 
-			if (certStatus.Status == CertStatus.Unrevoked && !reasonsMask.IsAllReasons)
+			if (certStatus.Status == CertStatus.Unrevoked
+				&& !reasonsMask.IsAllReasons)
 			{
 				try
 				{
@@ -169,7 +182,9 @@ namespace Org.BouncyCastle.Pkix
                     }
                     catch (Exception e)
 					{
-						throw new Exception("Issuer from certificate for CRL could not be reencoded.", e);
+						throw new Exception(
+							"Issuer from certificate for CRL could not be reencoded.",
+							e);
 					}
 					DistributionPoint dp = new DistributionPoint(
 						new DistributionPointName(0, new GeneralNames(
@@ -181,18 +196,24 @@ namespace Org.BouncyCastle.Pkix
 				}
 				catch (Exception e)
 				{
-					lastException = new Exception("No valid CRL for distribution point found.", e);
+					lastException = new Exception(
+						"No valid CRL for distribution point found.", e);
 				}
 			}
 
 			if (!validCrlFound)
-				throw new PkixCertPathValidatorException("No valid CRL found.", lastException);
-
+			{
+				throw new PkixCertPathValidatorException(
+					"No valid CRL found.", lastException);
+			}
 			if (certStatus.Status != CertStatus.Unrevoked)
 			{
                 // This format is enforced by the NistCertPath tests
-                string formattedDate = certStatus.RevocationDate.Value.ToString("ddd MMM dd HH:mm:ss K yyyy");
-                string message = "Attribute certificate revocation after " + formattedDate + ", reason: "
+                string formattedDate = certStatus.RevocationDate.Value.ToString(
+                    "ddd MMM dd HH:mm:ss K yyyy");
+                string message = "Attribute certificate revocation after "
+					+ formattedDate;
+				message += ", reason: "
 					+ Rfc3280CertPathUtilities.CrlReasons[certStatus.Status];
 				throw new PkixCertPathValidatorException(message);
 			}
@@ -209,7 +230,7 @@ namespace Org.BouncyCastle.Pkix
 		}
 
 		internal static void AdditionalChecks(
-			X509V2AttributeCertificate  attrCert,
+			IX509AttributeCertificate	attrCert,
 			PkixParameters				pkixParams)
 		{
 			// 1
@@ -234,7 +255,7 @@ namespace Org.BouncyCastle.Pkix
 		}
 
 		internal static void ProcessAttrCert5(
-			X509V2AttributeCertificate  attrCert,
+			IX509AttributeCertificate	attrCert,
 			PkixParameters				pkixParams)
 		{
 			try
@@ -253,21 +274,26 @@ namespace Org.BouncyCastle.Pkix
 			}
 		}
 
-		internal static void ProcessAttrCert4(X509Certificate acIssuerCert, PkixParameters pkixParams)
+		internal static void ProcessAttrCert4(
+			X509Certificate	acIssuerCert,
+			PkixParameters	pkixParams)
 		{
-			foreach (var anchor in pkixParams.GetTrustedACIssuers())
+			ISet set = pkixParams.GetTrustedACIssuers();
+			bool trusted = false;
+			foreach (TrustAnchor anchor in set)
 			{
-                var symbols = X509Name.RFC2253Symbols;
-
+                IDictionary symbols = X509Name.RFC2253Symbols;
                 if (acIssuerCert.SubjectDN.ToString(false, symbols).Equals(anchor.CAName)
 					|| acIssuerCert.Equals(anchor.TrustedCert))
 				{
-					// Trusted
-					return;
+					trusted = true;
 				}
 			}
-
-			throw new PkixCertPathValidatorException("Attribute certificate issuer is not directly trusted.");
+			if (!trusted)
+			{
+				throw new PkixCertPathValidatorException(
+					"Attribute certificate issuer is not directly trusted.");
+			}
 		}
 
 		internal static void ProcessAttrCert3(
@@ -323,12 +349,12 @@ namespace Org.BouncyCastle.Pkix
 		*             </ul>
 		*/
 		internal static PkixCertPath ProcessAttrCert1(
-			X509V2AttributeCertificate  attrCert,
+			IX509AttributeCertificate	attrCert,
 			PkixParameters				pkixParams)
 		{
 			PkixCertPathBuilderResult result = null;
 			// find holder PKCs
-			var holderPKCs = new HashSet<X509Certificate>();
+			ISet holderPKCs = new HashSet();
 			if (attrCert.Holder.GetIssuer() != null)
 			{
 				X509CertStoreSelector selector = new X509CertStoreSelector();
@@ -336,12 +362,14 @@ namespace Org.BouncyCastle.Pkix
 				X509Name[] principals = attrCert.Holder.GetIssuer();
 				for (int i = 0; i < principals.Length; i++)
 				{
-					// TODO Replace loop with a single multiprincipal selector (or don't even use selector)
 					try
 					{
-						selector.Issuer = principals[i];
-
-						CollectionUtilities.CollectMatches(holderPKCs, selector, pkixParams.GetStoresCert());
+//						if (principals[i] is X500Principal)
+						{
+							selector.Issuer = principals[i];
+						}
+						holderPKCs.AddAll(PkixCertPathValidatorUtilities
+							.FindCertificates(selector, pkixParams.GetStores()));
 					}
 					catch (Exception e)
 					{
@@ -350,7 +378,7 @@ namespace Org.BouncyCastle.Pkix
 							e);
 					}
 				}
-				if (holderPKCs.Count < 1)
+				if (holderPKCs.IsEmpty)
 				{
 					throw new PkixCertPathValidatorException(
 						"Public key certificate specified in base certificate ID for attribute certificate cannot be found.");
@@ -362,12 +390,14 @@ namespace Org.BouncyCastle.Pkix
 				X509Name[] principals = attrCert.Holder.GetEntityNames();
 				for (int i = 0; i < principals.Length; i++)
 				{
-					// TODO Replace loop with a single multiprincipal selector (or don't even use selector)
 					try
 					{
-						selector.Issuer = principals[i];
-
-						CollectionUtilities.CollectMatches(holderPKCs, selector, pkixParams.GetStoresCert());
+//						if (principals[i] is X500Principal)
+						{
+							selector.Issuer = principals[i];
+						}
+						holderPKCs.AddAll(PkixCertPathValidatorUtilities
+							.FindCertificates(selector, pkixParams.GetStores()));
 					}
 					catch (Exception e)
 					{
@@ -376,7 +406,7 @@ namespace Org.BouncyCastle.Pkix
 							e);
 					}
 				}
-				if (holderPKCs.Count < 1)
+				if (holderPKCs.IsEmpty)
 				{
 					throw new PkixCertPathValidatorException(
 						"Public key certificate specified in entity name for attribute certificate cannot be found.");
@@ -384,21 +414,21 @@ namespace Org.BouncyCastle.Pkix
 			}
 
 			// verify cert paths for PKCs
-			PkixBuilderParameters parameters = PkixBuilderParameters.GetInstance(pkixParams);
+			PkixBuilderParameters parameters = (PkixBuilderParameters)
+				PkixBuilderParameters.GetInstance(pkixParams);
 
 			PkixCertPathValidatorException lastException = null;
 			foreach (X509Certificate cert in holderPKCs)
 			{
-				X509CertStoreSelector certSelector = new X509CertStoreSelector();
-				certSelector.Certificate = cert;
-
-				parameters.SetTargetConstraintsCert(certSelector);
+				X509CertStoreSelector selector = new X509CertStoreSelector();
+				selector.Certificate = cert;
+				parameters.SetTargetConstraints(selector);
 
 				PkixCertPathBuilder builder = new PkixCertPathBuilder();
 
 				try
 				{
-					result = builder.Build(parameters);
+					result = builder.Build(PkixBuilderParameters.GetInstance(parameters));
 				}
 				catch (PkixCertPathBuilderException e)
 				{
@@ -433,13 +463,13 @@ namespace Org.BouncyCastle.Pkix
 		*/
 		private static void CheckCrl(
 			DistributionPoint			dp,
-			X509V2AttributeCertificate  attrCert,
+			IX509AttributeCertificate	attrCert,
 			PkixParameters				paramsPKIX,
 			DateTime					validDate,
 			X509Certificate				issuerCert,
 			CertStatus					certStatus,
 			ReasonsMask					reasonMask,
-			IList<X509Certificate>		certPathCerts)
+			IList						certPathCerts)
 		{
 			/*
 			* 4.3.6 No Revocation Available
@@ -449,11 +479,15 @@ namespace Org.BouncyCastle.Pkix
 			* available for this AC.
 			*/
 			if (attrCert.GetExtensionValue(X509Extensions.NoRevAvail) != null)
+			{
 				return;
+			}
 
 			DateTime currentDate = DateTime.UtcNow;
 			if (validDate.CompareTo(currentDate) > 0)
+			{
 				throw new Exception("Validation time is in future.");
+			}
 
 			// (a)
 			/*
@@ -462,11 +496,12 @@ namespace Org.BouncyCastle.Pkix
 			* CRLs must be enabled in the ExtendedPkixParameters and are in
 			* getAdditionalStore()
 			*/
-			var crls = PkixCertPathValidatorUtilities.GetCompleteCrls(dp, attrCert, currentDate, paramsPKIX);
+			ISet crls = PkixCertPathValidatorUtilities.GetCompleteCrls(dp, attrCert,
+				currentDate, paramsPKIX);
 			bool validCrlFound = false;
 			Exception lastException = null;
 
-			var crl_iter = crls.GetEnumerator();
+			IEnumerator crl_iter = crls.GetEnumerator();
 
 			while (crl_iter.MoveNext()
 				&& certStatus.Status == CertStatus.Unrevoked
@@ -474,7 +509,7 @@ namespace Org.BouncyCastle.Pkix
 			{
 				try
 				{
-					X509Crl crl = crl_iter.Current;
+					X509Crl crl = (X509Crl) crl_iter.Current;
 
 					// (d)
 					ReasonsMask interimReasonsMask = Rfc3280CertPathUtilities.ProcessCrlD(crl, dp);
@@ -486,12 +521,13 @@ namespace Org.BouncyCastle.Pkix
 					* must be ignored.
 					*/
 					if (!interimReasonsMask.HasNewReasons(reasonMask))
+					{
 						continue;
+					}
 
 					// (f)
-					var keys = Rfc3280CertPathUtilities.ProcessCrlF(crl, attrCert,null, null, paramsPKIX,
-						certPathCerts);
-
+					ISet keys = Rfc3280CertPathUtilities.ProcessCrlF(crl, attrCert,
+						null, null, paramsPKIX, certPathCerts);
 					// (g)
 					AsymmetricKeyParameter pubKey = Rfc3280CertPathUtilities.ProcessCrlG(crl, keys);
 
@@ -500,8 +536,8 @@ namespace Org.BouncyCastle.Pkix
 					if (paramsPKIX.IsUseDeltasEnabled)
 					{
 						// get delta CRLs
-						var deltaCRLs = PkixCertPathValidatorUtilities.GetDeltaCrls(currentDate, paramsPKIX, crl);
-
+						ISet deltaCRLs = PkixCertPathValidatorUtilities.GetDeltaCrls(
+							currentDate, paramsPKIX, crl);
 						// we only want one valid delta CRL
 						// (h)
 						deltaCRL = Rfc3280CertPathUtilities.ProcessCrlH(deltaCRLs, pubKey);
@@ -527,7 +563,10 @@ namespace Org.BouncyCastle.Pkix
 						* first check is not done
 						*/
 						if (attrCert.NotAfter.CompareTo(crl.ThisUpdate) < 0)
-							throw new Exception("No valid CRL for current time found.");
+						{
+							throw new Exception(
+								"No valid CRL for current time found.");
+						}
 					}
 
 					Rfc3280CertPathUtilities.ProcessCrlB1(dp, attrCert, crl);
@@ -561,9 +600,10 @@ namespace Org.BouncyCastle.Pkix
 					lastException = e;
 				}
 			}
-
 			if (!validCrlFound)
+			{
 				throw lastException;
+			}
 		}
 	}
 }

@@ -1,7 +1,7 @@
 using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
+using System.Collections;
 
+using Org.BouncyCastle.Math.EC.Abc;
 using Org.BouncyCastle.Math.EC.Endo;
 using Org.BouncyCastle.Math.EC.Multiplier;
 using Org.BouncyCastle.Math.Field;
@@ -90,8 +90,6 @@ namespace Org.BouncyCastle.Math.EC
         protected ECEndomorphism m_endomorphism = null;
         protected ECMultiplier m_multiplier = null;
 
-        private IDictionary<string, PreCompInfo> m_preCompTable = null;
-
         protected ECCurve(IFiniteField field)
         {
             this.m_field = field;
@@ -110,40 +108,51 @@ namespace Org.BouncyCastle.Math.EC
             return new Config(this, this.m_coord, this.m_endomorphism, this.m_multiplier);
         }
 
-        public virtual int FieldElementEncodingLength => (FieldSize + 7) / 8;
-
-        public virtual int GetAffinePointEncodingLength(bool compressed)
-        {
-            int fieldLength = FieldElementEncodingLength;
-            return compressed
-                ?  1 + fieldLength
-                :  1 + fieldLength * 2;
-        }
-
         public virtual ECPoint ValidatePoint(BigInteger x, BigInteger y)
         {
             ECPoint p = CreatePoint(x, y);
             if (!p.IsValid())
+            {
                 throw new ArgumentException("Invalid point coordinates");
+            }
+            return p;
+        }
 
+        [Obsolete("Per-point compression property will be removed")]
+        public virtual ECPoint ValidatePoint(BigInteger x, BigInteger y, bool withCompression)
+        {
+            ECPoint p = CreatePoint(x, y, withCompression);
+            if (!p.IsValid())
+            {
+                throw new ArgumentException("Invalid point coordinates");
+            }
             return p;
         }
 
         public virtual ECPoint CreatePoint(BigInteger x, BigInteger y)
         {
-            return CreateRawPoint(FromBigInteger(x), FromBigInteger(y));
+            return CreatePoint(x, y, false);
+        }
+
+        [Obsolete("Per-point compression property will be removed")]
+        public virtual ECPoint CreatePoint(BigInteger x, BigInteger y, bool withCompression)
+        {
+            return CreateRawPoint(FromBigInteger(x), FromBigInteger(y), withCompression);
         }
 
         protected abstract ECCurve CloneCurve();
 
-        protected internal abstract ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y);
+        protected internal abstract ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, bool withCompression);
 
-        protected internal abstract ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs);
+        protected internal abstract ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs, bool withCompression);
 
         protected virtual ECMultiplier CreateDefaultMultiplier()
         {
-            if (m_endomorphism is GlvEndomorphism glvEndomorphism)
+            GlvEndomorphism glvEndomorphism = m_endomorphism as GlvEndomorphism;
+            if (glvEndomorphism != null)
+            {
                 return new GlvMultiplier(this, glvEndomorphism);
+            }
 
             return new WNafL2RMultiplier();
         }
@@ -157,7 +166,7 @@ namespace Org.BouncyCastle.Math.EC
         {
             CheckPoint(point);
 
-            IDictionary<string, PreCompInfo> table;
+            IDictionary table;
             lock (point)
             {
                 table = point.m_preCompTable;
@@ -168,33 +177,7 @@ namespace Org.BouncyCastle.Math.EC
 
             lock (table)
             {
-                return table.TryGetValue(name, out var preCompInfo) ? preCompInfo : null;
-            }
-        }
-
-        internal virtual PreCompInfo Precompute(string name, IPreCompCallback callback)
-        {
-            IDictionary<string, PreCompInfo> table;
-            lock (this)
-            {
-                table = m_preCompTable;
-                if (null == table)
-                {
-                    m_preCompTable = table = new Dictionary<string, PreCompInfo>();
-                }
-            }
-
-            lock (table)
-            {
-                PreCompInfo existing = table.TryGetValue(name, out var preCompInfo) ? preCompInfo : null;
-                PreCompInfo result = callback.Precompute(existing);
-
-                if (result != existing)
-                {
-                    table[name] = result;
-                }
-
-                return result;
+                return (PreCompInfo)table[name];
             }
         }
 
@@ -214,19 +197,19 @@ namespace Org.BouncyCastle.Math.EC
         {
             CheckPoint(point);
 
-            IDictionary<string, PreCompInfo> table;
+            IDictionary table;
             lock (point)
             {
                 table = point.m_preCompTable;
                 if (null == table)
                 {
-                    point.m_preCompTable = table = new Dictionary<string, PreCompInfo>();
+                    point.m_preCompTable = table = Platform.CreateHashtable(4);
                 }
             }
 
             lock (table)
             {
-                PreCompInfo existing = table.TryGetValue(name, out var preCompInfo) ? preCompInfo : null;
+                PreCompInfo existing = (PreCompInfo)table[name];
                 PreCompInfo result = callback.Precompute(existing);
 
                 if (result != existing)
@@ -252,7 +235,7 @@ namespace Org.BouncyCastle.Math.EC
             // TODO Default behaviour could be improved if the two curves have the same coordinate system by copying any Z coordinates.
             p = p.Normalize();
 
-            return CreatePoint(p.XCoord.ToBigInteger(), p.YCoord.ToBigInteger());
+            return CreatePoint(p.XCoord.ToBigInteger(), p.YCoord.ToBigInteger(), p.IsCompressed);
         }
 
         /**
@@ -372,15 +355,24 @@ namespace Org.BouncyCastle.Math.EC
          */
         public virtual ECLookupTable CreateCacheSafeLookupTable(ECPoint[] points, int off, int len)
         {
-            int FE_BYTES = FieldElementEncodingLength;
+            int FE_BYTES = (FieldSize + 7) / 8;
             byte[] table = new byte[len * FE_BYTES * 2];
-            int pos = 0;
-            for (int i = 0; i < len; ++i)
             {
-                ECPoint p = points[off + i];
-                p.RawXCoord.EncodeTo(table, pos);       pos += FE_BYTES;
-                p.RawYCoord.EncodeTo(table, pos);       pos += FE_BYTES;
+                int pos = 0;
+                for (int i = 0; i < len; ++i)
+                {
+                    ECPoint p = points[off + i];
+                    byte[] px = p.RawXCoord.ToBigInteger().ToByteArray();
+                    byte[] py = p.RawYCoord.ToBigInteger().ToByteArray();
+
+                    int pxStart = px.Length > FE_BYTES ? 1 : 0, pxLen = px.Length - pxStart;
+                    int pyStart = py.Length > FE_BYTES ? 1 : 0, pyLen = py.Length - pyStart;
+
+                    Array.Copy(px, pxStart, table, pos + FE_BYTES - pxLen, pxLen); pos += FE_BYTES;
+                    Array.Copy(py, pyStart, table, pos + FE_BYTES - pyLen, pyLen); pos += FE_BYTES;
+                }
             }
+
             return new DefaultLookupTable(this, table, len);
         }
 
@@ -462,157 +454,73 @@ namespace Org.BouncyCastle.Math.EC
          */
         public virtual ECPoint DecodePoint(byte[] encoded)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return DecodePoint(encoded.AsSpan());
-#else
-            ECPoint p;
-            int expectedLength = FieldElementEncodingLength;
+            ECPoint p = null;
+            int expectedLength = (FieldSize + 7) / 8;
 
             byte type = encoded[0];
             switch (type)
             {
-            case 0x00: // infinity
-            {
-                if (encoded.Length != 1)
-                    throw new ArgumentException("Incorrect length for infinity encoding", "encoded");
+                case 0x00: // infinity
+                {
+                    if (encoded.Length != 1)
+                        throw new ArgumentException("Incorrect length for infinity encoding", "encoded");
 
-                p = Infinity;
-                break;
-            }
+                    p = Infinity;
+                    break;
+                }
 
-            case 0x02: // compressed
-            case 0x03: // compressed
-            {
-                if (encoded.Length != (expectedLength + 1))
-                    throw new ArgumentException("Incorrect length for compressed encoding", "encoded");
+                case 0x02: // compressed
+                case 0x03: // compressed
+                {
+                    if (encoded.Length != (expectedLength + 1))
+                        throw new ArgumentException("Incorrect length for compressed encoding", "encoded");
 
-                int yTilde = type & 1;
-                BigInteger X = new BigInteger(1, encoded, 1, expectedLength);
+                    int yTilde = type & 1;
+                    BigInteger X = new BigInteger(1, encoded, 1, expectedLength);
 
-                p = DecompressPoint(yTilde, X);
-                if (!p.ImplIsValid(true, true))
-                    throw new ArgumentException("Invalid point");
+                    p = DecompressPoint(yTilde, X);
+                    if (!p.ImplIsValid(true, true))
+                        throw new ArgumentException("Invalid point");
 
-                break;
-            }
+                    break;
+                }
 
-            case 0x04: // uncompressed
-            {
-                if (encoded.Length != (2 * expectedLength + 1))
-                    throw new ArgumentException("Incorrect length for uncompressed encoding", "encoded");
+                case 0x04: // uncompressed
+                {
+                    if (encoded.Length != (2 * expectedLength + 1))
+                        throw new ArgumentException("Incorrect length for uncompressed encoding", "encoded");
 
-                BigInteger X = new BigInteger(1, encoded, 1, expectedLength);
-                BigInteger Y = new BigInteger(1, encoded, 1 + expectedLength, expectedLength);
+                    BigInteger X = new BigInteger(1, encoded, 1, expectedLength);
+                    BigInteger Y = new BigInteger(1, encoded, 1 + expectedLength, expectedLength);
 
-                p = ValidatePoint(X, Y);
-                break;
-            }
+                    p = ValidatePoint(X, Y);
+                    break;
+                }
 
-            case 0x06: // hybrid
-            case 0x07: // hybrid
-            {
-                if (encoded.Length != (2 * expectedLength + 1))
-                    throw new ArgumentException("Incorrect length for hybrid encoding", "encoded");
+                case 0x06: // hybrid
+                case 0x07: // hybrid
+                {
+                    if (encoded.Length != (2 * expectedLength + 1))
+                        throw new ArgumentException("Incorrect length for hybrid encoding", "encoded");
 
-                BigInteger X = new BigInteger(1, encoded, 1, expectedLength);
-                BigInteger Y = new BigInteger(1, encoded, 1 + expectedLength, expectedLength);
+                    BigInteger X = new BigInteger(1, encoded, 1, expectedLength);
+                    BigInteger Y = new BigInteger(1, encoded, 1 + expectedLength, expectedLength);
 
-                if (Y.TestBit(0) != (type == 0x07))
-                    throw new ArgumentException("Inconsistent Y coordinate in hybrid encoding", "encoded");
+                    if (Y.TestBit(0) != (type == 0x07))
+                        throw new ArgumentException("Inconsistent Y coordinate in hybrid encoding", "encoded");
 
-                p = ValidatePoint(X, Y);
-                break;
-            }
+                    p = ValidatePoint(X, Y);
+                    break;
+                }
 
-            default:
-                throw new FormatException("Invalid point encoding " + type);
+                default:
+                    throw new FormatException("Invalid point encoding " + type);
             }
 
             if (type != 0x00 && p.IsInfinity)
                 throw new ArgumentException("Invalid infinity encoding", "encoded");
 
             return p;
-#endif
-        }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual ECPoint DecodePoint(ReadOnlySpan<byte> encoded)
-        {
-            ECPoint p;
-            int expectedLength = FieldElementEncodingLength;
-
-            byte type = encoded[0];
-            switch (type)
-            {
-            case 0x00: // infinity
-            {
-                if (encoded.Length != 1)
-                    throw new ArgumentException("Incorrect length for infinity encoding", "encoded");
-
-                p = Infinity;
-                break;
-            }
-
-            case 0x02: // compressed
-            case 0x03: // compressed
-            {
-                if (encoded.Length != (expectedLength + 1))
-                    throw new ArgumentException("Incorrect length for compressed encoding", "encoded");
-
-                int yTilde = type & 1;
-                BigInteger X = new BigInteger(1, encoded[1..]);
-
-                p = DecompressPoint(yTilde, X);
-                if (!p.ImplIsValid(true, true))
-                    throw new ArgumentException("Invalid point");
-
-                break;
-            }
-
-            case 0x04: // uncompressed
-            {
-                if (encoded.Length != (2 * expectedLength + 1))
-                    throw new ArgumentException("Incorrect length for uncompressed encoding", "encoded");
-
-                BigInteger X = new BigInteger(1, encoded[1..(1 + expectedLength)]);
-                BigInteger Y = new BigInteger(1, encoded[(1 + expectedLength)..]);
-
-                p = ValidatePoint(X, Y);
-                break;
-            }
-
-            case 0x06: // hybrid
-            case 0x07: // hybrid
-            {
-                if (encoded.Length != (2 * expectedLength + 1))
-                    throw new ArgumentException("Incorrect length for hybrid encoding", "encoded");
-
-                BigInteger X = new BigInteger(1, encoded[1..(1 + expectedLength)]);
-                BigInteger Y = new BigInteger(1, encoded[(1 + expectedLength)..]);
-
-                if (Y.TestBit(0) != (type == 0x07))
-                    throw new ArgumentException("Inconsistent Y coordinate in hybrid encoding", "encoded");
-
-                p = ValidatePoint(X, Y);
-                break;
-            }
-
-            default:
-                throw new FormatException("Invalid point encoding " + type);
-            }
-
-            if (type != 0x00 && p.IsInfinity)
-                throw new ArgumentException("Invalid infinity encoding", "encoded");
-
-            return p;
-        }
-#endif
-
-        internal static int ImplGetInteger(string envVariable, int defaultValue)
-        {
-            string property = Platform.GetEnvironmentVariable(envVariable);
-
-            return int.TryParse(property, out int value) ? value : defaultValue;
         }
 
         private class DefaultLookupTable
@@ -636,7 +544,7 @@ namespace Org.BouncyCastle.Math.EC
 
             public override ECPoint Lookup(int index)
             {
-                int FE_BYTES = m_outer.FieldElementEncodingLength;
+                int FE_BYTES = (m_outer.FieldSize + 7) / 8;
                 byte[] x = new byte[FE_BYTES], y = new byte[FE_BYTES];
                 int pos = 0;
 
@@ -658,7 +566,7 @@ namespace Org.BouncyCastle.Math.EC
 
             public override ECPoint LookupVar(int index)
             {
-                int FE_BYTES = m_outer.FieldElementEncodingLength;
+                int FE_BYTES = (m_outer.FieldSize + 7) / 8;
                 byte[] x = new byte[FE_BYTES], y = new byte[FE_BYTES];
                 int pos = index * FE_BYTES * 2;
 
@@ -675,7 +583,7 @@ namespace Org.BouncyCastle.Math.EC
             {
                 ECFieldElement X = m_outer.FromBigInteger(new BigInteger(1, x));
                 ECFieldElement Y = m_outer.FromBigInteger(new BigInteger(1, y));
-                return m_outer.CreateRawPoint(X, Y);
+                return m_outer.CreateRawPoint(X, Y, false);
             }
         }
     }
@@ -683,26 +591,9 @@ namespace Org.BouncyCastle.Math.EC
     public abstract class AbstractFpCurve
         : ECCurve
     {
-        private static readonly ConcurrentDictionary<BigInteger, bool> KnownPrimes =
-            new ConcurrentDictionary<BigInteger, bool>();
-
         protected AbstractFpCurve(BigInteger q)
-            : this(q, isInternal: false)
-        {
-        }
-
-        internal AbstractFpCurve(BigInteger q, bool isInternal)
             : base(FiniteFields.GetPrimeField(q))
         {
-            if (isInternal)
-            {
-                KnownPrimes.AddOrUpdate(q, true, (key, value) => true);
-            }
-            else if (!KnownPrimes.ContainsKey(q))
-            {
-                ImplCheckQ(q);
-                KnownPrimes.TryAdd(q, false);
-            }
         }
 
         public override bool IsValidFieldElement(BigInteger x)
@@ -752,60 +643,7 @@ namespace Org.BouncyCastle.Math.EC
                 y = y.Negate();
             }
 
-            return CreateRawPoint(x, y);
-        }
-
-        private static void ImplCheckQ(BigInteger q)
-        {
-            int maxBitLength = ImplGetInteger("Org.BouncyCastle.EC.Fp_MaxSize", 1042); // 2 * 521
-            if (q.BitLength > maxBitLength)
-                throw new ArgumentException("Fp q value out of range");
-
-            if (!ImplIsPrime(q))
-                throw new ArgumentException("Fp q value not prime");
-        }
-
-        private static int ImplGetIterations(int bits, int certainty)
-        {
-            /*
-             * NOTE: We enforce a minimum 'certainty' of 100 for bits >= 1024 (else 80). Where the
-             * certainty is higher than the FIPS 186-4 tables (C.2/C.3) cater to, extra iterations
-             * are added at the "worst case rate" for the excess.
-             */
-            if (bits >= 1536)
-            {
-                return certainty <= 100 ? 3
-                    : certainty <= 128 ? 4
-                    : 4 + (certainty - 128 + 1) / 2;
-            }
-            else if (bits >= 1024)
-            {
-                return certainty <= 100 ? 4
-                    : certainty <= 112 ? 5
-                    : 5 + (certainty - 112 + 1) / 2;
-            }
-            else if (bits >= 512)
-            {
-                return certainty <= 80 ? 5
-                    : certainty <= 100 ? 7
-                    : 7 + (certainty - 100 + 1) / 2;
-            }
-            else
-            {
-                return certainty <= 80 ? 40
-                    : 40 + (certainty - 80 + 1) / 2;
-            }
-        }
-
-        private static bool ImplIsPrime(BigInteger q)
-        {
-            if (Primes.HasAnySmallFactors(q))
-                return false;
-
-            int certainty = ImplGetInteger("Org.BouncyCastle.EC.Fp_Certainty", 100);
-            int iterations = ImplGetIterations(q.BitLength, certainty);
-
-            return Primes.IsMRProbablePrime(q, SecureRandom.ArbitraryRandom, iterations);
+            return CreateRawPoint(x, y, true);
         }
 
         private static BigInteger ImplRandomFieldElement(SecureRandom r, BigInteger p)
@@ -839,6 +677,9 @@ namespace Org.BouncyCastle.Math.EC
     {
         private const int FP_DEFAULT_COORDS = COORD_JACOBIAN_MODIFIED;
 
+        private static readonly IDictionary knownQs = Platform.CreateHashtable();
+        private static readonly SecureRandom random = new SecureRandom();
+
         protected readonly BigInteger m_q, m_r;
         protected readonly FpPoint m_infinity;
 
@@ -849,17 +690,47 @@ namespace Org.BouncyCastle.Math.EC
         }
 
         public FpCurve(BigInteger q, BigInteger a, BigInteger b, BigInteger order, BigInteger cofactor)
-            : this(q, a, b, order, cofactor, isInternal: false)
+            : this(q, a, b, order, cofactor, false)
         {
         }
 
-        internal FpCurve(BigInteger q, BigInteger a, BigInteger b, BigInteger order, BigInteger cofactor,
-            bool isInternal)
-            : base(q, isInternal)
+        internal FpCurve(BigInteger q, BigInteger a, BigInteger b, BigInteger order, BigInteger cofactor, bool isInternal)
+            : base(q)
         {
-            this.m_q = q;
+            if (isInternal)
+            {
+                this.m_q = q;
+                if (!knownQs.Contains(q))
+                {
+                    knownQs.Add(q, q);
+                }
+            }
+            else if (knownQs.Contains(q))
+            {
+                this.m_q = q;
+            }
+            else
+            {
+                int maxBitLength = AsInteger("Org.BouncyCastle.EC.Fp_MaxSize", 1042); // 2 * 521
+                int certainty = AsInteger("Org.BouncyCastle.EC.Fp_Certainty", 100);
+
+                int qBitLength = q.BitLength;
+                if (maxBitLength < qBitLength)
+                {
+                    throw new ArgumentException("Fp q value out of range");
+                }
+
+                if (Primes.HasAnySmallFactors(q) || !Primes.IsMRProbablePrime(
+                    q, random, GetNumberOfIterations(qBitLength, certainty)))
+                {
+                    throw new ArgumentException("Fp q value not prime");
+                }
+
+                this.m_q = q;
+            }
+
             this.m_r = FpFieldElement.CalculateResidue(q);
-            this.m_infinity = new FpPoint(this, null, null);
+            this.m_infinity = new FpPoint(this, null, null, false);
 
             this.m_a = FromBigInteger(a);
             this.m_b = FromBigInteger(b);
@@ -868,13 +739,18 @@ namespace Org.BouncyCastle.Math.EC
             this.m_coord = FP_DEFAULT_COORDS;
         }
 
-        internal FpCurve(BigInteger q, BigInteger r, ECFieldElement a, ECFieldElement b, BigInteger order,
-            BigInteger cofactor)
-            : base(q, isInternal: true)
+        [Obsolete("Use constructor taking order/cofactor")]
+        protected FpCurve(BigInteger q, BigInteger r, ECFieldElement a, ECFieldElement b)
+            : this(q, r, a, b, null, null)
+        {
+        }
+
+        protected FpCurve(BigInteger q, BigInteger r, ECFieldElement a, ECFieldElement b, BigInteger order, BigInteger cofactor)
+            : base(q)
         {
             this.m_q = q;
             this.m_r = r;
-            this.m_infinity = new FpPoint(this, null, null);
+            this.m_infinity = new FpPoint(this, null, null, false);
 
             this.m_a = a;
             this.m_b = b;
@@ -919,20 +795,17 @@ namespace Org.BouncyCastle.Math.EC
 
         public override ECFieldElement FromBigInteger(BigInteger x)
         {
-            if (x == null || x.SignValue < 0 || x.CompareTo(m_q) >= 0)
-                throw new ArgumentException("value invalid for Fp field element", "x");
-
             return new FpFieldElement(this.m_q, this.m_r, x);
         }
 
-        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y)
+        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, bool withCompression)
         {
-            return new FpPoint(this, x, y);
+            return new FpPoint(this, x, y, withCompression);
         }
 
-        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs)
+        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs, bool withCompression)
         {
-            return new FpPoint(this, x, y, zs);
+            return new FpPoint(this, x, y, zs, withCompression);
         }
 
         public override ECPoint ImportPoint(ECPoint p)
@@ -947,13 +820,58 @@ namespace Org.BouncyCastle.Math.EC
                         return new FpPoint(this,
                             FromBigInteger(p.RawXCoord.ToBigInteger()),
                             FromBigInteger(p.RawYCoord.ToBigInteger()),
-                            new ECFieldElement[] { FromBigInteger(p.GetZCoord(0).ToBigInteger()) });
+                            new ECFieldElement[] { FromBigInteger(p.GetZCoord(0).ToBigInteger()) },
+                            p.IsCompressed);
                     default:
                         break;
                 }
             }
 
             return base.ImportPoint(p);
+        }
+
+        private int GetNumberOfIterations(int bits, int certainty)
+        {
+            /*
+             * NOTE: We enforce a minimum 'certainty' of 100 for bits >= 1024 (else 80). Where the
+             * certainty is higher than the FIPS 186-4 tables (C.2/C.3) cater to, extra iterations
+             * are added at the "worst case rate" for the excess.
+             */
+            if (bits >= 1536)
+            {
+                return  certainty <= 100 ? 3
+                    :   certainty <= 128 ? 4
+                    :   4 + (certainty - 128 + 1) / 2;
+            }
+            else if (bits >= 1024)
+            {
+                return  certainty <= 100 ? 4
+                    :   certainty <= 112 ? 5
+                    :   5 + (certainty - 112 + 1) / 2;
+            }
+            else if (bits >= 512)
+            {
+                return  certainty <= 80  ? 5
+                    :   certainty <= 100 ? 7
+                    :   7 + (certainty - 100 + 1) / 2;
+            }
+            else
+            {
+                return  certainty <= 80  ? 40
+                    :   40 + (certainty - 80 + 1) / 2;
+            }
+        }
+
+        int AsInteger(string envVariable, int defaultValue)
+        {
+            String v = Platform.GetEnvironmentVariable(envVariable);
+
+            if (v == null)
+            {
+                return defaultValue;
+            }
+
+            return Int32.Parse(v);
         }
     }
 
@@ -965,17 +883,41 @@ namespace Org.BouncyCastle.Math.EC
             return new LongArray(x).ModInverse(m, ks).ToBigInteger();
         }
 
+        /**
+         * The auxiliary values <code>s<sub>0</sub></code> and
+         * <code>s<sub>1</sub></code> used for partial modular reduction for
+         * Koblitz curves.
+         */
+        private BigInteger[] si = null;
+
         private static IFiniteField BuildField(int m, int k1, int k2, int k3)
         {
-            int maxM = ImplGetInteger("Org.BouncyCastle.EC.F2m_MaxSize", 1142); // 2 * 571
-            if (m > maxM)
-                throw new ArgumentException("F2m m value out of range");
+            if (k1 == 0)
+            {
+                throw new ArgumentException("k1 must be > 0");
+            }
 
-            int[] exponents = (k2 | k3) == 0
-                ? new int[]{ 0, k1, m }
-                : new int[]{ 0, k1, k2, k3, m };
+            if (k2 == 0)
+            {
+                if (k3 != 0)
+                {
+                    throw new ArgumentException("k3 must be 0 if k2 == 0");
+                }
 
-            return FiniteFields.GetBinaryExtensionField(exponents);
+                return FiniteFields.GetBinaryExtensionField(new int[]{ 0, k1, m });
+            }
+
+            if (k2 <= k1)
+            {
+                throw new ArgumentException("k2 must be > k1");
+            }
+
+            if (k3 <= k2)
+            {
+                throw new ArgumentException("k3 must be > k2");
+            }
+
+            return FiniteFields.GetBinaryExtensionField(new int[]{ 0, k1, k2, k3, m });
         }
 
         protected AbstractF2mCurve(int m, int k1, int k2, int k3)
@@ -983,7 +925,8 @@ namespace Org.BouncyCastle.Math.EC
         {
         }
 
-        public override ECPoint CreatePoint(BigInteger x, BigInteger y)
+        [Obsolete("Per-point compression property will be removed")]
+        public override ECPoint CreatePoint(BigInteger x, BigInteger y, bool withCompression)
         {
             ECFieldElement X = FromBigInteger(x), Y = FromBigInteger(y);
 
@@ -1010,7 +953,7 @@ namespace Org.BouncyCastle.Math.EC
                 }
             }
 
-            return CreateRawPoint(X, Y);
+            return CreateRawPoint(X, Y, withCompression);
         }
 
         public override bool IsValidFieldElement(BigInteger x)
@@ -1075,7 +1018,7 @@ namespace Org.BouncyCastle.Math.EC
             if (yp == null)
                 throw new ArgumentException("Invalid point compression");
 
-            return CreateRawPoint(xp, yp);
+            return CreateRawPoint(xp, yp, true);
         }
 
         /**
@@ -1132,6 +1075,26 @@ namespace Org.BouncyCastle.Math.EC
             while (gamma.IsZero);
 
             return z;
+        }
+
+        /**
+         * @return the auxiliary values <code>s<sub>0</sub></code> and
+         * <code>s<sub>1</sub></code> used for partial modular reduction for
+         * Koblitz curves.
+         */
+        internal virtual BigInteger[] GetSi()
+        {
+            if (si == null)
+            {
+                lock (this)
+                {
+                    if (si == null)
+                    {
+                        si = Tnaf.GetSi(this);
+                    }
+                }
+            }
+            return si;
         }
 
         /**
@@ -1310,8 +1273,15 @@ namespace Org.BouncyCastle.Math.EC
          * @param cofactor The cofactor of the elliptic curve, i.e.
          * <code>#E<sub>a</sub>(F<sub>2<sup>m</sup></sub>) = h * n</code>.
          */
-        public F2mCurve(int m, int k1, int k2, int k3, BigInteger a, BigInteger b, BigInteger order,
-            BigInteger cofactor)
+        public F2mCurve(
+            int			m, 
+            int			k1, 
+            int			k2, 
+            int			k3,
+            BigInteger	a, 
+            BigInteger	b,
+            BigInteger	order,
+            BigInteger	cofactor)
             : base(m, k1, k2, k3)
         {
             this.m = m;
@@ -1320,15 +1290,31 @@ namespace Org.BouncyCastle.Math.EC
             this.k3 = k3;
             this.m_order = order;
             this.m_cofactor = cofactor;
-            this.m_infinity = new F2mPoint(this, null, null);
+            this.m_infinity = new F2mPoint(this, null, null, false);
+
+            if (k1 == 0)
+                throw new ArgumentException("k1 must be > 0");
+
+            if (k2 == 0)
+            {
+                if (k3 != 0)
+                    throw new ArgumentException("k3 must be 0 if k2 == 0");
+            }
+            else
+            {
+                if (k2 <= k1)
+                    throw new ArgumentException("k2 must be > k1");
+
+                if (k3 <= k2)
+                    throw new ArgumentException("k3 must be > k2");
+            }
 
             this.m_a = FromBigInteger(a);
             this.m_b = FromBigInteger(b);
             this.m_coord = F2M_DEFAULT_COORDS;
         }
 
-        internal F2mCurve(int m, int k1, int k2, int k3, ECFieldElement a, ECFieldElement b, BigInteger order,
-            BigInteger cofactor)
+        protected F2mCurve(int m, int k1, int k2, int k3, ECFieldElement a, ECFieldElement b, BigInteger order, BigInteger cofactor)
             : base(m, k1, k2, k3)
         {
             this.m = m;
@@ -1337,8 +1323,8 @@ namespace Org.BouncyCastle.Math.EC
             this.k3 = k3;
             this.m_order = order;
             this.m_cofactor = cofactor;
-            this.m_infinity = new F2mPoint(this, null, null);
 
+            this.m_infinity = new F2mPoint(this, null, null, false);
             this.m_a = a;
             this.m_b = b;
             this.m_coord = F2M_DEFAULT_COORDS;
@@ -1379,24 +1365,17 @@ namespace Org.BouncyCastle.Math.EC
 
         public override ECFieldElement FromBigInteger(BigInteger x)
         {
-            if (x == null || x.SignValue < 0 || x.BitLength > m)
-                throw new ArgumentException("value invalid for F2m field element", "x");
-
-            int[] ks = (k2 | k3) == 0
-                ? new int[]{ k1 }
-                : new int[]{ k1, k2, k3 };
-
-            return new F2mFieldElement(m, ks, new LongArray(x));
+            return new F2mFieldElement(this.m, this.k1, this.k2, this.k3, x);
         }
 
-        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y)
+        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, bool withCompression)
         {
-            return new F2mPoint(this, x, y);
+            return new F2mPoint(this, x, y, withCompression);
         }
 
-        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs)
+        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs, bool withCompression)
         {
-            return new F2mPoint(this, x, y, zs);
+            return new F2mPoint(this, x, y, zs, withCompression);
         }
 
         public override ECPoint Infinity
@@ -1438,7 +1417,7 @@ namespace Org.BouncyCastle.Math.EC
         {
             int FE_LONGS = (m + 63) / 64;
 
-            ulong[] table = new ulong[len * FE_LONGS * 2];
+            long[] table = new long[len * FE_LONGS * 2];
             {
                 int pos = 0;
                 for (int i = 0; i < len; ++i)
@@ -1456,10 +1435,10 @@ namespace Org.BouncyCastle.Math.EC
             : AbstractECLookupTable
         {
             private readonly F2mCurve m_outer;
-            private readonly ulong[] m_table;
+            private readonly long[] m_table;
             private readonly int m_size;
 
-            internal DefaultF2mLookupTable(F2mCurve outer, ulong[] table, int size)
+            internal DefaultF2mLookupTable(F2mCurve outer, long[] table, int size)
             {
                 this.m_outer = outer;
                 this.m_table = table;
@@ -1474,12 +1453,12 @@ namespace Org.BouncyCastle.Math.EC
             public override ECPoint Lookup(int index)
             {
                 int FE_LONGS = (m_outer.m + 63) / 64;
-                ulong[] x = new ulong[FE_LONGS], y = new ulong[FE_LONGS];
+                long[] x = new long[FE_LONGS], y = new long[FE_LONGS];
                 int pos = 0;
 
                 for (int i = 0; i < m_size; ++i)
                 {
-                    ulong MASK = (ulong)(long)(((i ^ index) - 1) >> 31);
+                    long MASK =((i ^ index) - 1) >> 31;
 
                     for (int j = 0; j < FE_LONGS; ++j)
                     {
@@ -1496,7 +1475,7 @@ namespace Org.BouncyCastle.Math.EC
             public override ECPoint LookupVar(int index)
             {
                 int FE_LONGS = (m_outer.m + 63) / 64;
-                ulong[] x = new ulong[FE_LONGS], y = new ulong[FE_LONGS];
+                long[] x = new long[FE_LONGS], y = new long[FE_LONGS];
                 int pos = index * FE_LONGS * 2;
 
                 for (int j = 0; j < FE_LONGS; ++j)
@@ -1508,16 +1487,14 @@ namespace Org.BouncyCastle.Math.EC
                 return CreatePoint(x, y);
             }
 
-            private ECPoint CreatePoint(ulong[] x, ulong[] y)
+            private ECPoint CreatePoint(long[] x, long[] y)
             {
                 int m = m_outer.m;
-                int[] ks = m_outer.IsTrinomial()
-                    ? new int[]{ m_outer.k1 }
-                    : new int[]{ m_outer.k1, m_outer.k2, m_outer.k3 }; 
+                int[] ks = m_outer.IsTrinomial() ? new int[] { m_outer.k1 } : new int[] { m_outer.k1, m_outer.k2, m_outer.k3 }; 
 
                 ECFieldElement X = new F2mFieldElement(m, ks, new LongArray(x));
                 ECFieldElement Y = new F2mFieldElement(m, ks, new LongArray(y));
-                return m_outer.CreateRawPoint(X, Y);
+                return m_outer.CreateRawPoint(X, Y, false);
             }
         }
     }

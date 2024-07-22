@@ -78,6 +78,12 @@ namespace Org.BouncyCastle.Pkcs.Tests
 			}
 		}
 
+		public static void Main(
+            string[] args)
+        {
+			RunTest(new EncryptedPrivateKeyInfoTest());
+        }
+
 		[Test]
         public void TestFunction()
         {

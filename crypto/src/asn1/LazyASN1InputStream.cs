@@ -3,8 +3,6 @@ using System.IO;
 
 namespace Org.BouncyCastle.Asn1
 {
-    /// <remarks>No longer provides any laziness.</remarks>
-    [Obsolete("Will be removed")]
     public class LazyAsn1InputStream
         : Asn1InputStream
     {
@@ -18,14 +16,28 @@ namespace Org.BouncyCastle.Asn1
         {
         }
 
-        public LazyAsn1InputStream(Stream input, int limit)
-            : base(input, limit)
+        internal LazyAsn1InputStream(Stream input, int limit, byte[][] tmpBuffers)
+            : base(input, limit, tmpBuffers)
         {
         }
 
-        public LazyAsn1InputStream(Stream input, int limit, bool leaveOpen)
-            : base(input, limit, leaveOpen)
+        internal override Asn1Sequence CreateDLSequence(DefiniteLengthInputStream defIn)
         {
+            return new LazyDLSequence(defIn.ToArray());
+        }
+
+        internal override Asn1Set CreateDLSet(DefiniteLengthInputStream defIn)
+        {
+            return new LazyDLSet(defIn.ToArray());
+        }
+
+        internal override Asn1EncodableVector ReadVector(DefiniteLengthInputStream defIn)
+        {
+            int remaining = defIn.Remaining;
+            if (remaining < 1)
+                return new Asn1EncodableVector(0);
+
+            return new LazyAsn1InputStream(defIn, remaining, tmpBuffers).ReadVector();
         }
     }
 }

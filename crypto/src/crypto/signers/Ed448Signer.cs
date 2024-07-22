@@ -3,6 +3,8 @@ using System.IO;
 
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math.EC.Rfc8032;
+using Org.BouncyCastle.Utilities;
+using Org.BouncyCastle.Utilities.IO;
 
 namespace Org.BouncyCastle.Crypto.Signers
 {
@@ -18,10 +20,7 @@ namespace Org.BouncyCastle.Crypto.Signers
 
         public Ed448Signer(byte[] context)
         {
-            if (null == context)
-                throw new ArgumentNullException(nameof(context));
-
-            this.context = (byte[])context.Clone();
+            this.context = Arrays.Clone(context);
         }
 
         public virtual string AlgorithmName
@@ -57,15 +56,6 @@ namespace Org.BouncyCastle.Crypto.Signers
             buffer.Write(buf, off, len);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void BlockUpdate(ReadOnlySpan<byte> input)
-        {
-            buffer.Write(input);
-        }
-#endif
-
-        public virtual int GetMaxSignatureSize() => Ed448.SignatureSize;
-
         public virtual byte[] GenerateSignature()
         {
             if (!forSigning || null == privateKey)
@@ -87,15 +77,19 @@ namespace Org.BouncyCastle.Crypto.Signers
             buffer.Reset();
         }
 
-        private sealed class Buffer : MemoryStream
+        private class Buffer : MemoryStream
         {
             internal byte[] GenerateSignature(Ed448PrivateKeyParameters privateKey, byte[] ctx)
             {
                 lock (this)
                 {
+#if PORTABLE
+                byte[] buf = ToArray();
+                int count = buf.Length;
+#else
                     byte[] buf = GetBuffer();
-                    int count = Convert.ToInt32(Length);
-
+                    int count = (int)Position;
+#endif
                     byte[] signature = new byte[Ed448PrivateKeyParameters.SignatureSize];
                     privateKey.Sign(Ed448.Algorithm.Ed448, ctx, buf, 0, count, signature, 0);
                     Reset();
@@ -113,10 +107,15 @@ namespace Org.BouncyCastle.Crypto.Signers
 
                 lock (this)
                 {
+#if PORTABLE
+                    byte[] buf = ToArray();
+                    int count = buf.Length;
+#else
                     byte[] buf = GetBuffer();
-                    int count = Convert.ToInt32(Length);
-
-                    bool result = publicKey.Verify(Ed448.Algorithm.Ed448, ctx, buf, 0, count, signature, 0);
+                    int count = (int)Position;
+#endif
+                    byte[] pk = publicKey.GetEncoded();
+                    bool result = Ed448.Verify(signature, 0, pk, 0, ctx, buf, 0, count);
                     Reset();
                     return result;
                 }
@@ -126,9 +125,14 @@ namespace Org.BouncyCastle.Crypto.Signers
             {
                 lock (this)
                 {
-                    int count = Convert.ToInt32(Length);
-                    Array.Clear(GetBuffer(), 0, count);
-                    SetLength(0);
+                    long count = Position;
+#if PORTABLE
+                    this.Position = 0L;
+                    Streams.WriteZeroes(this, count);
+#else
+                    Array.Clear(GetBuffer(), 0, (int)count);
+#endif
+                    this.Position = 0L;
                 }
             }
         }

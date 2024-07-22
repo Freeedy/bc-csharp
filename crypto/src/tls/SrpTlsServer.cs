@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
@@ -52,7 +52,7 @@ namespace Org.BouncyCastle.Tls
             return TlsUtilities.GetSupportedCipherSuites(Crypto, DefaultCipherSuites);
         }
 
-        public override void ProcessClientExtensions(IDictionary<int, byte[]> clientExtensions)
+        public override void ProcessClientExtensions(IDictionary clientExtensions)
         {
             base.ProcessClientExtensions(clientExtensions);
 

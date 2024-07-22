@@ -47,7 +47,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			try
 			{
-				NamingAuthority.GetInstance(new object());
+				NamingAuthority.GetInstance(new Object());
 
 				Fail("GetInstance() failed to detect bad object.");
 			}
@@ -87,6 +87,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 			checkOptionalField("namingAuthorityId", namingAuthorityId, auth.NamingAuthorityID);
 			checkOptionalField("namingAuthorityURL", namingAuthorityURL, auth.NamingAuthorityUrl);
 			checkOptionalField("namingAuthorityText", namingAuthorityText, auth.NamingAuthorityText);
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new NamingAuthorityUnitTest());
 		}
 
 		[Test]

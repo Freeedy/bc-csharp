@@ -53,14 +53,14 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec
             return new SecT131FieldElement(x);
         }
 
-        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y)
+        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, bool withCompression)
         {
-            return new SecT131R2Point(this, x, y);
+            return new SecT131R2Point(this, x, y, withCompression);
         }
 
-        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs)
+        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs, bool withCompression)
         {
-            return new SecT131R2Point(this, x, y, zs);
+            return new SecT131R2Point(this, x, y, zs, withCompression);
         }
 
         public override ECPoint Infinity
@@ -170,7 +170,7 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec
 
             private ECPoint CreatePoint(ulong[] x, ulong[] y)
             {
-                return m_outer.CreateRawPoint(new SecT131FieldElement(x), new SecT131FieldElement(y), SECT131R2_AFFINE_ZS);
+                return m_outer.CreateRawPoint(new SecT131FieldElement(x), new SecT131FieldElement(y), SECT131R2_AFFINE_ZS, false);
             }
         }
     }

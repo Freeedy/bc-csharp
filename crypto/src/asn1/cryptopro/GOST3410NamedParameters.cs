@@ -1,14 +1,25 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 
 namespace Org.BouncyCastle.Asn1.CryptoPro
 {
-    /// <summary>Registry of available named parameters for GOST 3410-94.</summary>
-    public static class Gost3410NamedParameters
+    /**
+    * table of the available named parameters for GOST 3410-94.
+    */
+    public sealed class Gost3410NamedParameters
     {
+		private Gost3410NamedParameters()
+		{
+		}
+
+        private static readonly IDictionary objIds = Platform.CreateHashtable();
+        private static readonly IDictionary parameters = Platform.CreateHashtable();
+
         private static readonly Gost3410ParamSetParameters cryptoProA = new Gost3410ParamSetParameters(
             1024,
             new BigInteger("127021248288932417465907042777176443525787653508916535812817507265705031260985098497423188333483401180925999995120988934130659205614996724254121049274349357074920312769561451689224110579311248812610229678534638401693520013288995000362260684222750813532307004517341633685004541062586971416883686778842537820383"),
@@ -54,55 +65,59 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             new BigInteger("133531813272720673433859519948319001217942375967847486899482359599369642528734712461590403327731821410328012529253871914788598993103310567744136196364803064721377826656898686468463277710150809401182608770201615324990468332931294920912776241137878030224355746606283971659376426832674269780880061631528163475887")
             );
 
-        private static readonly Dictionary<string, DerObjectIdentifier> objIds =
-            new Dictionary<string, DerObjectIdentifier>(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<DerObjectIdentifier, Gost3410ParamSetParameters> parameters =
-            new Dictionary<DerObjectIdentifier, Gost3410ParamSetParameters>();
-
-        private static void DefineParameters(string name, DerObjectIdentifier oid,
-            Gost3410ParamSetParameters parameterSet)
+		static Gost3410NamedParameters()
         {
-            objIds.Add(name, oid);
-            parameters.Add(oid, parameterSet);
+            parameters[CryptoProObjectIdentifiers.GostR3410x94CryptoProA] = cryptoProA;
+            parameters[CryptoProObjectIdentifiers.GostR3410x94CryptoProB] = cryptoProB;
+            //parameters[CryptoProObjectIdentifiers.GostR3410x94CryptoProC] = cryptoProC;
+            //parameters[CryptoProObjectIdentifiers.GostR3410x94CryptoProD] = cryptoProD;
+            parameters[CryptoProObjectIdentifiers.GostR3410x94CryptoProXchA] = cryptoProXchA;
+            //parameters[CryptoProObjectIdentifiers.GostR3410x94CryptoProXchB] = cryptoProXchA;
+            //parameters[CryptoProObjectIdentifiers.GostR3410x94CryptoProXchC] = cryptoProXchA;
+
+			objIds["GostR3410-94-CryptoPro-A"] = CryptoProObjectIdentifiers.GostR3410x94CryptoProA;
+            objIds["GostR3410-94-CryptoPro-B"] = CryptoProObjectIdentifiers.GostR3410x94CryptoProB;
+            objIds["GostR3410-94-CryptoPro-XchA"] = CryptoProObjectIdentifiers.GostR3410x94CryptoProXchA;
         }
 
-        static Gost3410NamedParameters()
+		/**
+        * return the GOST3410ParamSetParameters object for the given OID, null if it
+        * isn't present.
+        *
+        * @param oid an object identifier representing a named parameters, if present.
+        */
+        public static Gost3410ParamSetParameters GetByOid(
+            DerObjectIdentifier oid)
         {
-            DefineParameters("GostR3410-94-CryptoPro-A", CryptoProObjectIdentifiers.GostR3410x94CryptoProA, cryptoProA);
-            DefineParameters("GostR3410-94-CryptoPro-B", CryptoProObjectIdentifiers.GostR3410x94CryptoProB, cryptoProB);
-            DefineParameters("GostR3410-94-CryptoPro-XchA", CryptoProObjectIdentifiers.GostR3410x94CryptoProXchA,
-                cryptoProXchA);
+            return (Gost3410ParamSetParameters) parameters[oid];
         }
 
-        /// <summary>Look up the <see cref="Gost3410ParamSetParameters"/> for the parameter set with the given name.
-        /// </summary>
-        /// <param name="name">The name of the parameter set.</param>
-        public static Gost3410ParamSetParameters GetByName(string name)
+		/**
+        * returns an enumeration containing the name strings for parameters
+        * contained in this structure.
+        */
+        public static IEnumerable Names
         {
-            DerObjectIdentifier oid = GetOid(name);
-            return oid == null ? null : GetByOid(oid);
+			get { return new EnumerableProxy(objIds.Keys); }
         }
 
-        /// <summary>Look up the <see cref="Gost3410ParamSetParameters"/> for the parameter set with the given
-        /// <see cref="DerObjectIdentifier">OID</see>.</summary>
-        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the parameter set.</param>
-        public static Gost3410ParamSetParameters GetByOid(DerObjectIdentifier oid)
+		public static Gost3410ParamSetParameters GetByName(
+            string name)
         {
-            return CollectionUtilities.GetValueOrNull(parameters, oid);
+            DerObjectIdentifier oid = (DerObjectIdentifier) objIds[name];
+
+            if (oid != null)
+            {
+                return (Gost3410ParamSetParameters) parameters[oid];
+            }
+
+            return null;
         }
 
-        /// <summary>Look up the <see cref="DerObjectIdentifier">OID</see> of the parameter set with the given name.
-        /// </summary>
-        /// <param name="name">The name of the parameter set.</param>
-        public static DerObjectIdentifier GetOid(string name)
+        public static DerObjectIdentifier GetOid(
+			string name)
         {
-            return CollectionUtilities.GetValueOrNull(objIds, name);
-        }
-
-        /// <summary>Enumerate the available parameter set names in this registry.</summary>
-        public static IEnumerable<string> Names
-        {
-            get { return CollectionUtilities.Proxy(objIds.Keys); }
+            return (DerObjectIdentifier) objIds[name];
         }
     }
 }

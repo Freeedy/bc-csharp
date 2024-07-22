@@ -8,61 +8,24 @@ namespace Org.BouncyCastle.Asn1.X509
     public class Time
         : Asn1Encodable, IAsn1Choice
     {
-        public static Time GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is Time time)
-                return time;
-            if (obj is Asn1UtcTime utcTime)
-                return new Time(utcTime);
-            if (obj is Asn1GeneralizedTime generalizedTime)
-                return new Time(generalizedTime);
+        private readonly Asn1Object time;
 
-            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), nameof(obj));
+        public static Time GetInstance(
+            Asn1TaggedObject	obj,
+            bool				explicitly)
+        {
+            return GetInstance(obj.GetObject());
         }
 
-        public static Time GetInstance(Asn1TaggedObject	taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public static Time GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public static Time GetOptional(Asn1Encodable element)
+        public Time(
+            Asn1Object time)
         {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
+            if (time == null)
+                throw new ArgumentNullException("time");
+            if (!(time is DerUtcTime) && !(time is DerGeneralizedTime))
+                throw new ArgumentException("unknown object passed to Time");
 
-            if (element is Time time)
-                return time;
-
-            Asn1UtcTime utcTime = Asn1UtcTime.GetOptional(element);
-            if (utcTime != null)
-                return new Time(utcTime);
-
-            Asn1GeneralizedTime generalizedTime = Asn1GeneralizedTime.GetOptional(element);
-            if (generalizedTime != null)
-                return new Time(generalizedTime);
-
-            return null;
-        }
-
-        private readonly Asn1Object m_timeObject;
-
-        public Time(Asn1GeneralizedTime generalizedTime)
-        {
-            m_timeObject = generalizedTime ?? throw new ArgumentNullException(nameof(generalizedTime));
-        }
-
-        public Time(Asn1UtcTime utcTime)
-        {
-            if (utcTime == null)
-                throw new ArgumentNullException(nameof(utcTime));
-
-            // Validate utcTime is in the appropriate year range
-            utcTime.ToDateTime(2049);
-
-            m_timeObject = utcTime;
+            this.time = time;
         }
 
         /**
@@ -70,18 +33,48 @@ namespace Org.BouncyCastle.Asn1.X509
          * and 2049 a UTCTime object is Generated, otherwise a GeneralizedTime
          * is used.
          */
-        public Time(DateTime date)
+        public Time(
+            DateTime date)
         {
-            DateTime utc = date.ToUniversalTime();
+#if PORTABLE
+            string d = date.ToUniversalTime().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + "Z";
+#else
+            string d = date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + "Z";
+#endif
 
-            if (utc.Year < 1950 || utc.Year > 2049)
+            int year = int.Parse(d.Substring(0, 4));
+
+            if (year < 1950 || year > 2049)
             {
-                m_timeObject = Rfc5280Asn1Utilities.CreateGeneralizedTime(utc);
+                time = new DerGeneralizedTime(d);
             }
             else
             {
-                m_timeObject = Rfc5280Asn1Utilities.CreateUtcTime(utc);
+                time = new DerUtcTime(d.Substring(2));
             }
+        }
+
+        public static Time GetInstance(
+            object obj)
+        {
+            if (obj == null || obj is Time)
+                return (Time)obj;
+            if (obj is DerUtcTime)
+                return new Time((DerUtcTime)obj);
+            if (obj is DerGeneralizedTime)
+                return new Time((DerGeneralizedTime)obj);
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+        }
+
+        public string GetTime()
+        {
+            if (time is DerUtcTime)
+            {
+                return ((DerUtcTime) time).AdjustedTimeString;
+            }
+
+            return ((DerGeneralizedTime) time).GetTime();
         }
 
         /// <summary>
@@ -92,10 +85,14 @@ namespace Org.BouncyCastle.Asn1.X509
         {
             try
             {
-                if (m_timeObject is Asn1UtcTime utcTime)
-                    return utcTime.ToDateTime(2049);
-
-                return ((Asn1GeneralizedTime)m_timeObject).ToDateTime();
+                if (time is DerUtcTime)
+                {
+                    return ((DerUtcTime)time).ToAdjustedDateTime();
+                }
+                else
+                {
+                    return ((DerGeneralizedTime)time).ToDateTime();
+                }
             }
             catch (FormatException e)
             {
@@ -114,18 +111,12 @@ namespace Org.BouncyCastle.Asn1.X509
          */
         public override Asn1Object ToAsn1Object()
         {
-            return m_timeObject;
+            return time;
         }
 
         public override string ToString()
         {
-            if (m_timeObject is Asn1UtcTime utcTime)
-                return utcTime.ToDateTime(2049).ToString(@"yyyyMMddHHmmssK", DateTimeFormatInfo.InvariantInfo);
-
-            if (m_timeObject is Asn1GeneralizedTime generalizedTime)
-                return generalizedTime.ToDateTime().ToString(@"yyyyMMddHHmmss.FFFFFFFK", DateTimeFormatInfo.InvariantInfo);
-
-            throw new InvalidOperationException();
+            return GetTime();
         }
     }
 }

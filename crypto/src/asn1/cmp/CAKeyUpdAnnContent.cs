@@ -1,44 +1,48 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Cmp
 {
 	public class CAKeyUpdAnnContent
 		: Asn1Encodable
 	{
-        public static CAKeyUpdAnnContent GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is CAKeyUpdAnnContent caKeyUpdAnnContent)
-                return caKeyUpdAnnContent;
-            return new CAKeyUpdAnnContent(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static CAKeyUpdAnnContent GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new CAKeyUpdAnnContent(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly CmpCertificate m_oldWithNew;
-		private readonly CmpCertificate m_newWithOld;
-		private readonly CmpCertificate m_newWithNew;
+		private readonly CmpCertificate oldWithNew;
+		private readonly CmpCertificate newWithOld;
+		private readonly CmpCertificate newWithNew;
 
 		private CAKeyUpdAnnContent(Asn1Sequence seq)
 		{
-            int count = seq.Count;
-            if (count != 3)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_oldWithNew = CmpCertificate.GetInstance(seq[0]);
-			m_newWithOld = CmpCertificate.GetInstance(seq[1]);
-			m_newWithNew = CmpCertificate.GetInstance(seq[2]);
+			oldWithNew = CmpCertificate.GetInstance(seq[0]);
+			newWithOld = CmpCertificate.GetInstance(seq[1]);
+			newWithNew = CmpCertificate.GetInstance(seq[2]);
 		}
 
-		public virtual CmpCertificate OldWithNew => m_oldWithNew;
+		public static CAKeyUpdAnnContent GetInstance(object obj)
+		{
+			if (obj is CAKeyUpdAnnContent)
+				return (CAKeyUpdAnnContent)obj;
 
-		public virtual CmpCertificate NewWithOld => m_newWithOld;
+			if (obj is Asn1Sequence)
+				return new CAKeyUpdAnnContent((Asn1Sequence)obj);
 
-		public virtual CmpCertificate NewWithNew => m_newWithNew;
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public virtual CmpCertificate OldWithNew
+		{
+			get { return oldWithNew; }
+		}
+		
+		public virtual CmpCertificate NewWithOld
+		{
+			get { return newWithOld; }
+		}
+
+		public virtual CmpCertificate NewWithNew
+		{
+			get { return newWithNew; }
+		}
 
 		/**
 		 * <pre>
@@ -50,6 +54,9 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		 * </pre>
 		 * @return a basic ASN.1 object representation.
 		 */
-		public override Asn1Object ToAsn1Object() => new DerSequence(m_oldWithNew, m_newWithOld, m_newWithNew);
+		public override Asn1Object ToAsn1Object()
+		{
+			return new DerSequence(oldWithNew, newWithOld, newWithNew);
+		}
 	}
 }

@@ -25,7 +25,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			try
 			{
-				Restriction.GetInstance(new object());
+				Restriction.GetInstance(new Object());
 
 				Fail("GetInstance() failed to detect bad object.");
 			}
@@ -59,6 +59,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 			DirectoryString	res)
 		{
 			checkMandatoryField("restriction", res, restriction.RestrictionString);
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new RestrictionUnitTest());
 		}
 
 		[Test]

@@ -1,7 +1,10 @@
 using System;
+using System.Collections;
 
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Macs
 {
@@ -52,8 +55,10 @@ namespace Org.BouncyCastle.Crypto.Macs
         /// </summary>
         public void Init(ICipherParameters parameters)
         {
-            if (parameters is ParametersWithIV param)
+            if (parameters is ParametersWithIV)
             {
+                ParametersWithIV param = (ParametersWithIV)parameters;
+
                 byte[] iv = param.GetIV();
                 KeyParameter keyParam = (KeyParameter)param.Parameters;
 
@@ -68,7 +73,7 @@ namespace Org.BouncyCastle.Crypto.Macs
 
         public string AlgorithmName
         {
-            get { return cipher.UnderlyingCipher.AlgorithmName + "-GMAC"; }
+            get { return cipher.GetUnderlyingCipher().AlgorithmName + "-GMAC"; }
         }
 
         public int GetMacSize()
@@ -86,13 +91,6 @@ namespace Org.BouncyCastle.Crypto.Macs
             cipher.ProcessAadBytes(input, inOff, len);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public void BlockUpdate(ReadOnlySpan<byte> input)
-        {
-            cipher.ProcessAadBytes(input);
-        }
-#endif
-
         public int DoFinal(byte[] output, int outOff)
         {
             try
@@ -105,21 +103,6 @@ namespace Org.BouncyCastle.Crypto.Macs
                 throw new InvalidOperationException(e.ToString());
             }
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int DoFinal(Span<byte> output)
-        {
-            try
-            {
-                return cipher.DoFinal(output);
-            }
-            catch (InvalidCipherTextException e)
-            {
-                // Impossible in encrypt mode
-                throw new InvalidOperationException(e.ToString());
-            }
-        }
-#endif
 
         public void Reset()
         {

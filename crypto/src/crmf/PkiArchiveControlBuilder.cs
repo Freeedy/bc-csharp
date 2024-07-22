@@ -12,8 +12,8 @@ namespace Org.BouncyCastle.Crmf
 {
     public class PkiArchiveControlBuilder
     {
-        private readonly CmsEnvelopedDataGenerator m_envGen;
-        private readonly CmsProcessableByteArray m_keyContent;
+        private CmsEnvelopedDataGenerator envGen;
+        private CmsProcessableByteArray keyContent;
 
         /// <summary>
         ///Basic constructor - specify the contents of the PKIArchiveControl structure.
@@ -27,14 +27,14 @@ namespace Org.BouncyCastle.Crmf
 
             try
             {
-                m_keyContent = new CmsProcessableByteArray(CrmfObjectIdentifiers.id_ct_encKeyWithID, encKeyWithID.GetEncoded());
+                this.keyContent = new CmsProcessableByteArray(CrmfObjectIdentifiers.id_ct_encKeyWithID, encKeyWithID.GetEncoded());
             }
             catch (IOException e)
             {
                 throw new InvalidOperationException("unable to encode key and general name info", e);
             }
 
-            m_envGen = new CmsEnvelopedDataGenerator();
+            this.envGen = new CmsEnvelopedDataGenerator();
         }
 
         ///<summary>Add a recipient generator to this control.</summary>       
@@ -42,7 +42,7 @@ namespace Org.BouncyCastle.Crmf
         ///<returns>this builder object.</returns>       
         public PkiArchiveControlBuilder AddRecipientGenerator(RecipientInfoGenerator recipientGen)
         {
-            m_envGen.AddRecipientInfoGenerator(recipientGen);
+            envGen.AddRecipientInfoGenerator(recipientGen);
             return this;
         }
        
@@ -51,26 +51,9 @@ namespace Org.BouncyCastle.Crmf
         /// <returns>a PKIArchiveControl object.</returns>
         public PkiArchiveControl Build(ICipherBuilderWithKey contentEncryptor)
         {                                            
-            CmsEnvelopedData envContent = m_envGen.Generate(m_keyContent, contentEncryptor);
+            CmsEnvelopedData envContent = envGen.Generate(keyContent, contentEncryptor);
             EnvelopedData envD = EnvelopedData.GetInstance(envContent.ContentInfo.Content);        
             return new PkiArchiveControl(new PkiArchiveOptions(new EncryptedKey(envD)));
         }
-
-        // TODO[crmf]
-#if false
-        /**
-         * Build the PKIArchiveControl using the passed in encryptor to encrypt its contents.
-         *
-         * @param contentEncryptor a suitable content encryptor.
-         * @return a PKIArchiveControl object.
-         * @throws CMSException in the event the build fails.
-         */
-        public PkiArchiveControl Build(OutputEncryptor contentEncryptor)
-        {
-            CmsEnvelopedData envContent = m_envGen.Generate(m_keyContent, contentEncryptor);
-            EnvelopedData envD = EnvelopedData.GetInstance(envContent.ContentInfo.Content);
-            return new PkiArchiveControl(new PkiArchiveOptions(new EncryptedKey(envD)));
-        }
-#endif
     }
 }

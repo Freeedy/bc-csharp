@@ -10,93 +10,108 @@ namespace Org.BouncyCastle.Crypto.Tests
 	public abstract class CipherTest
 		: SimpleTest
 	{
-		private readonly SimpleTest[] m_tests;
-		private readonly IBlockCipher m_engine;
-		private readonly KeyParameter m_validKey;
+		private SimpleTest[]      _tests;
+		private IBlockCipher _engine;
+		private KeyParameter _validKey;
 
-		protected CipherTest()
-		{
-            m_tests = null;
-            m_engine = null;
-            m_validKey = null;
-        }
+//		protected CipherTest(
+//			SimpleTest[]	tests)
+//		{
+//			_tests = tests;
+//		}
 
-        protected CipherTest(SimpleTest[] tests, IBlockCipher engine, KeyParameter validKey)
+		protected CipherTest(
+			SimpleTest[]	tests,
+			IBlockCipher	engine,
+			KeyParameter	validKey)
 		{
-            m_tests = tests;
-			m_engine = engine;
-			m_validKey = validKey;
+			_tests = tests;
+			_engine = engine;
+			_validKey = validKey;
 		}
 
 		public override void PerformTest()
 		{
-			if (m_tests != null)
+			for (int i = 0; i != _tests.Length; i++)
 			{
-                RunTests(m_tests);
-            }
+				_tests[i].PerformTest();
+			}
 
-            if (m_engine != null)
+			if (_engine != null)
 			{
-                RunEngineChecks(m_engine, m_validKey);
-            }
+				//
+				// state tests
+				//
+				byte[] buf = new byte[_engine.GetBlockSize()];
+
+				try
+				{
+					_engine.ProcessBlock(buf, 0, buf, 0);
+
+					Fail("failed initialisation check");
+				}
+				catch (InvalidOperationException)
+				{
+					// expected
+				}
+
+				bufferSizeCheck((_engine));
+			}
 		}
 
-        protected void RunEngineChecks(IBlockCipher engine, KeyParameter validKey)
-        {
-            byte[] buf = new byte[engine.GetBlockSize()];
-            ExpectInvalidOperationException(engine, buf, buf, "failed initialisation check");
-
-            CheckDataLengthExceptions(engine, validKey);
-        }
-
-        protected void RunTests(SimpleTest[] tests)
-        {
-            foreach (var test in tests)
-            {
-                test.PerformTest();
-            }
-        }
-
-        private void CheckDataLengthExceptions(IBlockCipher engine, ICipherParameters parameters)
+		private void bufferSizeCheck(
+			IBlockCipher engine)
 		{
 			byte[] correctBuf = new byte[engine.GetBlockSize()];
 			byte[] shortBuf = new byte[correctBuf.Length / 2];
 
-            engine.Init(true, parameters);
+			engine.Init(true, _validKey);
 
-			ExpectDataLengthException(engine, shortBuf, correctBuf, "failed short input check");
-            ExpectDataLengthException(engine, correctBuf, shortBuf, "failed short output check");
+			try
+			{
+				engine.ProcessBlock(shortBuf, 0, correctBuf, 0);
 
-			engine.Init(false, parameters);
+				Fail("failed short input check");
+			}
+			catch (DataLengthException)
+			{
+				// expected
+			}
 
-            ExpectDataLengthException(engine, shortBuf, correctBuf, "failed short input check");
-            ExpectDataLengthException(engine, correctBuf, shortBuf, "failed short output check");
+			try
+			{
+				engine.ProcessBlock(correctBuf, 0, shortBuf, 0);
+
+				Fail("failed short output check");
+			}
+			catch (DataLengthException)
+			{
+				// expected
+			}
+
+			engine.Init(false, _validKey);
+
+			try
+			{
+				engine.ProcessBlock(shortBuf, 0, correctBuf, 0);
+
+				Fail("failed short input check");
+			}
+			catch (DataLengthException)
+			{
+				// expected
+			}
+
+			try
+			{
+				engine.ProcessBlock(correctBuf, 0, shortBuf, 0);
+
+				Fail("failed short output check");
+			}
+			catch (DataLengthException)
+			{
+				// expected
+			}
 		}
-
-        private void ExpectDataLengthException(IBlockCipher engine, byte[] input, byte[] output, string message)
-		{
-            try
-            {
-                engine.ProcessBlock(input, 0, output, 0);
-                Fail(message);
-            }
-            catch (DataLengthException)
-            {
-                // expected
-            }
-        }
-
-        private void ExpectInvalidOperationException(IBlockCipher engine, byte[] input, byte[] output, string message)
-        {
-            try
-            {
-                engine.ProcessBlock(input, 0, output, 0);
-                Fail(message);
-            }
-            catch (InvalidOperationException)
-            {
-                // expected
-            }
-        }
-    }
+	}
 }

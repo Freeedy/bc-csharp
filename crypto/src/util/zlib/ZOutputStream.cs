@@ -109,49 +109,48 @@ namespace Org.BouncyCastle.Utilities.Zlib
             this.z.deflateInit(level, nowrap);
         }
 
-        protected void Detach(bool disposing)
-        {
-            if (disposing)
-            {
-                ImplDisposing(disposeOutput: false);
-            }
-            base.Dispose(disposing);
-        }
-
+#if PORTABLE
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                ImplDisposing(disposeOutput: true);
+			    if (closed)
+				    return;
+
+                DoClose();
             }
             base.Dispose(disposing);
         }
-
-        private void ImplDisposing(bool disposeOutput)
+#else
+        public override void Close()
         {
-            if (!closed)
+            if (closed)
+                return;
+
+            DoClose();
+            base.Close();
+        }
+#endif
+
+        private void DoClose()
+        {
+            try
             {
                 try
                 {
-                    try
-                    {
-                        Finish();
-                    }
-                    catch (IOException)
-                    {
-                        // Ignore
-                    }
+                    Finish();
                 }
-                finally
+                catch (IOException)
                 {
-                    this.closed = true;
-                    End();
-                    if (disposeOutput)
-                    {
-                        output.Dispose();
-                    }
-                    output = null;
+                    // Ignore
                 }
+            }
+            finally
+            {
+                this.closed = true;
+                End();
+                Platform.Dispose(output);
+                output = null;
             }
         }
 
@@ -251,40 +250,6 @@ namespace Org.BouncyCastle.Utilities.Zlib
         {
             buf1[0] = value;
             Write(buf1, 0, 1);
-        }
-    }
-
-    public class ZOutputStreamLeaveOpen
-        : ZOutputStream
-    {
-        public ZOutputStreamLeaveOpen(Stream output)
-            : base(output)
-        {
-        }
-
-        public ZOutputStreamLeaveOpen(Stream output, bool nowrap)
-            : base(output, nowrap)
-        {
-        }
-
-        public ZOutputStreamLeaveOpen(Stream output, ZStream z)
-            : base(output, z)
-        {
-        }
-
-        public ZOutputStreamLeaveOpen(Stream output, int level)
-            : base(output, level)
-        {
-        }
-
-        public ZOutputStreamLeaveOpen(Stream output, int level, bool nowrap)
-            : base(output, level, nowrap)
-        {
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            Detach(disposing);
         }
     }
 }

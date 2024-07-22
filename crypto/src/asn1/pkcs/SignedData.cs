@@ -1,4 +1,7 @@
 using System;
+using System.Collections;
+
+using Org.BouncyCastle.Asn1;
 
 namespace Org.BouncyCastle.Asn1.Pkcs
 {
@@ -8,72 +11,113 @@ namespace Org.BouncyCastle.Asn1.Pkcs
     public class SignedData
         : Asn1Encodable
     {
+        private readonly DerInteger		version;
+        private readonly Asn1Set		digestAlgorithms;
+        private readonly ContentInfo	contentInfo;
+        private readonly Asn1Set		certificates;
+        private readonly Asn1Set		crls;
+        private readonly Asn1Set		signerInfos;
+
         public static SignedData GetInstance(object obj)
         {
             if (obj == null)
                 return null;
-            if (obj is SignedData signedData)
-                return signedData;
+            SignedData existing = obj as SignedData;
+            if (existing != null)
+                return existing;
             return new SignedData(Asn1Sequence.GetInstance(obj));
         }
 
-        public static SignedData GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new SignedData(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly DerInteger m_version;
-        private readonly Asn1Set m_digestAlgorithms;
-        private readonly ContentInfo m_contentInfo;
-        private readonly Asn1Set m_certificates;
-        private readonly Asn1Set m_crls;
-        private readonly Asn1Set m_signerInfos;
-
-        private SignedData(Asn1Sequence seq)
-        {
-            int count = seq.Count, pos = 0;
-            if (count < 4 || count > 6)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_version = DerInteger.GetInstance(seq[pos++]);
-            m_digestAlgorithms = Asn1Set.GetInstance(seq[pos++]);
-            m_contentInfo = ContentInfo.GetInstance(seq[pos++]);
-            m_certificates = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, false, Asn1Set.GetTagged);
-            m_crls = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, false, Asn1Set.GetTagged);
-            m_signerInfos = Asn1Set.GetInstance(seq[pos++]);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
-        }
-
-        // TODO[api] Improve parameter names
         public SignedData(
-            DerInteger _version,
-            Asn1Set _digestAlgorithms,
-            ContentInfo _contentInfo,
-            Asn1Set _certificates,
-            Asn1Set _crls,
-            Asn1Set _signerInfos)
+            DerInteger        _version,
+            Asn1Set           _digestAlgorithms,
+            ContentInfo       _contentInfo,
+            Asn1Set           _certificates,
+            Asn1Set           _crls,
+            Asn1Set           _signerInfos)
         {
-            m_version = _version ?? throw new ArgumentNullException(nameof(_version));
-            m_digestAlgorithms = _digestAlgorithms ?? throw new ArgumentNullException(nameof(_digestAlgorithms));
-            m_contentInfo = _contentInfo ?? throw new ArgumentNullException(nameof(_contentInfo));
-            m_certificates = _certificates;
-            m_crls = _crls;
-            m_signerInfos = _signerInfos ?? throw new ArgumentNullException(nameof(_signerInfos));
+            version          = _version;
+            digestAlgorithms = _digestAlgorithms;
+            contentInfo      = _contentInfo;
+            certificates     = _certificates;
+            crls             = _crls;
+            signerInfos      = _signerInfos;
         }
 
-        public DerInteger Version => m_version;
+        private SignedData(
+            Asn1Sequence seq)
+        {
+            IEnumerator e = seq.GetEnumerator();
 
-        public Asn1Set DigestAlgorithms => m_digestAlgorithms;
+            e.MoveNext();
+            version = (DerInteger) e.Current;
 
-        public ContentInfo ContentInfo => m_contentInfo;
+            e.MoveNext();
+            digestAlgorithms = (Asn1Set) e.Current;
 
-        public Asn1Set Certificates => m_certificates;
+            e.MoveNext();
+            contentInfo = ContentInfo.GetInstance(e.Current);
 
-        public Asn1Set Crls => m_crls;
+            while (e.MoveNext())
+            {
+                Asn1Object o = (Asn1Object) e.Current;
 
-        public Asn1Set SignerInfos => m_signerInfos;
+                //
+                // an interesting feature of SignedData is that there appear to be varying implementations...
+                // for the moment we ignore anything which doesn't fit.
+                //
+                if (o is Asn1TaggedObject)
+                {
+                    Asn1TaggedObject tagged = (Asn1TaggedObject)o;
+
+                    switch (tagged.TagNo)
+                    {
+                        case 0:
+                            certificates = Asn1Set.GetInstance(tagged, false);
+                            break;
+                        case 1:
+                            crls = Asn1Set.GetInstance(tagged, false);
+                            break;
+                        default:
+                            throw new ArgumentException("unknown tag value " + tagged.TagNo);
+                    }
+                }
+                else
+                {
+                    signerInfos = (Asn1Set) o;
+                }
+            }
+        }
+
+        public DerInteger Version
+        {
+            get { return version; }
+        }
+
+        public Asn1Set DigestAlgorithms
+        {
+            get { return digestAlgorithms; }
+        }
+
+        public ContentInfo ContentInfo
+        {
+            get { return contentInfo; }
+        }
+
+        public Asn1Set Certificates
+        {
+            get { return certificates; }
+        }
+
+        public Asn1Set Crls
+        {
+            get { return crls; }
+        }
+
+        public Asn1Set SignerInfos
+        {
+            get { return signerInfos; }
+        }
 
         /**
          * Produce an object suitable for an Asn1OutputStream.
@@ -92,11 +136,10 @@ namespace Org.BouncyCastle.Asn1.Pkcs
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(6);
-            v.Add(m_version, m_digestAlgorithms, m_contentInfo);
-            v.AddOptionalTagged(false, 0, m_certificates);
-            v.AddOptionalTagged(false, 1, m_crls);
-            v.Add(m_signerInfos);
+            Asn1EncodableVector v = new Asn1EncodableVector(version, digestAlgorithms, contentInfo);
+            v.AddOptionalTagged(false, 0, certificates);
+            v.AddOptionalTagged(false, 1, crls);
+            v.Add(signerInfos);
             return new BerSequence(v);
         }
     }

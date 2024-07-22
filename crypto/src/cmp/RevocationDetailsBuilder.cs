@@ -1,4 +1,6 @@
-﻿using Org.BouncyCastle.Asn1;
+﻿using System;
+
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cmp;
 using Org.BouncyCastle.Asn1.Crmf;
 using Org.BouncyCastle.Asn1.X509;
@@ -6,15 +8,15 @@ using Org.BouncyCastle.Math;
 
 namespace Org.BouncyCastle.Cmp
 {
-    public sealed class RevocationDetailsBuilder
+    public class RevocationDetailsBuilder
     {
-        private readonly CertTemplateBuilder m_templateBuilder = new CertTemplateBuilder();
+        private readonly CertTemplateBuilder _templateBuilder = new CertTemplateBuilder();
 
         public RevocationDetailsBuilder SetPublicKey(SubjectPublicKeyInfo publicKey)
         {
             if (publicKey != null)
             {
-                m_templateBuilder.SetPublicKey(publicKey);
+                _templateBuilder.SetPublicKey(publicKey);
             }
 
             return this;
@@ -24,7 +26,7 @@ namespace Org.BouncyCastle.Cmp
         {
             if (issuer != null)
             {
-                m_templateBuilder.SetIssuer(issuer);
+                _templateBuilder.SetIssuer(issuer);
             }
 
             return this;
@@ -34,7 +36,7 @@ namespace Org.BouncyCastle.Cmp
         {
             if (serialNumber != null)
             {
-                m_templateBuilder.SetSerialNumber(new DerInteger(serialNumber));
+                _templateBuilder.SetSerialNumber(new DerInteger(serialNumber));
             }
 
             return this;
@@ -44,7 +46,7 @@ namespace Org.BouncyCastle.Cmp
         {
             if (subject != null)
             {
-                m_templateBuilder.SetSubject(subject);
+                _templateBuilder.SetSubject(subject);
             }
 
             return this;
@@ -52,7 +54,7 @@ namespace Org.BouncyCastle.Cmp
 
         public RevocationDetails Build()
         {
-            return new RevocationDetails(new RevDetails(m_templateBuilder.Build()));
+            return new RevocationDetails(new RevDetails(_templateBuilder.Build()));
         }
     }
 }

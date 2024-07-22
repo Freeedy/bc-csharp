@@ -1,5 +1,8 @@
 using System;
+using System.Collections;
 
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Utilities;
 
@@ -17,6 +20,23 @@ namespace Org.BouncyCastle.Crypto.Signers
         {
             return recoveredMessage;
         }
+
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerImplicit = 0xBC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerRipeMD160 = 0x31CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerRipeMD128 = 0x32CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerSha1 = 0x33CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerSha256 = 0x34CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerSha512 = 0x35CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerSha384 = 0x36CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerWhirlpool = 0x37CC;
 
         private IDigest digest;
         private IAsymmetricBlockCipher cipher;
@@ -218,7 +238,9 @@ namespace Org.BouncyCastle.Crypto.Signers
             recoveredMessage.CopyTo(mBuf, 0);
         }
 
-        public virtual void Update(byte input)
+        /// <summary> update the internal digest with the byte b</summary>
+        public virtual void Update(
+            byte input)
         {
             digest.Update(input);
 
@@ -230,44 +252,49 @@ namespace Org.BouncyCastle.Crypto.Signers
             messageLength++;
         }
 
-        public virtual void BlockUpdate(byte[] input, int inOff, int inLen)
+        /// <summary> update the internal digest with the byte array in</summary>
+        public virtual void BlockUpdate(
+            byte[]	input,
+            int		inOff,
+            int		length)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            BlockUpdate(input.AsSpan(inOff, inLen));
-#else
-            while (inLen > 0 && messageLength < mBuf.Length)
+            while (length > 0 && messageLength < mBuf.Length)
             {
+                //for (int i = 0; i < length && (i + messageLength) < mBuf.Length; i++)
+                //{
+                //    mBuf[messageLength + i] = input[inOff + i];
+                //}
                 this.Update(input[inOff]);
                 inOff++;
-                inLen--;
+                length--;
             }
 
-            if (inLen > 0)
-            {
-                digest.BlockUpdate(input, inOff, inLen);
-                messageLength += inLen;
-            }
-#endif
+            digest.BlockUpdate(input, inOff, length);
+            messageLength += length;
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void BlockUpdate(ReadOnlySpan<byte> input)
+        /// <summary> reset the internal state</summary>
+        public virtual void Reset()
         {
-            while (!input.IsEmpty && messageLength < mBuf.Length)
+            digest.Reset();
+            messageLength = 0;
+            ClearBlock(mBuf);
+
+            if (recoveredMessage != null)
             {
-                this.Update(input[0]);
-                input = input[1..];
+                ClearBlock(recoveredMessage);
             }
 
-            if (!input.IsEmpty)
+            recoveredMessage = null;
+            fullMessage = false;
+
+            if (preSig != null)
             {
-                digest.BlockUpdate(input);
-                messageLength += input.Length;
+                preSig = null;
+                ClearBlock(preBlock);
+                preBlock = null;
             }
         }
-#endif
-
-        public virtual int GetMaxSignatureSize() => cipher.GetOutputBlockSize();
 
         /// <summary> Generate a signature for the loaded message using the key we were
         /// initialised with.
@@ -504,29 +531,6 @@ namespace Org.BouncyCastle.Crypto.Signers
             messageLength = 0;
 
             return true;
-        }
-
-        /// <summary> reset the internal state</summary>
-        public virtual void Reset()
-        {
-            digest.Reset();
-            messageLength = 0;
-            ClearBlock(mBuf);
-
-            if (recoveredMessage != null)
-            {
-                ClearBlock(recoveredMessage);
-            }
-
-            recoveredMessage = null;
-            fullMessage = false;
-
-            if (preSig != null)
-            {
-                preSig = null;
-                ClearBlock(preBlock);
-                preBlock = null;
-            }
         }
 
         private bool ReturnFalse(byte[] block)

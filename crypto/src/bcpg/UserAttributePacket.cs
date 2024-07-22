@@ -1,5 +1,8 @@
-using System.Collections.Generic;
+using System;
+using System.Collections;
 using System.IO;
+
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Bcpg
 {
@@ -17,13 +20,18 @@ namespace Org.BouncyCastle.Bcpg
             UserAttributeSubpacketsParser sIn = new UserAttributeSubpacketsParser(bcpgIn);
             UserAttributeSubpacket sub;
 
-            var v = new List<UserAttributeSubpacket>();
+            IList v = Platform.CreateArrayList();
             while ((sub = sIn.ReadPacket()) != null)
             {
                 v.Add(sub);
             }
 
-            subpackets = v.ToArray();
+            subpackets = new UserAttributeSubpacket[v.Count];
+
+            for (int i = 0; i != subpackets.Length; i++)
+            {
+                subpackets[i] = (UserAttributeSubpacket)v[i];
+            }
         }
 
         public UserAttributePacket(
@@ -37,7 +45,8 @@ namespace Org.BouncyCastle.Bcpg
             return subpackets;
         }
 
-        public override void Encode(BcpgOutputStream bcpgOut)
+        public override void Encode(
+            BcpgOutputStream bcpgOut)
         {
             MemoryStream bOut = new MemoryStream();
 
@@ -46,7 +55,7 @@ namespace Org.BouncyCastle.Bcpg
                 subpackets[i].Encode(bOut);
             }
 
-            bcpgOut.WritePacket(PacketTag.UserAttribute, bOut.ToArray());
+            bcpgOut.WritePacket(PacketTag.UserAttribute, bOut.ToArray(), false);
         }
     }
 }

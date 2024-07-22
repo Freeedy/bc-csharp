@@ -1,46 +1,31 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Utilities.Collections;
+using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.X509;
 using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.Pkix
 {
-    public class PkixCrlUtilities
+	public class PkixCrlUtilities
 	{
-		// TODO[api] Redundant
-		public virtual ISet<X509Crl> FindCrls(X509CrlStoreSelector crlSelector, PkixParameters paramsPkix)
+		public virtual ISet FindCrls(X509CrlStoreSelector crlselect, PkixParameters paramsPkix, DateTime currentDate)
 		{
-            return FindCrls((ISelector<X509Crl>)crlSelector, paramsPkix);
-        }
+			ISet initialSet = new HashSet();
 
-        public virtual ISet<X509Crl> FindCrls(ISelector<X509Crl> crlSelector, PkixParameters paramsPkix)
-        {
-            // get complete CRL(s)
-            try
-            {
-                return FindCrls(crlSelector, paramsPkix.GetStoresCrl());
-            }
-            catch (Exception e)
-            {
-                throw new Exception("Exception obtaining complete CRLs.", e);
-            }
-        }
+			// get complete CRL(s)
+			try
+			{
+				initialSet.AddAll(FindCrls(crlselect, paramsPkix.GetAdditionalStores()));
+				initialSet.AddAll(FindCrls(crlselect, paramsPkix.GetStores()));
+			}
+			catch (Exception e)
+			{
+				throw new Exception("Exception obtaining complete CRLs.", e);
+			}
 
-        // TODO[api] Redundant
-        public virtual ISet<X509Crl> FindCrls(X509CrlStoreSelector crlSelector, PkixParameters paramsPkix,
-			DateTime currentDate)
-		{
-            return FindCrls((ISelector<X509Crl>)crlSelector, paramsPkix, currentDate);
-        }
-
-        public virtual ISet<X509Crl> FindCrls(ISelector<X509Crl> crlSelector, PkixParameters paramsPkix,
-			DateTime currentDate)
-		{
-            var initialSet = FindCrls(crlSelector, paramsPkix);
-
-            var finalSet = new HashSet<X509Crl>();
+			ISet finalSet = new HashSet();
 			DateTime validityDate = currentDate;
 
 			if (paramsPkix.Date != null)
@@ -48,19 +33,15 @@ namespace Org.BouncyCastle.Pkix
 				validityDate = paramsPkix.Date.Value;
 			}
 
-            X509Certificate cert = null;
-            if (crlSelector is ICheckingCertificate checkingCertificate)
-            {
-                cert = checkingCertificate.CertificateChecking;
-            }
-
-            // based on RFC 5280 6.3.3
-            foreach (X509Crl crl in initialSet)
+			// based on RFC 5280 6.3.3
+			foreach (X509Crl crl in initialSet)
 			{
-                DateTime? nextUpdate = crl.NextUpdate;
+                DateTimeObject nextUpdate = crl.NextUpdate;
 
                 if (null == nextUpdate || nextUpdate.Value.CompareTo(validityDate) > 0)
 				{
+					X509Certificate cert = crlselect.CertificateChecking;
+
                     if (null == cert || crl.ThisUpdate.CompareTo(cert.NotAfter) < 0)
                     {
                         finalSet.Add(crl);
@@ -71,40 +52,57 @@ namespace Org.BouncyCastle.Pkix
 			return finalSet;
 		}
 
+		public virtual ISet FindCrls(X509CrlStoreSelector crlselect, PkixParameters paramsPkix)
+		{
+			ISet completeSet = new HashSet();
+
+			// get complete CRL(s)
+			try
+			{
+				completeSet.AddAll(FindCrls(crlselect, paramsPkix.GetStores()));
+			}
+			catch (Exception e)
+			{
+				throw new Exception("Exception obtaining complete CRLs.", e);
+			}
+
+			return completeSet;
+		}
+
 		/// <summary>
 		/// crl checking
 		/// Return a Collection of all CRLs found in the X509Store's that are
 		/// matching the crlSelect criteriums.
 		/// </summary>
-		/// <param name="crlSelector">a {@link X509CRLStoreSelector} object that will be used
+		/// <param name="crlSelect">a {@link X509CRLStoreSelector} object that will be used
 		/// to select the CRLs</param>
 		/// <param name="crlStores">a List containing only {@link org.bouncycastle.x509.X509Store
 		/// X509Store} objects. These are used to search for CRLs</param>
 		/// <returns>a Collection of all found {@link X509CRL X509CRL} objects. May be
 		/// empty but never <code>null</code>.
 		/// </returns>
-		private HashSet<X509Crl> FindCrls(ISelector<X509Crl> crlSelector, IEnumerable<IStore<X509Crl>> crlStores)
+		private ICollection FindCrls(X509CrlStoreSelector crlSelect, IList crlStores)
 		{
-            var crls = new HashSet<X509Crl>();
+			ISet crls = new HashSet();
 
 			Exception lastException = null;
 			bool foundValidStore = false;
 
-			foreach (var crlStore in crlStores)
+			foreach (IX509Store store in crlStores)
 			{
 				try
 				{
-					crls.UnionWith(crlStore.EnumerateMatches(crlSelector));
+					crls.AddAll(store.GetMatches(crlSelect));
 					foundValidStore = true;
 				}
-				catch (Exception e)
+				catch (X509StoreException e)
 				{
-					lastException = e;
+					lastException = new Exception("Exception searching in X.509 CRL store.", e);
 				}
 			}
 
 	        if (!foundValidStore && lastException != null)
-                throw new Exception("Exception searching in X.509 CRL store.", lastException);
+	            throw lastException;
 
 			return crls;
 		}

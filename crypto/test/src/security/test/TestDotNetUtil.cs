@@ -1,23 +1,14 @@
+#if !(NETCF_1_0 || SILVERLIGHT || PORTABLE)
+
 using System;
-using System.Collections.Generic;
-
-#if NET5_0_OR_GREATER
-using System.Runtime.Versioning;
-#endif
-
-#if NET6_0_OR_GREATER
-using System.Runtime.InteropServices;
-#endif
-
 using System.Security.Cryptography;
 using SystemX509 = System.Security.Cryptography.X509Certificates;
+using System.Collections;
 
 using NUnit.Framework;
 
-using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities.Encoders;
@@ -26,49 +17,12 @@ using Org.BouncyCastle.X509;
 namespace Org.BouncyCastle.Security.Tests
 {
 	[TestFixture]
-    public class TestDotNetUtilities
+	public class TestDotNetUtilities
 	{
-//#if NETCOREAPP1_0_OR_GREATER || NET47_OR_GREATER || NETSTANDARD1_6_OR_GREATER
-#if NET6_0_OR_GREATER
-        [Test]
-		public void TestECDsaInterop()
-		{
-			byte[] data = new byte[1024];
-
-            for (int i = 0; i < 10; ++i)
-			{
-                var ecDsa = ECDsa.Create(ECCurve.NamedCurves.nistP256);
-				byte[] sig1 = ecDsa.SignData(data, HashAlgorithmName.SHA256);
-
-                AsymmetricCipherKeyPair kp = DotNetUtilities.GetECDsaKeyPair(ecDsa);
-                Assert.IsNotNull(kp.Private);
-                Assert.IsNotNull(kp.Public);
-                ISigner signer = SignerUtilities.GetSigner("SHA256withPLAIN-ECDSA");
-
-                signer.Init(false, kp.Public);
-                signer.BlockUpdate(data, 0, data.Length);
-                Assert.IsTrue(signer.VerifySignature(sig1));
-
-				signer.Init(true, kp.Private);
-				signer.BlockUpdate(data, 0, data.Length);
-				byte[] sig2 = signer.GenerateSignature();
-
-                Assert.IsTrue(ecDsa.VerifyData(data, sig2, HashAlgorithmName.SHA256));
-            }
-        }
-#endif
-
-        [Test]
+		[Test]
 		public void TestRsaInterop()
 		{
-#if NET6_0_OR_GREATER
-			if (!RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-			{
-				return;
-			}
-#endif
-
-			for (int i = 0; i < 10; ++i)
+			for (int i = 0; i < 100; ++i)
 			{
 				RSACryptoServiceProvider rsa = new RSACryptoServiceProvider(512);
 				RSAParameters rp = rsa.ExportParameters(true);
@@ -94,14 +48,14 @@ namespace Org.BouncyCastle.Security.Tests
 			DsaPrivateKeyParameters dsaPriv = new DsaPrivateKeyParameters(DsaPrivateX, para);
 			DsaPublicKeyParameters dsaPub = new DsaPublicKeyParameters(DSAPublicY, para);
 
-			var attrs = new Dictionary<DerObjectIdentifier, string>();
+			IDictionary attrs = new Hashtable();
 			attrs[X509Name.C] = "AU";
 			attrs[X509Name.O] = "The Legion of the Bouncy Castle";
 			attrs[X509Name.L] = "Melbourne";
 			attrs[X509Name.ST] = "Victoria";
 			attrs[X509Name.E] = "feedback-crypto@bouncycastle.org";
 
-			var ord = new List<DerObjectIdentifier>(attrs.Keys);
+			IList ord = new ArrayList(attrs.Keys);
 
 			X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
 
@@ -112,10 +66,11 @@ namespace Org.BouncyCastle.Security.Tests
 			certGen.SetNotAfter(DateTime.UtcNow.AddDays(1));
 			certGen.SetSubjectDN(new X509Name(ord, attrs));
 			certGen.SetPublicKey(dsaPub);
+			certGen.SetSignatureAlgorithm("SHA1WITHDSA");
 
-            X509Certificate cert = certGen.Generate(new Asn1SignatureFactory("SHA1WITHDSA", dsaPriv, null));
+			X509Certificate cert = certGen.Generate(dsaPriv);
 
-            cert.CheckValidity();
+			cert.CheckValidity();
 			cert.Verify(dsaPub);
 
 			SystemX509.X509Certificate dotNetCert = DotNetUtilities.ToX509Certificate(cert);
@@ -129,3 +84,5 @@ namespace Org.BouncyCastle.Security.Tests
 		}
 	}
 }
+
+#endif

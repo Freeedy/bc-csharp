@@ -1,57 +1,88 @@
 using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Ess
 {
-    public class SigningCertificate
+	public class SigningCertificate
 		: Asn1Encodable
 	{
-        public static SigningCertificate GetInstance(object o)
-        {
-            if (o == null)
-                return null;
-            if (o is SigningCertificate signingCertificate)
-                return signingCertificate;
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new SigningCertificate(Asn1Sequence.GetInstance(o));
-#pragma warning restore CS0618 // Type or member is obsolete
-        }
+		private Asn1Sequence certs, policies;
 
-        public static SigningCertificate GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new SigningCertificate(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-#pragma warning restore CS0618 // Type or member is obsolete
-        }
-
-        private readonly Asn1Sequence m_certs;
-        private readonly Asn1Sequence m_policies;
-
-        [Obsolete("Use 'GetInstance' instead")]
-        public SigningCertificate(Asn1Sequence seq)
+		public static SigningCertificate GetInstance(
+			object o)
 		{
-            int count = seq.Count, pos = 0;
-            if (count < 1 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (o == null || o is SigningCertificate)
+			{
+				return (SigningCertificate) o;
+			}
 
-            m_certs = Asn1Sequence.GetInstance(seq[pos++]);
-            m_policies = Asn1Utilities.ReadOptional(seq, ref pos, Asn1Sequence.GetOptional);
+			if (o is Asn1Sequence)
+			{
+				return new SigningCertificate((Asn1Sequence) o);
+			}
 
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			throw new ArgumentException(
+				"unknown object in 'SigningCertificate' factory : "
+                + Platform.GetTypeName(o) + ".");
 		}
 
-		public SigningCertificate(EssCertID essCertID)
+		/**
+		 * constructors
+		 */
+		public SigningCertificate(
+			Asn1Sequence seq)
 		{
-			m_certs = new DerSequence(essCertID);
+			if (seq.Count < 1 || seq.Count > 2)
+			{
+				throw new ArgumentException("Bad sequence size: " + seq.Count);
+			}
+
+			this.certs = Asn1Sequence.GetInstance(seq[0]);
+
+			if (seq.Count > 1)
+			{
+				this.policies = Asn1Sequence.GetInstance(seq[1]);
+			}
 		}
 
-        public EssCertID[] GetCerts() => m_certs.MapElements(EssCertID.GetInstance);
+		public SigningCertificate(
+			EssCertID essCertID)
+		{
+			certs = new DerSequence(essCertID);
+		}
 
-        public PolicyInformation[] GetPolicies() => m_policies?.MapElements(PolicyInformation.GetInstance);
+		public EssCertID[] GetCerts()
+		{
+			EssCertID[] cs = new EssCertID[certs.Count];
 
-        /**
+			for (int i = 0; i != certs.Count; i++)
+			{
+				cs[i] = EssCertID.GetInstance(certs[i]);
+			}
+
+			return cs;
+		}
+
+		public PolicyInformation[] GetPolicies()
+		{
+			if (policies == null)
+			{
+				return null;
+			}
+
+			PolicyInformation[] ps = new PolicyInformation[policies.Count];
+
+			for (int i = 0; i != policies.Count; i++)
+			{
+				ps[i] = PolicyInformation.GetInstance(policies[i]);
+			}
+
+			return ps;
+		}
+
+		/**
 		 * The definition of SigningCertificate is
 		 * <pre>
 		 * SigningCertificate ::=  SEQUENCE {
@@ -63,11 +94,11 @@ namespace Org.BouncyCastle.Asn1.Ess
 		 *  member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs9(9)
 		 *  smime(16) id-aa(2) 12 }
 		 */
-        public override Asn1Object ToAsn1Object()
-        {
-            return m_policies == null
-                ?  new DerSequence(m_certs)
-                :  new DerSequence(m_certs, m_policies);
-        }
-    }
+		public override Asn1Object ToAsn1Object()
+		{
+			Asn1EncodableVector v = new Asn1EncodableVector(certs);
+            v.AddOptional(policies);
+			return new DerSequence(v);
+		}
+	}
 }

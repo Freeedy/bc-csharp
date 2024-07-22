@@ -1,103 +1,105 @@
 using System;
 
 using Org.BouncyCastle.Asn1.Crmf;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cmp
 {
 	public class CertifiedKeyPair
 		: Asn1Encodable
 	{
-        public static CertifiedKeyPair GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is CertifiedKeyPair certifiedKeyPair)
-                return certifiedKeyPair;
-            return new CertifiedKeyPair(Asn1Sequence.GetInstance(obj));
-        }
+		private readonly CertOrEncCert certOrEncCert;
+		private readonly EncryptedValue privateKey;
+		private readonly PkiPublicationInfo publicationInfo;
 
-        public static CertifiedKeyPair GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new CertifiedKeyPair(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        public static CertifiedKeyPair GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is CertifiedKeyPair certifiedKeyPair)
-                return certifiedKeyPair;
-
-            Asn1Sequence asn1Sequence = Asn1Sequence.GetOptional(element);
-            if (asn1Sequence != null)
-                return new CertifiedKeyPair(asn1Sequence);
-
-            return null;
-        }
-
-        private readonly CertOrEncCert m_certOrEncCert;
-		private readonly EncryptedKey m_privateKey;
-		private readonly PkiPublicationInfo m_publicationInfo;
-
-        private CertifiedKeyPair(Asn1Sequence seq)
+		private CertifiedKeyPair(Asn1Sequence seq)
 		{
-            int count = seq.Count, pos = 0;
-            if (count < 1 || count > 3)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			certOrEncCert = CertOrEncCert.GetInstance(seq[0]);
 
-            m_certOrEncCert = CertOrEncCert.GetInstance(seq[pos++]);
-            m_privateKey = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, EncryptedKey.GetTagged);
-            m_publicationInfo = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, PkiPublicationInfo.GetTagged);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			if (seq.Count >= 2)
+			{
+				if (seq.Count == 2)
+				{
+					Asn1TaggedObject tagged = Asn1TaggedObject.GetInstance(seq[1]);
+					if (tagged.TagNo == 0)
+					{
+						privateKey = EncryptedValue.GetInstance(tagged.GetObject());
+					}
+					else
+					{
+						publicationInfo = PkiPublicationInfo.GetInstance(tagged.GetObject());
+					}
+				}
+				else
+				{
+					privateKey = EncryptedValue.GetInstance(Asn1TaggedObject.GetInstance(seq[1]));
+					publicationInfo = PkiPublicationInfo.GetInstance(Asn1TaggedObject.GetInstance(seq[2]));
+				}
+			}
 		}
 
-		public CertifiedKeyPair(CertOrEncCert certOrEncCert)
-			: this(certOrEncCert, (EncryptedKey)null, null)
+		public static CertifiedKeyPair GetInstance(object obj)
+		{
+			if (obj is CertifiedKeyPair)
+				return (CertifiedKeyPair)obj;
+
+			if (obj is Asn1Sequence)
+				return new CertifiedKeyPair((Asn1Sequence)obj);
+
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public CertifiedKeyPair(
+			CertOrEncCert certOrEncCert)
+			: this(certOrEncCert, null, null)
 		{
 		}
 
-        [Obsolete("Use constructor with EncryptedKey instead")]
-        public CertifiedKeyPair(CertOrEncCert certOrEncCert, EncryptedValue privateKey,
-            PkiPublicationInfo publicationInfo)
-            : this(certOrEncCert, privateKey == null ? null : new EncryptedKey(privateKey), publicationInfo)
-        {
-        }
+		public CertifiedKeyPair(
+			CertOrEncCert		certOrEncCert,
+			EncryptedValue		privateKey,
+			PkiPublicationInfo	publicationInfo
+		)
+		{
+			if (certOrEncCert == null)
+				throw new ArgumentNullException("certOrEncCert");
 
-        public CertifiedKeyPair(CertOrEncCert certOrEncCert, EncryptedKey privateKey,
-			PkiPublicationInfo publicationInfo)
-        {
-            m_certOrEncCert = certOrEncCert ?? throw new ArgumentNullException(nameof(certOrEncCert));
-            m_privateKey = privateKey;
-            m_publicationInfo = publicationInfo;
-        }
+			this.certOrEncCert = certOrEncCert;
+			this.privateKey = privateKey;
+			this.publicationInfo = publicationInfo;
+		}
 
-		public virtual CertOrEncCert CertOrEncCert => m_certOrEncCert;
+		public virtual CertOrEncCert CertOrEncCert
+		{
+			get { return certOrEncCert; }
+		}
 
-		public virtual EncryptedKey PrivateKey => m_privateKey;
+		public virtual EncryptedValue PrivateKey
+		{
+			get { return privateKey; }
+		}
 
-		public virtual PkiPublicationInfo PublicationInfo => m_publicationInfo;
+		public virtual PkiPublicationInfo PublicationInfo
+		{
+			get { return publicationInfo; }
+		}
 
 		/**
-		 * RFC 9480
 		 * <pre>
 		 * CertifiedKeyPair ::= SEQUENCE {
-         *     certOrEncCert       CertOrEncCert,
-         *     privateKey      [0] EncryptedKey        OPTIONAL,
-         *     -- See [RFC4211] for comments on encoding.
-         *     publicationInfo [1] PKIPublicationInfo  OPTIONAL
-         * }
+		 *                                  certOrEncCert       CertOrEncCert,
+		 *                                  privateKey      [0] EncryptedValue      OPTIONAL,
+		 *                                  -- see [CRMF] for comment on encoding
+		 *                                  publicationInfo [1] PKIPublicationInfo  OPTIONAL
+		 *       }
 		 * </pre>
 		 * @return a basic ASN.1 object representation.
 		 */
 		public override Asn1Object ToAsn1Object()
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(3);
-			v.Add(m_certOrEncCert);
-            v.AddOptionalTagged(true, 0, m_privateKey);
-            v.AddOptionalTagged(true, 1, m_publicationInfo);
+			Asn1EncodableVector v = new Asn1EncodableVector(certOrEncCert);
+            v.AddOptionalTagged(true, 0, privateKey);
+            v.AddOptionalTagged(true, 1, publicationInfo);
 			return new DerSequence(v);
 		}
 	}

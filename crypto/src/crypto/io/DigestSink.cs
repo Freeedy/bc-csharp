@@ -1,24 +1,23 @@
 ﻿using System;
-#if NETCOREAPP1_0_OR_GREATER || NET45_OR_GREATER || NETSTANDARD1_0_OR_GREATER
-using System.Threading;
-using System.Threading.Tasks;
-#endif
 
 using Org.BouncyCastle.Utilities.IO;
 
 namespace Org.BouncyCastle.Crypto.IO
 {
-    public sealed class DigestSink
+    public class DigestSink
         : BaseOutputStream
     {
-        private readonly IDigest m_digest;
+        private readonly IDigest mDigest;
 
         public DigestSink(IDigest digest)
         {
-            m_digest = digest ?? throw new ArgumentNullException(nameof(digest));
+            this.mDigest = digest;
         }
 
-        public IDigest Digest => m_digest;
+        public virtual IDigest Digest
+        {
+            get { return mDigest; }
+        }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
@@ -26,35 +25,13 @@ namespace Org.BouncyCastle.Crypto.IO
 
             if (count > 0)
             {
-                m_digest.BlockUpdate(buffer, offset, count);
+                mDigest.BlockUpdate(buffer, offset, count);
             }
         }
-
-#if NETCOREAPP1_0_OR_GREATER || NET45_OR_GREATER || NETSTANDARD1_0_OR_GREATER
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            return Streams.WriteAsyncDirect(this, buffer, offset, count, cancellationToken);
-        }
-#endif
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override void Write(ReadOnlySpan<byte> buffer)
-        {
-            if (!buffer.IsEmpty)
-            {
-                m_digest.BlockUpdate(buffer);
-            }
-        }
-
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            return Streams.WriteAsyncDirect(this, buffer, cancellationToken);
-        }
-#endif
 
         public override void WriteByte(byte value)
         {
-            m_digest.Update(value);
+            mDigest.Update(value);
         }
     }
 }

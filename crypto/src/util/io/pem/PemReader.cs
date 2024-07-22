@@ -1,50 +1,38 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
-using System.Text;
+
 
 using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Org.BouncyCastle.Utilities.IO.Pem
 {
-	public class PemReader
-		: IDisposable
-	{
-        private const int LineLength = 64;
 
-        private readonly TextReader m_reader;
-		private readonly MemoryStream m_buffer;
-		private readonly StreamWriter m_textBuffer;
-		private readonly Stack<int> m_pushback = new Stack<int>();
+	public class PemReader
+	{		
+		private readonly TextReader reader;
+		private readonly MemoryStream buffer;
+		private readonly StreamWriter textBuffer;
+		private readonly IList pushback = Platform.CreateArrayList();
+		int c = 0;
+
+		
 
 		public PemReader(TextReader reader)
 		{
-			m_reader = reader ?? throw new ArgumentNullException(nameof(reader));
-            m_buffer = new MemoryStream();
-            m_textBuffer = new StreamWriter(m_buffer);
+			if (reader == null)
+				throw new ArgumentNullException("reader");
+
+
+			buffer = new MemoryStream();
+			textBuffer = new StreamWriter(buffer);
+
+			this.reader = reader;
 		}
 
-        #region IDisposable
-
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                m_reader.Dispose();
-            }
-        }
-
-        #endregion
-
-        public TextReader Reader 
+		public TextReader Reader
 		{
-			get { return m_reader; }
+			get { return reader; }
 		}
 
 
@@ -54,151 +42,194 @@ namespace Org.BouncyCastle.Utilities.IO.Pem
 		/// <exception cref="IOException"></exception>	
 		public PemObject ReadPemObject()
         {
+
 			//
 			// Look for BEGIN
 			//
 
-			for (;;)
+			for (; ; )
 			{
+
 				// Seek a leading dash, ignore anything up to that point.
-				if (!SeekDash())
+				if (!seekDash())
+				{
+					// There are no pem objects here.
 					return null; 
+				}
+
 
 				// consume dash [-----]BEGIN ...
-				if (!ConsumeDash())
+				if (!consumeDash())
+				{
 					throw new IOException("no data after consuming leading dashes");
+				}
 
-				SkipWhiteSpace();
 
-				if (Expect("BEGIN"))
-					break;
+				skipWhiteSpace();
+
+
+				if (!expect("BEGIN"))
+				{
+					continue;
+				}
+
+				break;
+
 			}
 
-			SkipWhiteSpace();
+
+			skipWhiteSpace();
 
 			//
 			// Consume type, accepting whitespace
 			//
 
-			if (!BufferUntilStopChar('-', false))
+			if (!bufferUntilStopChar('-',false) )
+            {
 				throw new IOException("ran out of data before consuming type");
+			}
 
-			string type = BufferedString().Trim();
+			string type = bufferedString().Trim();
+
 
 			// Consume dashes after type.
 
-			if (!ConsumeDash())
+			if (!consumeDash())
+            {
 				throw new IOException("ran out of data consuming header");
+			}
 
-			SkipWhiteSpace();
+			skipWhiteSpace();
+
 
 			//
 			// Read ahead looking for headers.
 			// Look for a colon for up to 64 characters, as an indication there might be a header.
 			//
 
-			var headers = new List<PemHeader>();
+			IList headers = Platform.CreateArrayList();
 
-			while (SeekColon(LineLength))
+			while (seekColon(64))
             {
-				if (!BufferUntilStopChar(':', false))
+
+				if (!bufferUntilStopChar(':',false))
+                {
 					throw new IOException("ran out of data reading header key value");
+				}
 
-				string key = BufferedString().Trim();
+				string key = bufferedString().Trim();
 
-				int c = Read();
+
+				c = Read();
 				if (c != ':')
+                {
 					throw new IOException("expected colon");
+                }
+				
 
 				//
 				// We are going to look for well formed headers, if they do not end with a "LF" we cannot
 				// discern where they end.
 				//
-
-				if (!BufferUntilStopChar('\n', false)) // Now read to the end of the line.
+			
+				if (!bufferUntilStopChar('\n', false)) // Now read to the end of the line.
+                {
 					throw new IOException("ran out of data before consuming header value");
+				}
 
-				SkipWhiteSpace();
+				skipWhiteSpace();
 
-				string value = BufferedString().Trim();
-				headers.Add(new PemHeader(key, value));
+				string value = bufferedString().Trim();
+				headers.Add(new PemHeader(key,value));
 			}
+
 
 			//
 			// Consume payload, ignoring all white space until we encounter a '-'
 			//
 
-			SkipWhiteSpace();
+			skipWhiteSpace();
 
-			if (!BufferUntilStopChar('-', true))
+			if (!bufferUntilStopChar('-',true))
+			{
 				throw new IOException("ran out of data before consuming payload");
+			}
 
-			string payload = BufferedString();
-
+			string payload = bufferedString();
+		
 			// Seek the start of the end.
-			if (!SeekDash())
+			if (!seekDash())
+			{
 				throw new IOException("did not find leading '-'");
+			}
 
-			if (!ConsumeDash())
+			if (!consumeDash())
+			{
 				throw new IOException("no data after consuming trailing dashes");
+			}
 
-			if (!Expect("END " + type))
-				throw new IOException("END " + type + " was not found.");
+			if (!expect("END "+type))
+			{
+				throw new IOException("END "+type+" was not found.");
+			}
 
-			if (!SeekDash())
+
+
+			if (!seekDash())
+			{
 				throw new IOException("did not find ending '-'");
+			}
+
 
 			// consume trailing dashes.
-			ConsumeDash();
+			consumeDash();
+			
 
 			return new PemObject(type, headers, Base64.Decode(payload));
+
 		}
 
-		private string BufferedString()
+
+	
+		private string bufferedString()
         {
-			m_textBuffer.Flush();
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            if (!m_buffer.TryGetBuffer(out var data))
-                throw new InvalidOperationException();
-
-            string value = Encoding.UTF8.GetString(data);
-#else
-            string value = Strings.FromUtf8ByteArray(m_buffer.ToArray());
-#endif
-
-            m_buffer.Position = 0;
-			m_buffer.SetLength(0);
-
+			textBuffer.Flush();
+			string value = Strings.FromUtf8ByteArray(buffer.ToArray());
+			buffer.Position = 0;
+			buffer.SetLength(0);
 			return value;
         }
 
-		private bool SeekDash()
+
+		private bool seekDash()
         {
-			int c;
-			while ((c = Read()) >= 0)
+			c = 0;
+			while((c = Read()) >=0)
             {
 				if (c == '-')
+                {
 					break;
+                }
             }
 
 			PushBack(c);
 
-			return c >= 0;
+			return c == '-';
         }
+
 
 		/// <summary>
 		/// Seek ':" up to the limit.
 		/// </summary>
 		/// <param name="upTo"></param>
 		/// <returns></returns>
-		private bool SeekColon(int upTo)
+		private bool seekColon(int upTo)
 		{
-			int c = 0;
+			c = 0;
 			bool colonFound = false;
-			var read = new List<int>();
+			IList read = Platform.CreateArrayList();
 
-			for (; upTo >= 0 && c >= 0; upTo--)
+			for (; upTo>=0 && c >=0; upTo--)
             {
 				c = Read();
 				read.Add(c);
@@ -209,45 +240,49 @@ namespace Org.BouncyCastle.Utilities.IO.Pem
                 }
             }
 
-			int readPos = read.Count;
-			while (--readPos >= 0)
-			{
-				PushBack(read[readPos]);
-			}
+			while(read.Count>0)
+            {
+				PushBack((int)read[read.Count-1]);
+				read.RemoveAt(read.Count-1);
+            }
 
 			return colonFound;
 		}
+
+
 
 		/// <summary>
 		/// Consume the dashes
 		/// </summary>
 		/// <returns></returns>
-		private bool ConsumeDash()
+		private bool consumeDash()
         {
-			int c;
+			c = 0;
 			while ((c = Read()) >= 0)
 			{
 				if (c != '-')
+				{
 					break;
+				}
 			}
 
 			PushBack(c);
 
-			return c >= 0;
+			return c != -1;
 		}
 
 		/// <summary>
 		/// Skip white space leave char in stream.
 		/// </summary>
-		private void SkipWhiteSpace()
+		private void skipWhiteSpace()
         {
-			int c;
 			while ((c = Read()) >= 0)
 			{
 				if (c > ' ')
+				{
 					break;
+				}
 			}
-
 			PushBack(c);
 		}
 
@@ -256,53 +291,81 @@ namespace Org.BouncyCastle.Utilities.IO.Pem
 		/// </summary>
 		/// <param name="value">expected string</param>
 		/// <returns>false if not consumed</returns>
-		private bool Expect(string value)
+
+		private bool expect(String value)
         {
-			for (int t = 0; t < value.Length; t++)
+			for (int t=0; t<value.Length; t++)
             {
-				if (Read() != value[t])
+				c = Read();
+				if (c == value[t])
+                {
+					continue;
+                } else
+                {
 					return false;
+                }
             }
 
 			return true;
         }
+		
 
 		/// <summary>
 		/// Consume until dash.
 		/// </summary>
 		/// <returns>true if stream end not met</returns>
-		private bool BufferUntilStopChar(char stopChar, bool skipWhiteSpace)
+		private bool bufferUntilStopChar(char stopChar,   bool skipWhiteSpace)
         {
-			int c;
 			while ((c = Read()) >= 0)
 			{	
-				if (skipWhiteSpace && c <= ' ')
+				if (skipWhiteSpace && c <=' ')
+                {
 					continue;
-
-				if (c == stopChar)
-				{
-                    PushBack(c);
-                    break;
                 }
 
-				m_textBuffer.Write((char)c);
-				m_textBuffer.Flush();
+				if (c != stopChar)
+				{
+					textBuffer.Write((char)c);
+					textBuffer.Flush();
+					
+				} else
+                {
+					  PushBack(c);
+					break;
+                }
 			}
-
-			return c >= 0;
+			
+			return c > -1;
 		}
+
+
 
 		private void PushBack(int value)
         {
-			m_pushback.Push(value);
+			if (pushback.Count == 0)
+            {
+				pushback.Add(value);
+            } else
+            {
+				pushback.Insert(0, value);
+            }
         }
+
 
 		private int Read()
         {
-			if (m_pushback.Count > 0)
-				return m_pushback.Pop();
+			if (pushback.Count>0)
+            {
+				int i = (int)pushback[0];
+				pushback.RemoveAt(0);
+				return i;
+            }
 
-			return m_reader.Read();
+			return reader.Read();
         }
+
+
+
+
 	}
 }

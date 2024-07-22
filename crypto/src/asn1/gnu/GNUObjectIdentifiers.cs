@@ -2,8 +2,7 @@ using System;
 
 namespace Org.BouncyCastle.Asn1.Gnu
 {
-    // TODO[api] Make static
-    public abstract class GnuObjectIdentifiers
+	public abstract class GnuObjectIdentifiers
 	{
 		public static readonly DerObjectIdentifier Gnu					= new DerObjectIdentifier("1.3.6.1.4.1.11591.1"); // GNU Radius
 		public static readonly DerObjectIdentifier GnuPG				= new DerObjectIdentifier("1.3.6.1.4.1.11591.2"); // GnuPG (Ägypten)

@@ -1,3 +1,5 @@
+#if !PORTABLE || DOTNET
+using System;
 using System.IO;
 
 using Org.BouncyCastle.Utilities;
@@ -34,10 +36,17 @@ namespace Org.BouncyCastle.Cms
 
         public virtual void Write(Stream zOut)
 		{
-			using (var inStr = _file.OpenRead())
-			{
-                Streams.PipeAll(inStr, zOut, _bufSize);
-            }
+			Stream inStr = _file.OpenRead();
+            Streams.PipeAll(inStr, zOut, _bufSize);
+            Platform.Dispose(inStr);
+		}
+
+        /// <returns>The file handle</returns>
+		[Obsolete]
+		public virtual object GetContent()
+		{
+			return _file;
 		}
 	}
 }
+#endif

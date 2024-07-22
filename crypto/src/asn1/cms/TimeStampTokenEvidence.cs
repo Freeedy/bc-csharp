@@ -1,47 +1,54 @@
 using System;
 
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Asn1.Cms
 {
-    public class TimeStampTokenEvidence
+	public class TimeStampTokenEvidence
 		: Asn1Encodable
 	{
-        public static TimeStampTokenEvidence GetInstance(object obj)
-        {
-			if (obj == null)
-				return null;
-			if (obj is TimeStampTokenEvidence timeStampTokenEvidence)
-				return timeStampTokenEvidence;
-            return new TimeStampTokenEvidence(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static TimeStampTokenEvidence GetInstance(Asn1TaggedObject tagged, bool isExplicit)
-        {
-            return new TimeStampTokenEvidence(Asn1Sequence.GetInstance(tagged, isExplicit));
-        }
-
-        private readonly TimeStampAndCrl[] m_timeStampAndCrls;
+		private TimeStampAndCrl[] timeStampAndCrls;
 
 		public TimeStampTokenEvidence(TimeStampAndCrl[] timeStampAndCrls)
 		{
-			if (Arrays.IsNullOrContainsNull(timeStampAndCrls))
-                throw new NullReferenceException("'timeStampAndCrls' cannot be null, or contain null");
-
-            m_timeStampAndCrls = timeStampAndCrls;
+			this.timeStampAndCrls = timeStampAndCrls;
 		}
 
 		public TimeStampTokenEvidence(TimeStampAndCrl timeStampAndCrl)
 		{
-			m_timeStampAndCrls = new []{ timeStampAndCrl ?? throw new ArgumentNullException(nameof(timeStampAndCrl)) };
+			this.timeStampAndCrls = new TimeStampAndCrl[]{ timeStampAndCrl };
 		}
 
 		private TimeStampTokenEvidence(Asn1Sequence seq)
 		{
-			m_timeStampAndCrls = seq.MapElements(TimeStampAndCrl.GetInstance);
+			this.timeStampAndCrls = new TimeStampAndCrl[seq.Count];
+
+			int count = 0;
+
+			foreach (Asn1Encodable ae in seq)
+			{
+				this.timeStampAndCrls[count++] = TimeStampAndCrl.GetInstance(ae.ToAsn1Object());
+			}
 		}
 
-        public virtual TimeStampAndCrl[] ToTimeStampAndCrlArray() => (TimeStampAndCrl[])m_timeStampAndCrls.Clone();
+		public static TimeStampTokenEvidence GetInstance(Asn1TaggedObject tagged, bool isExplicit)
+		{
+			return GetInstance(Asn1Sequence.GetInstance(tagged, isExplicit));
+		}
+
+		public static TimeStampTokenEvidence GetInstance(object obj)
+		{
+			if (obj is TimeStampTokenEvidence)
+				return (TimeStampTokenEvidence)obj;
+
+			if (obj != null)
+				return new TimeStampTokenEvidence(Asn1Sequence.GetInstance(obj));
+
+			return null;
+		}
+
+		public virtual TimeStampAndCrl[] ToTimeStampAndCrlArray()
+		{
+			return (TimeStampAndCrl[])timeStampAndCrls.Clone();
+		}
 
 		/**
 		 * <pre>
@@ -50,6 +57,9 @@ namespace Org.BouncyCastle.Asn1.Cms
 		 * </pre>
 		 * @return
 		 */
-		public override Asn1Object ToAsn1Object() => new DerSequence(m_timeStampAndCrls);
+		public override Asn1Object ToAsn1Object()
+		{
+			return new DerSequence(timeStampAndCrls);
+		}
 	}
 }

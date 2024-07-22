@@ -574,6 +574,12 @@ namespace Org.BouncyCastle.Crypto.Tests
             }
         }
 
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new DsaTest());
+        }
+
         [Test]
         public void TestFunction()
         {
@@ -592,16 +598,16 @@ namespace Org.BouncyCastle.Crypto.Tests
             {
             }
 
-            public override void NextBytes(byte[] buf, int off, int len)
+            public override void NextBytes(byte[] bytes)
             {
                 if (first)
                 {
-                    base.NextBytes(buf, off, len);
+                    base.NextBytes(bytes);
                     first = false;
                 }
                 else
                 {
-                    buf[off + len - 1] = 2;
+                    bytes[bytes.Length - 1] = 2;
                 }
             }
         }

@@ -1,5 +1,6 @@
 using System;
 
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Misc
@@ -7,48 +8,52 @@ namespace Org.BouncyCastle.Asn1.Misc
     public class Cast5CbcParameters
         : Asn1Encodable
     {
-        public static Cast5CbcParameters GetInstance(object o)
+        private readonly DerInteger keyLength;
+        private readonly Asn1OctetString iv;
+
+		public static Cast5CbcParameters GetInstance(
+            object o)
         {
-            if (o == null)
-                return null;
-            if (o is Cast5CbcParameters cast5CbcParameters)
-                return cast5CbcParameters;
-            return new Cast5CbcParameters(Asn1Sequence.GetInstance(o));
+            if (o is Cast5CbcParameters)
+            {
+                return (Cast5CbcParameters) o;
+            }
+
+			if (o is Asn1Sequence)
+            {
+                return new Cast5CbcParameters((Asn1Sequence) o);
+            }
+
+			throw new ArgumentException("unknown object in Cast5CbcParameters factory");
         }
 
-        public static Cast5CbcParameters GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+		public Cast5CbcParameters(
+            byte[]	iv,
+            int		keyLength)
         {
-            return new Cast5CbcParameters(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+            this.iv = new DerOctetString(iv);
+            this.keyLength = new DerInteger(keyLength);
         }
 
-        private readonly Asn1OctetString m_iv;
-        private readonly DerInteger m_keyLength;
-
-        private Cast5CbcParameters(Asn1Sequence seq)
+		private Cast5CbcParameters(
+            Asn1Sequence seq)
         {
-            int count = seq.Count, pos = 0;
-            if (count < 1 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (seq.Count != 2)
+				throw new ArgumentException("Wrong number of elements in sequence", "seq");
 
-            m_iv = Asn1Utilities.ReadOptional(seq, ref pos, Asn1OctetString.GetOptional)
-                ?? new DerOctetString(new byte[8]);
-            m_keyLength = DerInteger.GetInstance(seq[pos++]);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			iv = (Asn1OctetString) seq[0];
+            keyLength = (DerInteger) seq[1];
         }
 
-        public Cast5CbcParameters(byte[] iv, int keyLength)
+		public byte[] GetIV()
         {
-            m_iv = new DerOctetString(iv ?? new byte[8]);
-            m_keyLength = new DerInteger(keyLength);
-        }
+			return Arrays.Clone(iv.GetOctets());
+		}
 
-        public Asn1OctetString IV => m_iv;
-
-        public byte[] GetIV() => Arrays.Clone(m_iv.GetOctets());
-
-        public int KeyLength => m_keyLength.IntValueExact;
+		public int KeyLength
+		{
+            get { return keyLength.IntValueExact; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -63,15 +68,7 @@ namespace Org.BouncyCastle.Asn1.Misc
          */
         public override Asn1Object ToAsn1Object()
         {
-            return IsDefaultIV(m_iv)
-                ?  new DerSequence(m_keyLength)
-                :  new DerSequence(m_iv, m_keyLength);
-        }
-
-        private static bool IsDefaultIV(Asn1OctetString iv)
-        {
-            return iv.GetOctetsLength() == 8
-                && Arrays.AreAllZeroes(iv.GetOctets(), 0, 8);
+			return new DerSequence(iv, keyLength);
         }
     }
 }

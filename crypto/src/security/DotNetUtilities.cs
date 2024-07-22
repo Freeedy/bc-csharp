@@ -1,16 +1,12 @@
+#if !(NETCF_1_0 || SILVERLIGHT || PORTABLE)
+
 using System;
-#if NET5_0_OR_GREATER
-using System.Runtime.Versioning;
-#endif
 using System.Security.Cryptography;
 using SystemX509 = System.Security.Cryptography.X509Certificates;
 
-using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities;
@@ -21,8 +17,12 @@ namespace Org.BouncyCastle.Security
     /// <summary>
     /// A class containing methods to interface the BouncyCastle world to the .NET Crypto world.
     /// </summary>
-    public static class DotNetUtilities
+    public sealed class DotNetUtilities
     {
+        private DotNetUtilities()
+        {
+        }
+
         /// <summary>
         /// Create an System.Security.Cryptography.X509Certificate from an X509Certificate Structure.
         /// </summary>
@@ -53,11 +53,23 @@ namespace Org.BouncyCastle.Security
 
         public static AsymmetricCipherKeyPair GetDsaKeyPair(DSAParameters dp)
         {
-            DsaPublicKeyParameters pubKey = GetDsaPublicKey(dp);
+            DsaValidationParameters validationParameters = (dp.Seed != null)
+                ? new DsaValidationParameters(dp.Seed, dp.Counter)
+                : null;
+
+            DsaParameters parameters = new DsaParameters(
+                new BigInteger(1, dp.P),
+                new BigInteger(1, dp.Q),
+                new BigInteger(1, dp.G),
+                validationParameters);
+
+            DsaPublicKeyParameters pubKey = new DsaPublicKeyParameters(
+                new BigInteger(1, dp.Y),
+                parameters);
 
             DsaPrivateKeyParameters privKey = new DsaPrivateKeyParameters(
                 new BigInteger(1, dp.X),
-                pubKey.Parameters);
+                parameters);
 
             return new AsymmetricCipherKeyPair(pubKey, privKey);
         }
@@ -84,62 +96,6 @@ namespace Org.BouncyCastle.Security
                 parameters);
         }
 
-#if NETCOREAPP1_0_OR_GREATER || NET47_OR_GREATER || NETSTANDARD1_6_OR_GREATER
-        public static AsymmetricCipherKeyPair GetECDsaKeyPair(ECDsa ecDsa)
-        {
-            return GetECKeyPair("ECDSA", ecDsa.ExportParameters(true));
-        }
-
-        public static ECPublicKeyParameters GetECDsaPublicKey(ECDsa ecDsa)
-        {
-            return GetECPublicKey("ECDSA", ecDsa.ExportParameters(false));
-        }
-
-        public static AsymmetricCipherKeyPair GetECKeyPair(string algorithm, ECParameters ec)
-        {
-            ECPublicKeyParameters pubKey = GetECPublicKey(algorithm, ec);
-
-            ECPrivateKeyParameters privKey = new ECPrivateKeyParameters(
-                pubKey.AlgorithmName,
-                new BigInteger(1, ec.D),
-                pubKey.Parameters);
-
-            return new AsymmetricCipherKeyPair(pubKey, privKey);
-        }
-
-        public static ECPublicKeyParameters GetECPublicKey(string algorithm, ECParameters ec)
-        {
-            X9ECParameters x9 = GetX9ECParameters(ec.Curve);
-            if (x9 == null)
-                throw new NotSupportedException("Unrecognized curve");
-
-            return new ECPublicKeyParameters(
-                algorithm,
-                GetECPoint(x9.Curve, ec.Q),
-                new ECDomainParameters(x9));
-        }
-
-        private static Math.EC.ECPoint GetECPoint(Math.EC.ECCurve curve, ECPoint point)
-        {
-            return curve.CreatePoint(new BigInteger(1, point.X), new BigInteger(1, point.Y));
-        }
-
-        private static X9ECParameters GetX9ECParameters(ECCurve curve)
-        {
-            if (!curve.IsNamed)
-                throw new NotSupportedException("Only named curves are supported");
-
-            Oid oid = curve.Oid;
-            if (oid != null)
-            {
-                string oidValue = oid.Value;
-                if (oidValue != null)
-                    return ECKeyPairGenerator.FindECCurveByOid(new DerObjectIdentifier(oidValue));
-            }
-            return null;
-        }
-#endif
-
         public static AsymmetricCipherKeyPair GetRsaKeyPair(RSA rsa)
         {
             return GetRsaKeyPair(rsa.ExportParameters(true));
@@ -147,11 +103,17 @@ namespace Org.BouncyCastle.Security
 
         public static AsymmetricCipherKeyPair GetRsaKeyPair(RSAParameters rp)
         {
-            RsaKeyParameters pubKey = GetRsaPublicKey(rp);
+            BigInteger modulus = new BigInteger(1, rp.Modulus);
+            BigInteger pubExp = new BigInteger(1, rp.Exponent);
+
+            RsaKeyParameters pubKey = new RsaKeyParameters(
+                false,
+                modulus,
+                pubExp);
 
             RsaPrivateCrtKeyParameters privKey = new RsaPrivateCrtKeyParameters(
-                pubKey.Modulus,
-                pubKey.Exponent,
+                modulus,
+                pubExp,
                 new BigInteger(1, rp.D),
                 new BigInteger(1, rp.P),
                 new BigInteger(1, rp.Q),
@@ -178,65 +140,46 @@ namespace Org.BouncyCastle.Security
 
         public static AsymmetricCipherKeyPair GetKeyPair(AsymmetricAlgorithm privateKey)
         {
-            if (privateKey is DSA dsa)
-                return GetDsaKeyPair(dsa);
+            if (privateKey is DSA)
+            {
+                return GetDsaKeyPair((DSA)privateKey);
+            }
 
-#if NETCOREAPP1_0_OR_GREATER || NET47_OR_GREATER || NETSTANDARD1_6_OR_GREATER
-            if (privateKey is ECDsa ecDsa)
-                return GetECDsaKeyPair(ecDsa);
-#endif
+            if (privateKey is RSA)
+            {
+                return GetRsaKeyPair((RSA)privateKey);
+            }
 
-            if (privateKey is RSA rsa)
-                return GetRsaKeyPair(rsa);
-
-            throw new ArgumentException("Unsupported algorithm specified", nameof(privateKey));
+            throw new ArgumentException("Unsupported algorithm specified", "privateKey");
         }
 
-#if NET5_0_OR_GREATER
-        [SupportedOSPlatform("windows")]
-#endif
         public static RSA ToRSA(RsaKeyParameters rsaKey)
         {
             // TODO This appears to not work for private keys (when no CRT info)
             return CreateRSAProvider(ToRSAParameters(rsaKey));
         }
 
-#if NET5_0_OR_GREATER
-        [SupportedOSPlatform("windows")]
-#endif
         public static RSA ToRSA(RsaKeyParameters rsaKey, CspParameters csp)
         {
             // TODO This appears to not work for private keys (when no CRT info)
             return CreateRSAProvider(ToRSAParameters(rsaKey), csp);
         }
 
-#if NET5_0_OR_GREATER
-        [SupportedOSPlatform("windows")]
-#endif
         public static RSA ToRSA(RsaPrivateCrtKeyParameters privKey)
         {
             return CreateRSAProvider(ToRSAParameters(privKey));
         }
 
-#if NET5_0_OR_GREATER
-        [SupportedOSPlatform("windows")]
-#endif
         public static RSA ToRSA(RsaPrivateCrtKeyParameters privKey, CspParameters csp)
         {
             return CreateRSAProvider(ToRSAParameters(privKey), csp);
         }
 
-#if NET5_0_OR_GREATER
-        [SupportedOSPlatform("windows")]
-#endif
         public static RSA ToRSA(RsaPrivateKeyStructure privKey)
         {
             return CreateRSAProvider(ToRSAParameters(privKey));
         }
 
-#if NET5_0_OR_GREATER
-        [SupportedOSPlatform("windows")]
-#endif
         public static RSA ToRSA(RsaPrivateKeyStructure privKey, CspParameters csp)
         {
             return CreateRSAProvider(ToRSAParameters(privKey), csp);
@@ -286,32 +229,16 @@ namespace Org.BouncyCastle.Security
             return BigIntegers.AsUnsignedByteArray(size, n);
         }
 
-        // TODO Why do we use CspParameters instead of just RSA.Create in methods below?
-//        private static RSA CreateRSA(RSAParameters rp)
-//        {
-//#if NETCOREAPP2_0_OR_GREATER || NET472_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-//            return RSA.Create(rp);
-//#else
-//            var rsa = RSA.Create();
-//            rsa.ImportParameters(rp);
-//            return rsa;
-//#endif
-//        }
-
-#if NET5_0_OR_GREATER
-        [SupportedOSPlatform("windows")]
-#endif
-        private static RSACryptoServiceProvider CreateRSAProvider(RSAParameters rp)
+        private static RSA CreateRSAProvider(RSAParameters rp)
         {
             CspParameters csp = new CspParameters();
             csp.KeyContainerName = string.Format("BouncyCastle-{0}", Guid.NewGuid());
-            return CreateRSAProvider(rp, csp);
+            RSACryptoServiceProvider rsaCsp = new RSACryptoServiceProvider(csp);
+            rsaCsp.ImportParameters(rp);
+            return rsaCsp;
         }
 
-#if NET5_0_OR_GREATER
-        [SupportedOSPlatform("windows")]
-#endif
-        private static RSACryptoServiceProvider CreateRSAProvider(RSAParameters rp, CspParameters csp)
+        private static RSA CreateRSAProvider(RSAParameters rp, CspParameters csp)
         {
             RSACryptoServiceProvider rsaCsp = new RSACryptoServiceProvider(csp);
             rsaCsp.ImportParameters(rp);
@@ -319,3 +246,5 @@ namespace Org.BouncyCastle.Security
         }
     }
 }
+
+#endif

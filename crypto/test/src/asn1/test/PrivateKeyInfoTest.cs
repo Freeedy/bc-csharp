@@ -39,10 +39,14 @@ namespace Org.BouncyCastle.Asn1.Tests
 
             IsTrue(privInfo1.HasPublicKey);
 
-            privInfo2 = new PrivateKeyInfo(privInfo1.PrivateKeyAlgorithm, privInfo1.ParsePrivateKey(),
-                privInfo1.Attributes, privInfo1.PublicKey.GetOctets());
+            privInfo2 = new PrivateKeyInfo(privInfo1.PrivateKeyAlgorithm, privInfo1.ParsePrivateKey(), privInfo1.Attributes, privInfo1.PublicKeyData.GetOctets());
 
             IsTrue("enc 2 failed", AreEqual(privWithPub, privInfo2.GetEncoded()));
+        }
+
+        public static void Main(string[] args)
+        {
+            RunTest(new PrivateKeyInfoTest());
         }
 
         [Test]

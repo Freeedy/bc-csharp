@@ -1,5 +1,6 @@
 using System;
 
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Math;
 
@@ -8,55 +9,56 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class IssuerAndSerialNumber
         : Asn1Encodable
     {
+        private X509Name	name;
+        private DerInteger	serialNumber;
+
         public static IssuerAndSerialNumber GetInstance(object obj)
         {
             if (obj == null)
                 return null;
-            if (obj is IssuerAndSerialNumber issuerAndSerialNumber)
-                return issuerAndSerialNumber;
+            IssuerAndSerialNumber existing = obj as IssuerAndSerialNumber;
+            if (existing != null)
+                return existing;
             return new IssuerAndSerialNumber(Asn1Sequence.GetInstance(obj));
         }
 
-        public static IssuerAndSerialNumber GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        [Obsolete("Use GetInstance() instead")]
+        public IssuerAndSerialNumber(
+            Asn1Sequence seq)
         {
-            return new IssuerAndSerialNumber(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+            this.name = X509Name.GetInstance(seq[0]);
+            this.serialNumber = (DerInteger) seq[1];
         }
 
-        private X509Name m_name;
-        private DerInteger m_serialNumber;
-
-        private IssuerAndSerialNumber(Asn1Sequence seq)
+        public IssuerAndSerialNumber(
+            X509Name	name,
+            BigInteger	serialNumber)
         {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_name = X509Name.GetInstance(seq[0]);
-            m_serialNumber = DerInteger.GetInstance(seq[1]);
+            this.name = name;
+            this.serialNumber = new DerInteger(serialNumber);
         }
 
-        public IssuerAndSerialNumber(X509Name name, BigInteger serialNumber)
+        public IssuerAndSerialNumber(
+            X509Name	name,
+            DerInteger	serialNumber)
         {
-            m_name = name;
-            m_serialNumber = new DerInteger(serialNumber);
+            this.name = name;
+            this.serialNumber = serialNumber;
         }
 
-        public IssuerAndSerialNumber(X509Name name, DerInteger serialNumber)
+        public X509Name Name
         {
-            m_name = name;
-            m_serialNumber = serialNumber;
+            get { return name; }
         }
 
-        public IssuerAndSerialNumber(X509CertificateStructure x509CertificateStructure)
+        public DerInteger SerialNumber
         {
-            m_name = x509CertificateStructure.Issuer;
-            m_serialNumber = x509CertificateStructure.SerialNumber;
+            get { return serialNumber; }
         }
 
-        public X509Name Name => m_name;
-
-        public DerInteger SerialNumber => m_serialNumber;
-
-        public override Asn1Object ToAsn1Object() => new DerSequence(m_name, m_serialNumber);
+        public override Asn1Object ToAsn1Object()
+        {
+            return new DerSequence(name, serialNumber);
+        }
     }
 }

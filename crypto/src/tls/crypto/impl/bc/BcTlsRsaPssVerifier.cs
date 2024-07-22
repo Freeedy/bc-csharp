@@ -31,7 +31,8 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
             int cryptoHashAlgorithm = SignatureScheme.GetCryptoHashAlgorithm(m_signatureScheme);
             IDigest digest = m_crypto.CreateDigest(cryptoHashAlgorithm);
 
-            PssSigner verifier = PssSigner.CreateRawSigner(new RsaEngine(), digest);
+            PssSigner verifier = PssSigner.CreateRawSigner(new RsaEngine(), digest, digest, digest.GetDigestSize(),
+                PssSigner.TrailerImplicit);
             verifier.Init(false, m_publicKey);
             verifier.BlockUpdate(hash, 0, hash.Length);
             return verifier.VerifySignature(digitallySigned.Signature);

@@ -11,8 +11,12 @@ using Org.BouncyCastle.Security;
 
 namespace Org.BouncyCastle.Crypto.Utilities
 {
-    public static class CipherKeyGeneratorFactory
+    public class CipherKeyGeneratorFactory
     {
+        private CipherKeyGeneratorFactory()
+        {
+        }
+
         /**
          * Create a key generator for the passed in Object Identifier.
          *

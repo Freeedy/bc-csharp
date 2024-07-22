@@ -103,10 +103,25 @@ namespace Org.BouncyCastle.Tests.Rsa3
 		{
 			Stream s = SimpleTest.GetTestDataAsStream("rsa3." + certName);
 			TextReader tr = new StreamReader(s);
-			using (var rd = new PemReader(tr))
-			{
-                return (X509Certificate)rd.ReadObject();
-            }
-        }
+			PemReader rd = new PemReader(tr);
+
+			return (X509Certificate) rd.ReadObject();
+		}
+
+//		public static void main (string[] args) 
+//			throws Exception
+//		{
+//			junit.textui.TestRunner.run(suite());
+//		}
+//	    
+//		public static Test suite() 
+//			throws Exception
+//		{   
+//			TestSuite suite = new TestSuite("Bleichenbacher's Forgery Attack Tests");
+//	        
+//			suite.addTestSuite(RSA3CertTest.class);
+//	        
+//			return suite;
+//		}
 	}
 }

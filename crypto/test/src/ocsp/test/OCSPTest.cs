@@ -1,5 +1,6 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
+using System.IO;
 
 using NUnit.Framework;
 
@@ -8,6 +9,7 @@ using Org.BouncyCastle.Asn1.Ocsp;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Utilities.Test;
 using Org.BouncyCastle.X509;
@@ -221,7 +223,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			//
 			// general id value for our test issuer cert and a serial number.
 			//
-			CertificateID id = new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One);
+			CertificateID id = new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One);
 
 			//
 			// basic request generation
@@ -260,7 +262,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 
 			gen.SetRequestorName(new GeneralName(GeneralName.DirectoryName, new X509Name("CN=fred")));
 
-			gen.AddRequest(new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One));
+			gen.AddRequest(new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One));
 
 			chain[0] = testCert;
 
@@ -314,8 +316,8 @@ namespace Org.BouncyCastle.Ocsp.Tests
 
 			gen = new OcspReqGenerator();
 
-			var oids = new List<DerObjectIdentifier>();
-			var values = new List<X509Extension>();
+			IList oids = new ArrayList();
+			IList values = new ArrayList();
 			byte[] sampleNonce = new byte[16];
 			Random rand = new Random();
 
@@ -328,7 +330,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 
 			gen.SetRequestExtensions(new X509Extensions(oids, values));
 
-			gen.AddRequest(new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One));
+			gen.AddRequest(new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One));
 
 			chain[0] = testCert;
 
@@ -347,7 +349,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			//
 			// extension check.
 			//
-			var extOids = req.GetCriticalExtensionOids();
+			ISet extOids = req.GetCriticalExtensionOids();
 
 			if (extOids.Count != 0)
 			{
@@ -407,7 +409,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			//
 			// general id value for our test issuer cert and a serial number.
 			//
-			CertificateID id = new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One);
+			CertificateID id = new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One);
 
 			//
 			// basic request generation
@@ -415,7 +417,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			OcspReqGenerator gen = new OcspReqGenerator();
 
 			gen.AddRequest(
-				new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One));
+				new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One));
 
 			OcspReq req = gen.Generate();
 
@@ -448,7 +450,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			gen.SetRequestorName(new GeneralName(GeneralName.DirectoryName, new X509Name("CN=fred")));
 
 			gen.AddRequest(
-				new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One));
+				new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One));
 
 			chain[0] = testCert;
 
@@ -502,8 +504,8 @@ namespace Org.BouncyCastle.Ocsp.Tests
 
 			gen = new OcspReqGenerator();
 
-			var oids = new List<DerObjectIdentifier>();
-			var values = new List<X509Extension>();
+			IList oids = new ArrayList();
+			IList values = new ArrayList();
 			byte[] sampleNonce = new byte[16];
 			Random rand = new Random();
 
@@ -517,7 +519,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			gen.SetRequestExtensions(new X509Extensions(oids, values));
 
 			gen.AddRequest(
-				new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One));
+				new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One));
 
 			chain[0] = testCert;
 
@@ -536,7 +538,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			//
 			// extension check.
 			//
-			var extOids = req.GetCriticalExtensionOids();
+			ISet extOids = req.GetCriticalExtensionOids();
 
 			if (extOids.Count != 0)
 			{
@@ -609,7 +611,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			//
 			// general id value for our test issuer cert and a serial number.
 			//
-			CertificateID   id = new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One);
+			CertificateID   id = new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One);
 
 			//
 			// basic request generation
@@ -617,7 +619,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			OcspReqGenerator gen = new OcspReqGenerator();
 
 			gen.AddRequest(
-				new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One));
+				new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One));
 
 			OcspReq req = gen.Generate();
 
@@ -650,7 +652,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			gen.SetRequestorName(new GeneralName(GeneralName.DirectoryName, new X509Name("CN=fred")));
 
 			gen.AddRequest(
-				new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One));
+				new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One));
 
 			chain[0] = testCert;
 
@@ -704,8 +706,8 @@ namespace Org.BouncyCastle.Ocsp.Tests
 
 			gen = new OcspReqGenerator();
 
-			var oids = new List<DerObjectIdentifier>();
-			var values = new List<X509Extension>();
+			IList oids = new ArrayList();
+			IList values = new ArrayList();
 			byte[] sampleNonce = new byte[16];
 			Random rand = new Random();
 
@@ -719,7 +721,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			gen.SetRequestExtensions(new X509Extensions(oids, values));
 
 			gen.AddRequest(
-				new CertificateID(CertificateID.DigestSha1, testCert, BigInteger.One));
+				new CertificateID(CertificateID.HashSha1, testCert, BigInteger.One));
 
 			chain[0] = testCert;
 
@@ -738,7 +740,7 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			//
 			// extension check.
 			//
-			var extOids = req.GetCriticalExtensionOids();
+			ISet extOids = req.GetCriticalExtensionOids();
 
 			if (extOids.Count != 0)
 			{
@@ -831,6 +833,12 @@ namespace Org.BouncyCastle.Ocsp.Tests
 			doTestECDsa();
 			doTestRsa();
 			doTestIrregularVersionReq();
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new OcspTest());
 		}
 
 		[Test]

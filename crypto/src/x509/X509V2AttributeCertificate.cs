@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
@@ -15,7 +15,7 @@ namespace Org.BouncyCastle.X509
 {
 	/// <summary>An implementation of a version 2 X.509 Attribute Certificate.</summary>
 	public class X509V2AttributeCertificate
-		: X509ExtensionBase
+		: X509ExtensionBase, IX509AttributeCertificate
 	{
 		private readonly AttributeCertificate cert;
 		private readonly DateTime notBefore;
@@ -27,9 +27,9 @@ namespace Org.BouncyCastle.X509
 			{
 				return AttributeCertificate.GetInstance(Asn1Object.FromStream(input));
 			}
-			catch (IOException)
+			catch (IOException e)
 			{
-				throw;
+				throw e;
 			}
 			catch (Exception e)
 			{
@@ -49,7 +49,8 @@ namespace Org.BouncyCastle.X509
 		{
 		}
 
-		public X509V2AttributeCertificate(AttributeCertificate cert)
+		internal X509V2AttributeCertificate(
+			AttributeCertificate cert)
 		{
 			this.cert = cert;
 
@@ -62,11 +63,6 @@ namespace Org.BouncyCastle.X509
 			{
 				throw new IOException("invalid data structure in certificate!", e);
 			}
-		}
-
-		public virtual AttributeCertificate AttributeCertificate
-		{
-			get { return cert; }
 		}
 
 		public virtual int Version
@@ -161,19 +157,8 @@ namespace Org.BouncyCastle.X509
             return cert.GetSignatureOctets();
 		}
 
-        // TODO[api] Rename 'key' to 'publicKey'
-        public virtual bool IsSignatureValid(AsymmetricKeyParameter key)
-        {
-            return CheckSignatureValid(new Asn1VerifierFactory(cert.SignatureAlgorithm, key));
-        }
-
-        public virtual bool IsSignatureValid(IVerifierFactoryProvider verifierProvider)
-        {
-            return CheckSignatureValid(verifierProvider.CreateVerifierFactory(cert.SignatureAlgorithm));
-        }
-
-        // TODO[api] Rename 'key' to 'publicKey'
-        public virtual void Verify(AsymmetricKeyParameter key)
+        public virtual void Verify(
+            AsymmetricKeyParameter key)
         {
             CheckSignature(new Asn1VerifierFactory(cert.SignatureAlgorithm, key));
         }
@@ -184,29 +169,42 @@ namespace Org.BouncyCastle.X509
         /// <param name="verifierProvider">An appropriate provider for verifying the certificate's signature.</param>
         /// <returns>True if the signature is valid.</returns>
         /// <exception cref="Exception">If verifier provider is not appropriate or the certificate algorithm is invalid.</exception>
-        public virtual void Verify(IVerifierFactoryProvider verifierProvider)
+        public virtual void Verify(
+            IVerifierFactoryProvider verifierProvider)
         {
             CheckSignature(verifierProvider.CreateVerifierFactory(cert.SignatureAlgorithm));
         }
 
-        protected virtual void CheckSignature(IVerifierFactory verifier)
+        protected virtual void CheckSignature(
+            IVerifierFactory verifier)
         {
-			if (!CheckSignatureValid(verifier))
+            if (!cert.SignatureAlgorithm.Equals(cert.ACInfo.Signature))
+			{
+				throw new CertificateException("Signature algorithm in certificate info not same as outer certificate");
+			}
+
+            IStreamCalculator streamCalculator = verifier.CreateCalculator();
+
+			try
+			{
+                byte[] b = this.cert.ACInfo.GetEncoded();
+
+                streamCalculator.Stream.Write(b, 0, b.Length);
+
+                Platform.Dispose(streamCalculator.Stream);
+            }
+			catch (IOException e)
+			{
+				throw new SignatureException("Exception encoding certificate info object", e);
+			}
+
+			if (!((IVerifier)streamCalculator.GetResult()).IsVerified(this.GetSignature()))
+			{
 				throw new InvalidKeyException("Public key presented not for certificate signature");
+			}
 		}
 
-        protected virtual bool CheckSignatureValid(IVerifierFactory verifier)
-        {
-            var acInfo = cert.ACInfo;
-
-            // TODO Compare IsAlgIDEqual in X509Certificate.CheckSignature
-            if (!cert.SignatureAlgorithm.Equals(acInfo.Signature))
-                throw new CertificateException("Signature algorithm in certificate info not same as outer certificate");
-
-			return X509Utilities.VerifySignature(verifier, acInfo, cert.SignatureValue);
-        }
-
-        public virtual byte[] GetEncoded()
+		public virtual byte[] GetEncoded()
 		{
 			return cert.GetEncoded();
 		}
@@ -216,16 +214,24 @@ namespace Org.BouncyCastle.X509
 			return cert.ACInfo.Extensions;
 		}
 
-        public virtual X509Attribute[] GetAttributes()
-        {
-            return cert.ACInfo.Attributes.MapElements(element => new X509Attribute(element));
-        }
+		public virtual X509Attribute[] GetAttributes()
+		{
+			Asn1Sequence seq = cert.ACInfo.Attributes;
+			X509Attribute[] attrs = new X509Attribute[seq.Count];
 
-        public virtual X509Attribute[] GetAttributes(
+			for (int i = 0; i != seq.Count; i++)
+			{
+				attrs[i] = new X509Attribute((Asn1Encodable)seq[i]);
+			}
+
+			return attrs;
+		}
+
+		public virtual X509Attribute[] GetAttributes(
 			string oid)
 		{
 			Asn1Sequence seq = cert.ACInfo.Attributes;
-			var list = new List<X509Attribute>();
+			IList list = Platform.CreateArrayList();
 
 			for (int i = 0; i != seq.Count; i++)
 			{
@@ -241,10 +247,16 @@ namespace Org.BouncyCastle.X509
 				return null;
 			}
 
-			return list.ToArray();
+            X509Attribute[] result = new X509Attribute[list.Count];
+            for (int i = 0; i < list.Count; ++i)
+            {
+                result[i] = (X509Attribute)list[i];
+            }
+            return result;
 		}
 
-		public override bool Equals(object obj)
+		public override bool Equals(
+			object obj)
 		{
 			if (obj == this)
 				return true;

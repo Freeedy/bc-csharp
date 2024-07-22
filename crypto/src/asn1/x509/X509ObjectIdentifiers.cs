@@ -1,6 +1,5 @@
 namespace Org.BouncyCastle.Asn1.X509
 {
-    // TODO[api] Make static
     public abstract class X509ObjectIdentifiers
     {
         //

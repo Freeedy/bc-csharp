@@ -1,10 +1,9 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Globalization;
 using System.IO;
 
 using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Utilities.Collections;
 
 namespace Org.BouncyCastle.Crypto.Parameters
 {
@@ -72,24 +71,25 @@ namespace Org.BouncyCastle.Crypto.Parameters
 		/// </summary>
 		public const int PARAM_TYPE_OUTPUT = 63;
 
-		private IDictionary<int, byte[]> m_parameters;
+		private IDictionary parameters;
 
 		public SkeinParameters()
-			: this(new Dictionary<int, byte[]>())
+			: this(Platform.CreateHashtable())
+
 		{
 		}
 
-		private SkeinParameters(IDictionary<int, byte[]> parameters)
+		private SkeinParameters(IDictionary parameters)
 		{
-			this.m_parameters = parameters;
+			this.parameters = parameters;
 		}
 
 		/// <summary>
 		/// Obtains a map of type (int) to value (byte[]) for the parameters tracked in this object.
 		/// </summary>
-		public IDictionary<int, byte[]> GetParameters()
+		public IDictionary GetParameters()
 		{
-			return m_parameters;
+			return parameters;
 		}
 
 		/// <summary>
@@ -99,7 +99,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
 		/// <returns>The key.</returns>
 		public byte[] GetKey()
 		{
-			return CollectionUtilities.GetValueOrNull(m_parameters, PARAM_TYPE_KEY);
+			return (byte[])parameters[PARAM_TYPE_KEY];
 		}
 
 		/// <summary>
@@ -108,7 +108,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
 		/// </summary>
 		public byte[] GetPersonalisation()
 		{
-			return CollectionUtilities.GetValueOrNull(m_parameters, PARAM_TYPE_PERSONALISATION);
+			return (byte[])parameters[PARAM_TYPE_PERSONALISATION];
 		}
 
 		/// <summary>
@@ -117,7 +117,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
 		/// </summary>
 		public byte[] GetPublicKey()
 		{
-			return CollectionUtilities.GetValueOrNull(m_parameters, PARAM_TYPE_PUBLIC_KEY);
+			return (byte[])parameters[PARAM_TYPE_PUBLIC_KEY];
 		}
 
 		/// <summary>
@@ -126,7 +126,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
 		/// </summary>
 		public byte[] GetKeyIdentifier()
 		{
-			return CollectionUtilities.GetValueOrNull(m_parameters, PARAM_TYPE_KEY_IDENTIFIER);
+			return (byte[])parameters[PARAM_TYPE_KEY_IDENTIFIER];
 		}
 
 		/// <summary>
@@ -135,7 +135,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
 		/// </summary>
 		public byte[] GetNonce()
 		{
-			return CollectionUtilities.GetValueOrNull(m_parameters, PARAM_TYPE_NONCE);
+			return (byte[])parameters[PARAM_TYPE_NONCE];
 		}
 
 		/// <summary>
@@ -143,21 +143,30 @@ namespace Org.BouncyCastle.Crypto.Parameters
 		/// </summary>
 		public class Builder
 		{
-			private Dictionary<int, byte[]> m_parameters;
+			private IDictionary parameters = Platform.CreateHashtable();
 
 			public Builder()
 			{
-				m_parameters = new Dictionary<int, byte[]>();
 			}
 
-			public Builder(IDictionary<int, byte[]> paramsMap)
+			public Builder(IDictionary paramsMap)
 			{
-				m_parameters = new Dictionary<int, byte[]>(paramsMap);
+				IEnumerator keys = paramsMap.Keys.GetEnumerator();
+				while (keys.MoveNext())
+				{
+					int key = (int)keys.Current;
+					parameters.Add(key, paramsMap[key]);
+				}
 			}
 
 			public Builder(SkeinParameters parameters)
-				: this(parameters.m_parameters)
 			{
+				IEnumerator keys = parameters.parameters.Keys.GetEnumerator();
+				while (keys.MoveNext())
+				{
+					int key = (int)keys.Current;
+					this.parameters.Add(key, parameters.parameters[key]);
+				}
 			}
 
 			/// <summary>
@@ -189,7 +198,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
 					throw new ArgumentException("Parameter type " + PARAM_TYPE_CONFIG
 					                            + " is reserved for internal use.");
 				}
-				m_parameters.Add(type, value);
+				this.parameters.Add(type, value);
 				return this;
 			}
 
@@ -225,15 +234,14 @@ namespace Org.BouncyCastle.Crypto.Parameters
 				try
 				{
 					MemoryStream bout = new MemoryStream();
-					using (var outBytes = new StreamWriter(bout, System.Text.Encoding.UTF8))
-					{
-                        outBytes.Write(date.ToString("YYYYMMDD", CultureInfo.InvariantCulture));
-                        outBytes.Write(" ");
-                        outBytes.Write(emailAddress);
-                        outBytes.Write(" ");
-                        outBytes.Write(distinguisher);
-                    }
-                    return Set(PARAM_TYPE_PERSONALISATION, bout.ToArray());
+					StreamWriter outBytes = new StreamWriter(bout, System.Text.Encoding.UTF8);
+					outBytes.Write(date.ToString("YYYYMMDD", CultureInfo.InvariantCulture));
+					outBytes.Write(" ");
+					outBytes.Write(emailAddress);
+					outBytes.Write(" ");
+					outBytes.Write(distinguisher);
+                    Platform.Dispose(outBytes);
+					return Set(PARAM_TYPE_PERSONALISATION, bout.ToArray());
 				}
 				catch (IOException e)
 				{
@@ -271,7 +279,7 @@ namespace Org.BouncyCastle.Crypto.Parameters
 			/// </summary>
 			public SkeinParameters Build()
 			{
-				return new SkeinParameters(m_parameters);
+				return new SkeinParameters(parameters);
 			}
 		}
 	}

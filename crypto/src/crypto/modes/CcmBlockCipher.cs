@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Macs;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Utilities;
@@ -49,26 +50,35 @@ namespace Org.BouncyCastle.Crypto.Modes
         *
         * @return the underlying block cipher that we are wrapping.
         */
-        public virtual IBlockCipher UnderlyingCipher => cipher;
+        public virtual IBlockCipher GetUnderlyingCipher()
+        {
+            return cipher;
+        }
 
-        public virtual void Init(bool forEncryption, ICipherParameters parameters)
+        public virtual void Init(
+            bool				forEncryption,
+            ICipherParameters	parameters)
         {
             this.forEncryption = forEncryption;
 
             ICipherParameters cipherParameters;
-            if (parameters is AeadParameters aeadParameters)
+            if (parameters is AeadParameters)
             {
-                nonce = aeadParameters.GetNonce();
-                initialAssociatedText = aeadParameters.GetAssociatedText();
-                macSize = GetMacSize(forEncryption, aeadParameters.MacSize);
-                cipherParameters = aeadParameters.Key;
+                AeadParameters param = (AeadParameters) parameters;
+
+                nonce = param.GetNonce();
+                initialAssociatedText = param.GetAssociatedText();
+                macSize = GetMacSize(forEncryption, param.MacSize);
+                cipherParameters = param.Key;
             }
-            else if (parameters is ParametersWithIV parametersWithIV)
+            else if (parameters is ParametersWithIV)
             {
-                nonce = parametersWithIV.GetIV();
+                ParametersWithIV param = (ParametersWithIV) parameters;
+
+                nonce = param.GetIV();
                 initialAssociatedText = null;
                 macSize = GetMacSize(forEncryption, 64);
-                cipherParameters = parametersWithIV.Parameters;
+                cipherParameters = param.Parameters;
             }
             else
             {
@@ -81,13 +91,16 @@ namespace Org.BouncyCastle.Crypto.Modes
                 keyParam = cipherParameters;
             }
 
-            if (nonce.Length < 7 || nonce.Length > 13)
+            if (nonce == null || nonce.Length < 7 || nonce.Length > 13)
                 throw new ArgumentException("nonce must have length from 7 to 13 octets");
 
             Reset();
         }
 
-        public virtual string AlgorithmName => cipher.AlgorithmName + "/CCM";
+        public virtual string AlgorithmName
+        {
+            get { return cipher.AlgorithmName + "/CCM"; }
+        }
 
         public virtual int GetBlockSize()
         {
@@ -105,80 +118,52 @@ namespace Org.BouncyCastle.Crypto.Modes
             associatedText.Write(inBytes, inOff, len);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void ProcessAadBytes(ReadOnlySpan<byte> input)
-        {
-            // TODO: Process AAD online
-            associatedText.Write(input);
-        }
-#endif
-
-        public virtual int ProcessByte(byte input, byte[] outBytes, int outOff)
+        public virtual int ProcessByte(
+            byte	input,
+            byte[]	outBytes,
+            int		outOff)
         {
             data.WriteByte(input);
 
             return 0;
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual int ProcessByte(byte input, Span<byte> output)
+        public virtual int ProcessBytes(
+            byte[]	inBytes,
+            int		inOff,
+            int		inLen,
+            byte[]	outBytes,
+            int		outOff)
         {
-            data.WriteByte(input);
-
-            return 0;
-        }
-#endif
-
-        public virtual int ProcessBytes(byte[] inBytes, int inOff, int inLen, byte[] outBytes, int outOff)
-        {
-            Check.DataLength(inBytes, inOff, inLen, "input buffer too short");
+            Check.DataLength(inBytes, inOff, inLen, "Input buffer too short");
 
             data.Write(inBytes, inOff, inLen);
 
             return 0;
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual int ProcessBytes(ReadOnlySpan<byte> input, Span<byte> output)
+        public virtual int DoFinal(
+            byte[]	outBytes,
+            int		outOff)
         {
-            data.Write(input);
-
-            return 0;
-        }
-#endif
-
-        public virtual int DoFinal(byte[] outBytes, int outOff)
-        {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return DoFinal(outBytes.AsSpan(outOff));
+#if PORTABLE
+            byte[] input = data.ToArray();
+            int inLen = input.Length;
 #else
             byte[] input = data.GetBuffer();
-            int inLen = Convert.ToInt32(data.Length);
+            int inLen = (int)data.Position;
+#endif
 
             int len = ProcessPacket(input, 0, inLen, outBytes, outOff);
 
             Reset();
 
             return len;
-#endif
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual int DoFinal(Span<byte> output)
-        {
-            if (!data.TryGetBuffer(out var buffer))
-                throw new UnauthorizedAccessException();
-
-            int len = ProcessPacket(buffer, output);
-
-            Reset();
-
-            return len;
-        }
-#endif
 
         public virtual void Reset()
         {
+            cipher.Reset();
             associatedText.SetLength(0);
             data.SetLength(0);
         }
@@ -194,14 +179,16 @@ namespace Org.BouncyCastle.Crypto.Modes
             return Arrays.CopyOfRange(macBlock, 0, macSize);
         }
 
-        public virtual int GetUpdateOutputSize(int len)
+        public virtual int GetUpdateOutputSize(
+            int len)
         {
             return 0;
         }
 
-        public virtual int GetOutputSize(int len)
+        public virtual int GetOutputSize(
+            int len)
         {
-            int totalData = Convert.ToInt32(data.Length) + len;
+            int totalData = (int)data.Length + len;
 
             if (forEncryption)
             {
@@ -223,8 +210,6 @@ namespace Org.BouncyCastle.Crypto.Modes
          */
         public virtual byte[] ProcessPacket(byte[] input, int inOff, int inLen)
         {
-            Check.DataLength(input, inOff, inLen, "input buffer too short");
-
             byte[] output;
 
             if (forEncryption)
@@ -259,11 +244,6 @@ namespace Org.BouncyCastle.Crypto.Modes
          */
         public virtual int ProcessPacket(byte[] input, int inOff, int inLen, byte[] output, int outOff)
         {
-            Check.DataLength(input, inOff, inLen, "input buffer too short");
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return ProcessPacket(input.AsSpan(inOff, inLen), output.AsSpan(outOff));
-#else
             // TODO: handle null keyParam (e.g. via RepeatedKeySpec)
             // Need to keep the CTR and CBC Mac parts around and reset
             if (keyParam == null)
@@ -274,17 +254,7 @@ namespace Org.BouncyCastle.Crypto.Modes
             if (q < 4)
             {
                 int limitLen = 1 << (8 * q);
-
-                // no input length adjustment for encryption
-                int inputAdjustment = 0;
-
-                if (!forEncryption)
-                {
-                    // input includes 16 additional bytes: CCM flags and n+q values.
-                    inputAdjustment = 1 /* flags */ + 15 /* n + q */;
-                }
-
-                if (inLen - inputAdjustment >= limitLen)
+                if (inLen >= limitLen)
                     throw new InvalidOperationException("CCM packet too large for choice of q.");
             }
 
@@ -292,7 +262,7 @@ namespace Org.BouncyCastle.Crypto.Modes
             iv[0] = (byte)((q - 1) & 0x7);
             nonce.CopyTo(iv, 1);
 
-            var ctrCipher = new SicBlockCipher(cipher);
+            IBlockCipher ctrCipher = new SicBlockCipher(cipher);
             ctrCipher.Init(forEncryption, new ParametersWithIV(keyParam, iv));
 
             int outputLen;
@@ -302,7 +272,7 @@ namespace Org.BouncyCastle.Crypto.Modes
             if (forEncryption)
             {
                 outputLen = inLen + macSize;
-                Check.OutputLength(output, outOff, outputLen, "output buffer too short");
+                Check.OutputLength(output, outOff, outputLen, "Output buffer too short.");
 
                 CalculateMac(input, inOff, inLen, macBlock);
 
@@ -332,7 +302,7 @@ namespace Org.BouncyCastle.Crypto.Modes
                     throw new InvalidCipherTextException("data too short");
 
                 outputLen = inLen - macSize;
-                Check.OutputLength(output, outOff, outputLen, "output buffer too short");
+                Check.OutputLength(output, outOff, outputLen, "Output buffer too short.");
 
                 Array.Copy(input, inOff + outputLen, macBlock, 0, macSize);
 
@@ -362,125 +332,17 @@ namespace Org.BouncyCastle.Crypto.Modes
 
                 CalculateMac(output, outOff, outputLen, calculatedMacBlock);
 
-                if (!Arrays.FixedTimeEquals(macBlock, calculatedMacBlock))
-                    throw new InvalidCipherTextException("mac check in CCM failed");
-            }
-
-            return outputLen;
-#endif
-        }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual int ProcessPacket(ReadOnlySpan<byte> input, Span<byte> output)
-        {
-            int inLen = input.Length;
-
-            // TODO: handle null keyParam (e.g. via RepeatedKeySpec)
-            // Need to keep the CTR and CBC Mac parts around and reset
-            if (keyParam == null)
-                throw new InvalidOperationException("CCM cipher unitialized.");
-
-            int n = nonce.Length;
-            int q = 15 - n;
-            if (q < 4)
-            {
-                int limitLen = 1 << (8 * q);
-
-                // no input length adjustment for encryption
-                int inputAdjustment = 0;
-
-                if (!forEncryption)
-                {
-                    // input includes 16 additional bytes: CCM flags and n+q values.
-                    inputAdjustment = 1 /* flags */ + 15 /* n + q */;
-                }
-
-                if (inLen - inputAdjustment >= limitLen)
-                    throw new InvalidOperationException("CCM packet too large for choice of q.");
-            }
-
-            byte[] iv = new byte[BlockSize];
-            iv[0] = (byte)((q - 1) & 0x7);
-            nonce.CopyTo(iv, 1);
-
-            var ctrCipher = new SicBlockCipher(cipher);
-            ctrCipher.Init(forEncryption, new ParametersWithIV(keyParam, iv));
-
-            int outputLen;
-            int index = 0;
-            Span<byte> block = stackalloc byte[BlockSize];
-
-            if (forEncryption)
-            {
-                outputLen = inLen + macSize;
-                Check.OutputLength(output, outputLen, "output buffer too short");
-
-                CalculateMac(input, macBlock);
-
-                byte[] encMac = new byte[BlockSize];
-                ctrCipher.ProcessBlock(macBlock, encMac);   // S0
-
-                while (index < (inLen - BlockSize))                 // S1...
-                {
-                    ctrCipher.ProcessBlock(input[index..], output[index..]);
-                    index += BlockSize;
-                }
-
-                input[index..].CopyTo(block);
-
-                ctrCipher.ProcessBlock(block, block);
-
-                block[..(inLen - index)].CopyTo(output[index..]);
-
-                encMac.AsSpan(0, macSize).CopyTo(output[inLen..]);
-            }
-            else
-            {
-                if (inLen < macSize)
-                    throw new InvalidCipherTextException("data too short");
-
-                outputLen = inLen - macSize;
-                Check.OutputLength(output, outputLen, "output buffer too short");
-
-                input[outputLen..].CopyTo(macBlock);
-
-                ctrCipher.ProcessBlock(macBlock, macBlock);
-
-                for (int i = macSize; i != macBlock.Length; i++)
-                {
-                    macBlock[i] = 0;
-                }
-
-                while (index < (outputLen - BlockSize))
-                {
-                    ctrCipher.ProcessBlock(input[index..], output[index..]);
-                    index += BlockSize;
-                }
-
-                input[index..outputLen].CopyTo(block);
-
-                ctrCipher.ProcessBlock(block, block);
-
-                block[..(outputLen - index)].CopyTo(output[index..]);
-
-                Span<byte> calculatedMacBlock = stackalloc byte[BlockSize];
-
-                CalculateMac(output[..outputLen], calculatedMacBlock);
-
-                if (!Arrays.FixedTimeEquals(macBlock, calculatedMacBlock))
+                if (!Arrays.ConstantTimeAreEqual(macBlock, calculatedMacBlock))
                     throw new InvalidCipherTextException("mac check in CCM failed");
             }
 
             return outputLen;
         }
-#endif
 
         private int CalculateMac(byte[] data, int dataOff, int dataLen, byte[] macBlock)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return CalculateMac(data.AsSpan(dataOff, dataLen), macBlock);
-#else
-            var cMac = new CbcBlockCipherMac(cipher, macSize * 8);
+            IMac cMac = new CbcBlockCipherMac(cipher, macSize * 8);
+
             cMac.Init(keyParam);
 
             //
@@ -541,10 +403,15 @@ namespace Org.BouncyCastle.Crypto.Modes
                 {
                     cMac.BlockUpdate(initialAssociatedText, 0, initialAssociatedText.Length);
                 }
-                if (associatedText.Length > 0)
+                if (associatedText.Position > 0)
                 {
+#if PORTABLE
+                    byte[] input = associatedText.ToArray();
+                    int len = input.Length;
+#else
                     byte[] input = associatedText.GetBuffer();
-                    int len = Convert.ToInt32(associatedText.Length);
+                    int len = (int)associatedText.Position;
+#endif
 
                     cMac.BlockUpdate(input, 0, len);
                 }
@@ -565,99 +432,7 @@ namespace Org.BouncyCastle.Crypto.Modes
             cMac.BlockUpdate(data, dataOff, dataLen);
 
             return cMac.DoFinal(macBlock, 0);
-#endif
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        private int CalculateMac(ReadOnlySpan<byte> data, Span<byte> macBlock)
-        {
-            var cMac = new CbcBlockCipherMac(cipher, macSize * 8);
-            cMac.Init(keyParam);
-
-            //
-            // build b0
-            //
-            byte[] b0 = new byte[16];
-
-            if (HasAssociatedText())
-            {
-                b0[0] |= 0x40;
-            }
-
-            b0[0] |= (byte)((((cMac.GetMacSize() - 2) / 2) & 0x7) << 3);
-
-            b0[0] |= (byte)(((15 - nonce.Length) - 1) & 0x7);
-
-            Array.Copy(nonce, 0, b0, 1, nonce.Length);
-
-            int q = data.Length;
-            int count = 1;
-            while (q > 0)
-            {
-                b0[b0.Length - count] = (byte)(q & 0xff);
-                q >>= 8;
-                count++;
-            }
-
-            cMac.BlockUpdate(b0, 0, b0.Length);
-
-            //
-            // process associated text
-            //
-            if (HasAssociatedText())
-            {
-                int extra;
-
-                int textLength = GetAssociatedTextLength();
-                if (textLength < ((1 << 16) - (1 << 8)))
-                {
-                    cMac.Update((byte)(textLength >> 8));
-                    cMac.Update((byte)textLength);
-
-                    extra = 2;
-                }
-                else // can't go any higher than 2^32
-                {
-                    cMac.Update((byte)0xff);
-                    cMac.Update((byte)0xfe);
-                    cMac.Update((byte)(textLength >> 24));
-                    cMac.Update((byte)(textLength >> 16));
-                    cMac.Update((byte)(textLength >> 8));
-                    cMac.Update((byte)textLength);
-
-                    extra = 6;
-                }
-
-                if (initialAssociatedText != null)
-                {
-                    cMac.BlockUpdate(initialAssociatedText, 0, initialAssociatedText.Length);
-                }
-                if (associatedText.Length > 0)
-                {
-                    byte[] input = associatedText.GetBuffer();
-                    int len = Convert.ToInt32(associatedText.Length);
-
-                    cMac.BlockUpdate(input, 0, len);
-                }
-
-                extra = (extra + textLength) % 16;
-                if (extra != 0)
-                {
-                    for (int i = extra; i < 16; ++i)
-                    {
-                        cMac.Update((byte)0x00);
-                    }
-                }
-            }
-
-            //
-            // add the text
-            //
-            cMac.BlockUpdate(data);
-
-            return cMac.DoFinal(macBlock);
-        }
-#endif
 
         private int GetMacSize(bool forEncryption, int requestedMacBits)
         {
@@ -669,8 +444,7 @@ namespace Org.BouncyCastle.Crypto.Modes
 
         private int GetAssociatedTextLength()
         {
-            return Convert.ToInt32(associatedText.Length) +
-                (initialAssociatedText == null ? 0 : initialAssociatedText.Length);
+            return (int)associatedText.Length + ((initialAssociatedText == null) ? 0 : initialAssociatedText.Length);
         }
 
         private bool HasAssociatedText()

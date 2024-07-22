@@ -1,5 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
+
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Utilities;
+using Org.BouncyCastle.Utilities.Collections;
 
 namespace Org.BouncyCastle.Crypto.Signers
 {
@@ -17,9 +21,9 @@ namespace Org.BouncyCastle.Crypto.Signers
         public const int TRAILER_SHA512_224  = 0x39CC;
         public const int TRAILER_SHA512_256  = 0x40CC;
 
-        private static IDictionary<string, int> CreateTrailerMap()
+        private static IDictionary CreateTrailerMap()
         {
-            var trailers = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            IDictionary trailers = Platform.CreateHashtable();
 
             trailers.Add("RIPEMD128", TRAILER_RIPEMD128);
             trailers.Add("RIPEMD160", TRAILER_RIPEMD160);
@@ -34,23 +38,20 @@ namespace Org.BouncyCastle.Crypto.Signers
 
             trailers.Add("Whirlpool", TRAILER_WHIRLPOOL);
 
-            return trailers;
+            return CollectionUtilities.ReadOnly(trailers);
         }
 
         // IDictionary is (string -> Int32)
-        private static readonly IDictionary<string, int> TrailerMap = CreateTrailerMap();
+        private static readonly IDictionary trailerMap = CreateTrailerMap();
 
         public static int GetTrailer(IDigest digest)
         {
-            if (TrailerMap.TryGetValue(digest.AlgorithmName, out var trailer))
-                return trailer;
-
-            throw new InvalidOperationException("No trailer for digest");
+            return (int)trailerMap[digest.AlgorithmName];
         }
 
         public static bool NoTrailerAvailable(IDigest digest)
         {
-            return !TrailerMap.ContainsKey(digest.AlgorithmName);
+            return !trailerMap.Contains(digest.AlgorithmName);
         }
     }
 }

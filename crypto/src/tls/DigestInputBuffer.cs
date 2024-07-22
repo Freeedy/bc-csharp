@@ -2,6 +2,7 @@
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
+using Org.BouncyCastle.Utilities.IO;
 
 namespace Org.BouncyCastle.Tls
 {
@@ -10,14 +11,16 @@ namespace Org.BouncyCastle.Tls
     {
         internal void UpdateDigest(TlsHash hash)
         {
-            WriteTo(new TlsHashSink(hash));
+            Streams.WriteBufTo(this, new TlsHashSink(hash));
         }
 
         /// <exception cref="IOException"/>
         internal void CopyInputTo(Stream output)
         {
-            // TODO[tls] Consider defensive copy if 'output' might be external code
-            WriteTo(output);
+            // TODO[tls-port]
+            // NOTE: Copy data since the output here may be under control of external code.
+            //Streams.PipeAll(new MemoryStream(buf, 0, count), output);
+            Streams.WriteBufTo(this, output);
         }
     }
 }

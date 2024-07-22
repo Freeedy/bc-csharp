@@ -19,24 +19,31 @@ namespace Org.BouncyCastle.Bcpg.Sig
            fingerprint format */
         public static readonly byte FEATURE_VERSION_5_PUBLIC_KEY = 0x04;
 
-        private static byte[] FeatureToByteArray(byte feature)
+        private static byte[] featureToByteArray(byte feature)
         {
-            return new byte[1]{ feature };
+            byte[] data = new byte[1];
+            data[0] = feature;
+            return data;
         }
 
-        public Features(bool critical, bool isLongLength, byte[] data)
-            : base(SignatureSubpacketTag.Features, critical, isLongLength, data)
+        public Features(
+            bool critical,
+            bool isLongLength,
+            byte[] data): base(SignatureSubpacketTag.Features, critical, isLongLength, data)
         {
-        }
 
-        public Features(bool critical, byte features)
-            : this(critical, false, FeatureToByteArray(features))
-        {
         }
+      
 
-        public Features(bool critical, int features)
-            : this(critical, false, FeatureToByteArray((byte)features))
+        public Features(bool critical, byte features): this(critical, false, featureToByteArray(features))
         {
+
+        }
+   
+
+        public Features(bool critical, int features):  this(critical, false, featureToByteArray((byte)features))
+        {
+           
         }
 
         /**

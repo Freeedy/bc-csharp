@@ -65,11 +65,6 @@ namespace Org.BouncyCastle.Tls
             return 0;
         }
 
-        public virtual int GetHandshakeResendTimeMillis()
-        {
-            return 1000;
-        }
-
         public virtual bool AllowLegacyResumption()
         {
             return false;
@@ -148,10 +143,6 @@ namespace Org.BouncyCastle.Tls
         {
         }
 
-        public virtual void NotifyConnectionClosed()
-        {
-        }
-
         /// <exception cref="IOException"/>
         public virtual void NotifyHandshakeComplete()
         {
@@ -166,7 +157,5 @@ namespace Org.BouncyCastle.Tls
         {
             return HeartbeatMode.peer_not_allowed_to_send;
         }
-
-        public virtual bool IgnoreCorruptDtlsRecords => false;
     }
 }

@@ -18,7 +18,7 @@ namespace Org.BouncyCastle.Tls.Tests
     [TestFixture]
     public class TlsServerTest
     {
-        [Test, Explicit]
+        [Test, Ignore]
         public void TestConnection()
         {
             int port = 5556;
@@ -33,8 +33,8 @@ namespace Org.BouncyCastle.Tls.Tests
                     TcpClient s = ss.AcceptTcpClient();
                     Console.WriteLine("--------------------------------------------------------------------------------");
                     Console.WriteLine("Accepted " + s);
-                    ServerTask serverTask = new ServerTask(s, stdout);
-                    Thread t = new Thread(new ThreadStart(serverTask.Run));
+                    Server serverRun = new Server(s, stdout);
+                    Thread t = new Thread(new ThreadStart(serverRun.Run));
                     t.Start();
                 }
             }
@@ -44,12 +44,12 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
-        internal class ServerTask
+        internal class Server
         {
             private readonly TcpClient s;
             private readonly Stream stdout;
 
-            internal ServerTask(TcpClient s, Stream stdout)
+            internal Server(TcpClient s, Stream stdout)
             {
                 this.s = s;
                 this.stdout = stdout;

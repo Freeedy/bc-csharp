@@ -1,49 +1,47 @@
 ﻿using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Crmf
 {
     public class CertId
         : Asn1Encodable
     {
-        public static CertId GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is CertId certId)
-                return certId;
-            return new CertId(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static CertId GetInstance(Asn1TaggedObject obj, bool isExplicit) =>
-            new CertId(Asn1Sequence.GetInstance(obj, isExplicit));
-
-        public static CertId GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new CertId(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
-
-        private readonly GeneralName m_issuer;
-        private readonly DerInteger m_serialNumber;
+        private readonly GeneralName issuer;
+        private readonly DerInteger serialNumber;
 
         private CertId(Asn1Sequence seq)
         {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_issuer = GeneralName.GetInstance(seq[0]);
-            m_serialNumber = DerInteger.GetInstance(seq[1]);
+            issuer = GeneralName.GetInstance(seq[0]);
+            serialNumber = DerInteger.GetInstance(seq[1]);
         }
 
-        public CertId(GeneralName issuer, DerInteger serialNumber)
+        public static CertId GetInstance(object obj)
         {
-            m_issuer = issuer ?? throw new ArgumentNullException(nameof(issuer));
-            m_serialNumber = serialNumber ?? throw new ArgumentNullException(nameof(serialNumber));
+            if (obj is CertId)
+                return (CertId)obj;
+
+            if (obj is Asn1Sequence)
+                return new CertId((Asn1Sequence)obj);
+
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
         }
 
-        public virtual GeneralName Issuer => m_issuer;
+        public static CertId GetInstance(Asn1TaggedObject obj, bool isExplicit)
+        {
+            return GetInstance(Asn1Sequence.GetInstance(obj, isExplicit));
+        }
 
-        public virtual DerInteger SerialNumber => m_serialNumber;
+        public virtual GeneralName Issuer
+        {
+            get { return issuer; }
+        }
+
+        public virtual DerInteger SerialNumber
+        {
+            get { return serialNumber; }
+        }
 
         /**
          * <pre>
@@ -53,6 +51,9 @@ namespace Org.BouncyCastle.Asn1.Crmf
          * </pre>
          * @return a basic ASN.1 object representation.
          */
-        public override Asn1Object ToAsn1Object() => new DerSequence(m_issuer, m_serialNumber);
+        public override Asn1Object ToAsn1Object()
+        {
+            return new DerSequence(issuer, serialNumber);
+        }
     }
 }

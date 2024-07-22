@@ -1,5 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
+using System.IO;
 using System.Text;
 
 using NUnit.Framework;
@@ -8,6 +9,7 @@ using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Pkix;
 using Org.BouncyCastle.Utilities.Collections;
+using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Utilities.Test;
 using Org.BouncyCastle.X509;
@@ -33,30 +35,30 @@ namespace Org.BouncyCastle.Tests
 		private const string TEST_POLICY_4 = "2.16.840.1.101.3.1.48.4";
 		private const string TEST_POLICY_5 = "2.16.840.1.101.3.1.48.5";
 
-		private static ISet<string> ANY;
-		private static ISet<string> TP1;
-		private static ISet<string> TP2;
-		private static ISet<string> TP3;
-		private static ISet<string> TP4;
-		private static ISet<string> TP1_TP2;
+		private static ISet ANY;
+		private static ISet TP1;
+		private static ISet TP2;
+		private static ISet TP3;
+		private static ISet TP4;
+		private static ISet TP1_TP2;
 
 		static NistCertPathTest()
 		{
-			ANY = new HashSet<string>();
+			ANY = new HashSet();
 
-			TP1 = new HashSet<string>();
+			TP1 = new HashSet();
 			TP1.Add(TEST_POLICY_1);
 
-			TP2 = new HashSet<string>();
+			TP2 = new HashSet();
 			TP2.Add(TEST_POLICY_2);
 
-			TP3 = new HashSet<string>();
+			TP3 = new HashSet();
 			TP3.Add(TEST_POLICY_3);
 
-			TP4 = new HashSet<string>();
+			TP4 = new HashSet();
 			TP4.Add(TEST_POLICY_4);
 
-			TP1_TP2 = new HashSet<string>();
+			TP1_TP2 = new HashSet();
 			TP1_TP2.Add(TEST_POLICY_1);
 			TP1_TP2.Add(TEST_POLICY_2);
 		}
@@ -69,9 +71,9 @@ namespace Org.BouncyCastle.Tests
 
 		private X509Certificate trustedCert;
 		private X509Crl trustedCRL;
-		private ISet<TrustAnchor> trustedSet;
+		private ISet trustedSet;
 		private int testCount;
-		private IList<string> testFail;
+		private IList testFail;
 		private StringBuilder resultBuf;
 
 		public override string Name
@@ -256,7 +258,7 @@ namespace Org.BouncyCastle.Tests
 			{
 				trustedCert = certParser.ReadCertificate(Base64.Decode(Trust_Anchor_CP_01_01_crt));
 				trustedCRL = crlParser.ReadCrl(Base64.Decode(Trust_Anchor_CRL_CP_01_01_crl));
-				trustedSet = new HashSet<TrustAnchor>();
+				trustedSet = new HashSet();
 
 				byte[] _ncBytes = null;
 				Asn1OctetString _oct = trustedCert.GetExtensionValue(X509Extensions.NameConstraints);
@@ -267,7 +269,7 @@ namespace Org.BouncyCastle.Tests
 
 				trustedSet.Add(new TrustAnchor(trustedCert, _ncBytes));
 				testCount = 0;
-				testFail = new List<string>();
+				testFail = new ArrayList();
 				resultBuf = new StringBuilder("\n");
 			}
 			catch (Exception ex)
@@ -286,10 +288,10 @@ namespace Org.BouncyCastle.Tests
 			return crlParser.ReadCrl(Base64.Decode(_str));
 		}
 
-		private void MakeCertStore(string[] _strs, out IStore<X509Certificate> certStore, out IStore<X509Crl> crlStore)
+		private void MakeCertStore(string[] _strs, out IX509Store certStore, out IX509Store crlStore)
 		{
-			var certs = new List<X509Certificate>();
-			var crls = new List<X509Crl>();
+			ArrayList certs = new ArrayList();
+			ArrayList crls = new ArrayList();
 			crls.Add(trustedCRL);
 
 			for (int i = 0; i < _strs.Length; i++)
@@ -317,8 +319,10 @@ namespace Org.BouncyCastle.Tests
 			certs.Reverse();
 			crls.Reverse();
 
-			certStore = CollectionUtilities.CreateStore(certs);
-			crlStore = CollectionUtilities.CreateStore(crls);
+			certStore = X509StoreFactory.Create("Certificate/Collection",
+				new X509CollectionStoreParameters(certs));
+			crlStore = X509StoreFactory.Create("CRL/Collection",
+				new X509CollectionStoreParameters(crls));
 		}
 
 		private void Test(string _name, string[] _data, bool _accept,
@@ -333,7 +337,7 @@ namespace Org.BouncyCastle.Tests
 			Test(_name, _data, null, _explicit, _accept, _debug);
 		}
 
-		private void Test(string _name, string[] _data, ISet<string> _ipolset,
+		private void Test(string _name, string[] _data, ISet _ipolset,
 			bool _explicit, bool _accept, bool _debug)
 		{
 			testCount++;
@@ -348,14 +352,14 @@ namespace Org.BouncyCastle.Tests
 				X509CertStoreSelector _select = new X509CertStoreSelector();
 				_select.Subject = _ee.SubjectDN;
 
-				IStore<X509Certificate> certStore;
-				IStore<X509Crl> crlStore;
+				IX509Store certStore, crlStore;
 				MakeCertStore(_data, out certStore, out crlStore);
 
-				PkixBuilderParameters _param = new PkixBuilderParameters(trustedSet, _select);
+				PkixBuilderParameters _param = new PkixBuilderParameters(
+					trustedSet, _select);
 				_param.IsExplicitPolicyRequired = _explicit;
-				_param.AddStoreCert(certStore);
-				_param.AddStoreCrl(crlStore);
+				_param.AddStore(certStore);
+				_param.AddStore(crlStore);
 				_param.IsRevocationEnabled = true;
 
 				if (_ipolset != null)
@@ -5170,6 +5174,12 @@ namespace Org.BouncyCastle.Tests
 			Intermediate_CRL_RL_09_01_crl,
 			End_Certificate_RL_09_01_crt
 		};
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new NistCertPathTest());
+		}
 
 		[Test]
 		public void TestFunction()

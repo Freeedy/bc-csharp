@@ -1,63 +1,80 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Esf
 {
-    /// <remarks>
-    /// RFC 3126: 4.3.2 Revocation Values Attribute Definition
-    /// <code>
-    /// OtherRevVals ::= SEQUENCE 
-    /// {
-    ///		otherRevValType      OtherRevValType,
-    ///		otherRevVals         ANY DEFINED BY otherRevValType
-    /// }
-    ///
-    /// OtherRevValType ::= OBJECT IDENTIFIER
-    /// </code>
-    /// </remarks>
-    public class OtherRevVals
+	/// <remarks>
+	/// RFC 3126: 4.3.2 Revocation Values Attribute Definition
+	/// <code>
+	/// OtherRevVals ::= SEQUENCE 
+	/// {
+	///		otherRevValType      OtherRevValType,
+	///		otherRevVals         ANY DEFINED BY otherRevValType
+	/// }
+	///
+	/// OtherRevValType ::= OBJECT IDENTIFIER
+	/// </code>
+	/// </remarks>
+	public class OtherRevVals
 		: Asn1Encodable
 	{
-        public static OtherRevVals GetInstance(object obj)
-        {
-			if (obj == null)
-				return null;
-            if (obj is OtherRevVals otherRevVals)
-                return otherRevVals;
-            return new OtherRevVals(Asn1Sequence.GetInstance(obj));
-        }
+		private readonly DerObjectIdentifier	otherRevValType;
+		private readonly Asn1Object				otherRevVals;
 
-        public static OtherRevVals GetInstance(Asn1TaggedObject obj, bool explicitly) =>
-            new OtherRevVals(Asn1Sequence.GetInstance(obj, explicitly));
-
-        public static OtherRevVals GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new OtherRevVals(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
-
-        private readonly DerObjectIdentifier m_otherRevValType;
-        private readonly Asn1Encodable m_otherRevVals;
-
-        private OtherRevVals(Asn1Sequence seq)
+		public static OtherRevVals GetInstance(
+			object obj)
 		{
-			int count = seq.Count;
-			if (count != 2)
-				throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (obj == null || obj is OtherRevVals)
+				return (OtherRevVals) obj;
 
-			m_otherRevValType = DerObjectIdentifier.GetInstance(seq[0]);
-			m_otherRevVals = seq[1];
+			if (obj is Asn1Sequence)
+				return new OtherRevVals((Asn1Sequence) obj);
+
+			throw new ArgumentException(
+				"Unknown object in 'OtherRevVals' factory: "
+                    + Platform.GetTypeName(obj),
+				"obj");
 		}
 
-        public OtherRevVals(DerObjectIdentifier otherRevValType, Asn1Encodable otherRevVals)
-        {
-            m_otherRevValType = otherRevValType ?? throw new ArgumentNullException(nameof(otherRevValType));
-            m_otherRevVals = otherRevVals ?? throw new ArgumentNullException(nameof(otherRevVals));
-        }
+		private OtherRevVals(
+			Asn1Sequence seq)
+		{
+			if (seq == null)
+				throw new ArgumentNullException("seq");
+			if (seq.Count != 2)
+				throw new ArgumentException("Bad sequence size: " + seq.Count, "seq");
 
-		public DerObjectIdentifier OtherRevValType => m_otherRevValType;
+			this.otherRevValType = (DerObjectIdentifier) seq[0].ToAsn1Object();
+			this.otherRevVals = seq[1].ToAsn1Object();
+		}
 
-		public Asn1Encodable OtherRevValsData => m_otherRevVals;
+		public OtherRevVals(
+			DerObjectIdentifier	otherRevValType,
+			Asn1Encodable		otherRevVals)
+		{
+			if (otherRevValType == null)
+				throw new ArgumentNullException("otherRevValType");
+			if (otherRevVals == null)
+				throw new ArgumentNullException("otherRevVals");
 
-        [Obsolete("Use 'OtherRevValsData' instead")]
-        public Asn1Object OtherRevValsObject => m_otherRevVals.ToAsn1Object();
+			this.otherRevValType = otherRevValType;
+			this.otherRevVals = otherRevVals.ToAsn1Object();
+		}
 
-		public override Asn1Object ToAsn1Object() => new DerSequence(m_otherRevValType, m_otherRevVals);
+		public DerObjectIdentifier OtherRevValType
+		{
+			get { return otherRevValType; }
+		}
+
+		public Asn1Object OtherRevValsObject
+		{
+			get { return otherRevVals; }
+		}
+
+		public override Asn1Object ToAsn1Object()
+		{
+			return new DerSequence(otherRevValType, otherRevVals);
+		}
 	}
 }

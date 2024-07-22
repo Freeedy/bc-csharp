@@ -7,16 +7,18 @@ namespace Org.BouncyCastle.Bcpg
         : ContainedPacket
     {
         // "PGP"
-        private readonly byte[] marker = { (byte)0x50, (byte)0x47, (byte)0x50 };
+        byte[] marker = { (byte)0x50, (byte)0x47, (byte)0x50 };
 
-        public MarkerPacket(BcpgInputStream bcpgIn)
+        public MarkerPacket(
+            BcpgInputStream bcpgIn)
         {
             bcpgIn.ReadFully(marker);
         }
 
-        public override void Encode(BcpgOutputStream bcpgOut)
+        public override void Encode(
+            BcpgOutputStream bcpgOut)
         {
-            bcpgOut.WritePacket(PacketTag.Marker, marker);
+            bcpgOut.WritePacket(PacketTag.Marker, marker, true);
         }
     }
 }

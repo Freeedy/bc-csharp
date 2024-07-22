@@ -1,7 +1,9 @@
 using System;
+using System.Collections;
 
 using NUnit.Framework;
 
+using Org.BouncyCastle.Asn1;
 using Asn1Cms = Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Utilities.Test;
 
@@ -72,7 +74,7 @@ namespace Org.BouncyCastle.Asn1.Tests
                 Fail("wrong vector size for single.");
             }
 
-            var t = table.ToDictionary();
+            IDictionary t = table.ToDictionary();
 
 			if (t.Count != 2)
             {
@@ -130,6 +132,12 @@ namespace Org.BouncyCastle.Asn1.Tests
             {
                 Fail("wrong vector size for multiple.");
             }
+        }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new AttributeTableUnitTest());
         }
 
         [Test]

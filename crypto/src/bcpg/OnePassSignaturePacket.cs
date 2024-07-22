@@ -71,17 +71,23 @@ namespace Org.BouncyCastle.Bcpg
 			get { return keyId; }
 		}
 
-		public override void Encode(BcpgOutputStream bcpgOut)
+		public override void Encode(
+			BcpgOutputStream bcpgOut)
 		{
 			MemoryStream bOut = new MemoryStream();
-			using (var pOut = new BcpgOutputStream(bOut))
-            {
-				pOut.Write((byte)version, (byte)sigType, (byte)hashAlgorithm, (byte)keyAlgorithm);
-				pOut.WriteLong(keyId);
-				pOut.WriteByte((byte)nested);
-			}
+			BcpgOutputStream pOut = new BcpgOutputStream(bOut);
 
-			bcpgOut.WritePacket(PacketTag.OnePassSignature, bOut.ToArray());
+			pOut.Write(
+				(byte) version,
+				(byte) sigType,
+				(byte) hashAlgorithm,
+				(byte) keyAlgorithm);
+
+			pOut.WriteLong(keyId);
+
+			pOut.WriteByte((byte) nested);
+
+			bcpgOut.WritePacket(PacketTag.OnePassSignature, bOut.ToArray(), true);
 		}
 	}
 }

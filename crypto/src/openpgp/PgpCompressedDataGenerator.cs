@@ -1,7 +1,8 @@
 using System;
 using System.IO;
 
-using Org.BouncyCastle.Utilities.IO.Compression;
+using Org.BouncyCastle.Apache.Bzip2;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Zlib;
 
 namespace Org.BouncyCastle.Bcpg.OpenPgp
@@ -75,7 +76,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
 			this.pkOut = new BcpgOutputStream(outStr, PacketTag.CompressedData);
 
-			DoOpen();
+			doOpen();
 
 			return new WrappedGeneratorStream(this, dOut);
 		}
@@ -119,50 +120,102 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
 			this.pkOut = new BcpgOutputStream(outStr, PacketTag.CompressedData, buffer);
 
-			DoOpen();
+			doOpen();
 
 			return new WrappedGeneratorStream(this, dOut);
 		}
 
-		private void DoOpen()
+		private void doOpen()
 		{
 			pkOut.WriteByte((byte) algorithm);
 
 			switch (algorithm)
 			{
-			case CompressionAlgorithmTag.Uncompressed:
-				dOut = pkOut;
-				break;
-			case CompressionAlgorithmTag.Zip:
-                dOut = Zip.CompressOutput(pkOut, compression, true);
-                break;
-			case CompressionAlgorithmTag.ZLib:
-				dOut = ZLib.CompressOutput(pkOut, compression, true);
-				break;
-			case CompressionAlgorithmTag.BZip2:
-				dOut = Bzip2.CompressOutput(pkOut, true);
-				break;
-			default:
-				// Constructor should guard against this possibility
-				throw new InvalidOperationException();
+				case CompressionAlgorithmTag.Uncompressed:
+					dOut = pkOut;
+					break;
+				case CompressionAlgorithmTag.Zip:
+					dOut = new SafeZOutputStream(pkOut, compression, true);
+					break;
+				case CompressionAlgorithmTag.ZLib:
+					dOut = new SafeZOutputStream(pkOut, compression, false);
+					break;
+				case CompressionAlgorithmTag.BZip2:
+					dOut = new SafeCBZip2OutputStream(pkOut);
+					break;
+				default:
+					// Constructor should guard against this possibility
+					throw new InvalidOperationException();
 			}
 		}
 
-        [Obsolete("Dispose any opened Stream directly")]
-        public void Close()
+		/// <summary>Close the compressed object.</summary>summary>
+		public void Close()
 		{
-            if (dOut != null)
-            {
-                if (dOut != pkOut)
-                {
-                    dOut.Dispose();
-                }
-                dOut = null;
+			if (dOut != null)
+			{
+				if (dOut != pkOut)
+				{
+                    Platform.Dispose(dOut);
+				}
+				dOut = null;
 
-                pkOut.Finish();
-                pkOut.Flush();
-                pkOut = null;
+				pkOut.Finish();
+				pkOut.Flush();
+				pkOut = null;
+			}
+		}
+
+		private class SafeCBZip2OutputStream : CBZip2OutputStream
+		{
+			public SafeCBZip2OutputStream(Stream output)
+				: base(output)
+			{
+			}
+
+#if PORTABLE
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+				    Finish();
+                    return;
+                }
+                base.Dispose(disposing);
             }
-        }
+#else
+            public override void Close()
+			{
+				Finish();
+			}
+#endif
+		}
+
+		private class SafeZOutputStream : ZOutputStream
+		{
+			public SafeZOutputStream(Stream output, int level, bool nowrap)
+				: base(output, level, nowrap)
+			{
+			}
+
+#if PORTABLE
+            protected override void Dispose(bool disposing)
+            {
+                if (disposing)
+                {
+				    Finish();
+				    End();
+                    return;
+                }
+                base.Dispose(disposing);
+            }
+#else
+            public override void Close()
+			{
+				Finish();
+				End();
+			}
+#endif
+		}
 	}
 }

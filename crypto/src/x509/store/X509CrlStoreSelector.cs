@@ -1,27 +1,27 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Utilities.Collections;
+using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.X509.Extension;
 
 namespace Org.BouncyCastle.X509.Store
 {
 	public class X509CrlStoreSelector
-		: ISelector<X509Crl>, ICheckingCertificate
+		: IX509Selector
 	{
 		// TODO Missing criteria?
 
 		private X509Certificate certificateChecking;
-		private DateTime? dateAndTime;
-		private IList<X509Name> issuers;
+		private DateTimeObject dateAndTime;
+		private ICollection issuers;
 		private BigInteger maxCrlNumber;
 		private BigInteger minCrlNumber;
 
-		private X509V2AttributeCertificate attrCertChecking;
+		private IX509AttributeCertificate attrCertChecking;
 		private bool completeCrlEnabled;
 		private bool deltaCrlIndicatorEnabled;
 		private byte[] issuingDistributionPoint;
@@ -60,7 +60,7 @@ namespace Org.BouncyCastle.X509.Store
 			set { certificateChecking = value; }
 		}
 
-		public DateTime? DateAndTime
+		public DateTimeObject DateAndTime
 		{
 			get { return dateAndTime; }
 			set { dateAndTime = value; }
@@ -69,10 +69,10 @@ namespace Org.BouncyCastle.X509.Store
 		/// <summary>
 		/// An <code>ICollection</code> of <code>X509Name</code> objects
 		/// </summary>
-		public IList<X509Name> Issuers
+		public ICollection Issuers
 		{
-			get { return new List<X509Name>(issuers); }
-            set { issuers = new List<X509Name>(value); }
+			get { return Platform.CreateArrayList(issuers); }
+            set { issuers = Platform.CreateArrayList(value); }
 		}
 
 		public BigInteger MaxCrlNumber
@@ -98,7 +98,7 @@ namespace Org.BouncyCastle.X509.Store
 		 *             <code>null</code>)
 		 * @see #getAttrCertificateChecking()
 		 */
-		public X509V2AttributeCertificate AttrCertChecking
+		public IX509AttributeCertificate AttrCertChecking
 		{
 			get { return attrCertChecking; }
 			set { this.attrCertChecking = value; }
@@ -180,8 +180,11 @@ namespace Org.BouncyCastle.X509.Store
 			set { this.maxBaseCrlNumber = value; }
 		}
 
-		public virtual bool Match(X509Crl c)
+		public virtual bool Match(
+			object obj)
 		{
+			X509Crl c = obj as X509Crl;
+
 			if (c == null)
 				return false;
 
@@ -189,7 +192,7 @@ namespace Org.BouncyCastle.X509.Store
 			{
 				DateTime dt = dateAndTime.Value;
 				DateTime tu = c.ThisUpdate;
-				DateTime? nu = c.NextUpdate;
+				DateTimeObject nu = c.NextUpdate;
 
 				if (dt.CompareTo(tu) < 0 || nu == null || dt.CompareTo(nu.Value) >= 0)
 					return false;
@@ -276,9 +279,4 @@ namespace Org.BouncyCastle.X509.Store
 			return true;
 		}
 	}
-
-    public interface ICheckingCertificate
-    {
-        X509Certificate CertificateChecking { get; }
-    }
 }

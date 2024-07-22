@@ -1,5 +1,6 @@
 ﻿using System;
 
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Math;
 
 namespace Org.BouncyCastle.Bcpg
@@ -8,18 +9,18 @@ namespace Org.BouncyCastle.Bcpg
     public class ECSecretBcpgKey
         : BcpgObject, IBcpgKey
     {
-        internal readonly MPInteger m_x;
+        internal MPInteger x;
 
         public ECSecretBcpgKey(
             BcpgInputStream bcpgIn)
         {
-            m_x = new MPInteger(bcpgIn);
+            this.x = new MPInteger(bcpgIn);
         }
 
         public ECSecretBcpgKey(
             BigInteger x)
         {
-            m_x = new MPInteger(x);
+            this.x = new MPInteger(x);
         }
 
 		/// <summary>The format, as a string, always "PGP".</summary>
@@ -44,12 +45,12 @@ namespace Org.BouncyCastle.Bcpg
         public override void Encode(
             BcpgOutputStream bcpgOut)
         {
-            bcpgOut.WriteObject(m_x);
+            bcpgOut.WriteObject(x);
         }
 
         public virtual BigInteger X
         {
-            get { return m_x.Value; }
+            get { return x.Value; }
         }
     }
 }

@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 
+using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
@@ -23,6 +25,23 @@ namespace Org.BouncyCastle.Crypto.Signers
         {
             return recoveredMessage;
         }
+
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerImplicit = 0xBC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerRipeMD160 = 0x31CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerRipeMD128 = 0x32CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerSha1 = 0x33CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerSha256 = 0x34CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerSha512 = 0x35CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerSha384 = 0x36CC;
+        [Obsolete("Use 'IsoTrailers' instead")]
+        public const int TrailerWhirlpool = 0x37CC;
 
         private IDigest digest;
         private IAsymmetricBlockCipher cipher;
@@ -109,29 +128,43 @@ namespace Org.BouncyCastle.Crypto.Signers
         /// <exception cref="ArgumentException">if wrong parameter type or a fixed
         /// salt is passed in which is the wrong length.
         /// </exception>
-        public virtual void Init(bool forSigning, ICipherParameters parameters)
+        public virtual void Init(
+            bool				forSigning,
+            ICipherParameters	parameters)
         {
             RsaKeyParameters kParam;
-            if (parameters is ParametersWithRandom withRandom)
+            if (parameters is ParametersWithRandom)
             {
-                kParam = (RsaKeyParameters)withRandom.Parameters;
-                random = forSigning ? withRandom.Random : null;
+                ParametersWithRandom p = (ParametersWithRandom) parameters;
+
+                kParam = (RsaKeyParameters) p.Parameters;
+
+                if (forSigning)
+                {
+                    random = p.Random;
+                }
             }
-            else if (parameters is ParametersWithSalt withSalt)
+            else if (parameters is ParametersWithSalt)
             {
                 if (!forSigning)
-                    throw new ArgumentException("ParametersWithSalt only valid for signing", nameof(parameters));
+                    throw new ArgumentException("ParametersWithSalt only valid for signing", "parameters");
 
-                kParam = (RsaKeyParameters)withSalt.Parameters;
-                standardSalt = withSalt.GetSalt();
+                ParametersWithSalt p = (ParametersWithSalt) parameters;
+
+                kParam = (RsaKeyParameters) p.Parameters;
+                standardSalt = p.GetSalt();
 
                 if (standardSalt.Length != saltLength)
                     throw new ArgumentException("Fixed salt is of wrong length");
             }
             else
             {
-                kParam = (RsaKeyParameters)parameters;
-                random = forSigning ? CryptoServicesRegistrar.GetSecureRandom() : null;
+                kParam = (RsaKeyParameters) parameters;
+
+                if (forSigning)
+                {
+                    random = new SecureRandom();
+                }
             }
 
             cipher.Init(forSigning, kParam);
@@ -276,48 +309,50 @@ namespace Org.BouncyCastle.Crypto.Signers
             }
         }
 
-        public virtual void BlockUpdate(byte[] input, int inOff, int inLen)
+        /// <summary> update the internal digest with the byte array in</summary>
+        public virtual void BlockUpdate(
+            byte[]	input,
+            int		inOff,
+            int		length)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            BlockUpdate(input.AsSpan(inOff, inLen));
-#else
             if (preSig == null)
             {
-                while (inLen > 0 && messageLength < mBuf.Length)
+                while (length > 0 && messageLength < mBuf.Length)
                 {
                     this.Update(input[inOff]);
                     inOff++;
-                    inLen--;
+                    length--;
                 }
             }
 
-            if (inLen > 0)
+            if (length > 0)
             {
-                digest.BlockUpdate(input, inOff, inLen);
+                digest.BlockUpdate(input, inOff, length);
             }
-#endif
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void BlockUpdate(ReadOnlySpan<byte> input)
+        /// <summary> reset the internal state</summary>
+        public virtual void Reset()
         {
-            if (preSig == null)
+            digest.Reset();
+            messageLength = 0;
+            if (mBuf != null)
             {
-                while (!input.IsEmpty && messageLength < mBuf.Length)
-                {
-                    this.Update(input[0]);
-                    input = input[1..];
-                }
+                ClearBlock(mBuf);
             }
-
-            if (!input.IsEmpty)
+            if (recoveredMessage != null)
             {
-                digest.BlockUpdate(input);
+                ClearBlock(recoveredMessage);
+                recoveredMessage = null;
+            }
+            fullMessage = false;
+            if (preSig != null)
+            {
+                preSig = null;
+                ClearBlock(preBlock);
+                preBlock = null;
             }
         }
-#endif
-
-        public virtual int GetMaxSignatureSize() => cipher.GetOutputBlockSize();
 
         /// <summary> Generate a signature for the loaded message using the key we were
         /// initialised with.
@@ -504,29 +539,6 @@ namespace Org.BouncyCastle.Crypto.Signers
 
             ClearBlock(mBuf);
             return true;
-        }
-
-        /// <summary> reset the internal state</summary>
-        public virtual void Reset()
-        {
-            digest.Reset();
-            messageLength = 0;
-            if (mBuf != null)
-            {
-                ClearBlock(mBuf);
-            }
-            if (recoveredMessage != null)
-            {
-                ClearBlock(recoveredMessage);
-                recoveredMessage = null;
-            }
-            fullMessage = false;
-            if (preSig != null)
-            {
-                preSig = null;
-                ClearBlock(preBlock);
-                preBlock = null;
-            }
         }
 
         /// <summary>

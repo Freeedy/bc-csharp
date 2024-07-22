@@ -1,40 +1,42 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
+
+using Org.BouncyCastle.Utilities.Collections;
 
 namespace Org.BouncyCastle.Utilities.IO.Pem
 {
 	public class PemObject
 		: PemObjectGenerator
 	{
-		private readonly string m_type;
-		private readonly IList<PemHeader> m_headers;
-		private readonly byte[] m_content;
+		private string		type;
+		private IList		headers;
+		private byte[]		content;
 
 		public PemObject(string type, byte[] content)
-			: this(type, new List<PemHeader>(), content)
+			: this(type, Platform.CreateArrayList(), content)
 		{
 		}
 
-		public PemObject(string type, IList<PemHeader> headers, byte[] content)
+		public PemObject(String type, IList headers, byte[] content)
 		{
-			m_type = type;
-            m_headers = new List<PemHeader>(headers);
-			m_content = content;
+			this.type = type;
+            this.headers = Platform.CreateArrayList(headers);
+			this.content = content;
 		}
 
 		public string Type
 		{
-			get { return m_type; }
+			get { return type; }
 		}
 
-		public IList<PemHeader> Headers
+		public IList Headers
 		{
-			get { return m_headers; }
+			get { return headers; }
 		}
 
 		public byte[] Content
 		{
-			get { return m_content; }
+			get { return content; }
 		}
 
 		public PemObject Generate()

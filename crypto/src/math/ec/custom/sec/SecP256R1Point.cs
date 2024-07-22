@@ -7,13 +7,47 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec
     internal class SecP256R1Point
         : AbstractFpPoint
     {
-        internal SecP256R1Point(ECCurve curve, ECFieldElement x, ECFieldElement y)
-            : base(curve, x, y)
+        /**
+         * Create a point which encodes with point compression.
+         * 
+         * @param curve
+         *            the curve to use
+         * @param x
+         *            affine x co-ordinate
+         * @param y
+         *            affine y co-ordinate
+         * 
+         * @deprecated Use ECCurve.createPoint to construct points
+         */
+        public SecP256R1Point(ECCurve curve, ECFieldElement x, ECFieldElement y)
+            : this(curve, x, y, false)
         {
         }
 
-        internal SecP256R1Point(ECCurve curve, ECFieldElement x, ECFieldElement y, ECFieldElement[] zs)
-            : base(curve, x, y, zs)
+        /**
+         * Create a point that encodes with or without point compresion.
+         * 
+         * @param curve
+         *            the curve to use
+         * @param x
+         *            affine x co-ordinate
+         * @param y
+         *            affine y co-ordinate
+         * @param withCompression
+         *            if true encode with point compression
+         * 
+         * @deprecated per-point compression property will be removed, refer
+         *             {@link #getEncoded(bool)}
+         */
+        public SecP256R1Point(ECCurve curve, ECFieldElement x, ECFieldElement y, bool withCompression)
+            : base(curve, x, y, withCompression)
+        {
+            if ((x == null) != (y == null))
+                throw new ArgumentException("Exactly one of the field elements is null");
+        }
+
+        internal SecP256R1Point(ECCurve curve, ECFieldElement x, ECFieldElement y, ECFieldElement[] zs, bool withCompression)
+            : base(curve, x, y, zs, withCompression)
         {
         }
 
@@ -139,7 +173,7 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec
 
             ECFieldElement[] zs = new ECFieldElement[]{ Z3 };
 
-            return new SecP256R1Point(curve, X3, Y3, zs);
+            return new SecP256R1Point(curve, X3, Y3, zs, IsCompressed);
         }
 
         public override ECPoint Twice()
@@ -208,7 +242,7 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec
                 SecP256R1Field.Multiply(Z3.x, Z1.x, Z3.x, tt0);
             }
 
-            return new SecP256R1Point(curve, X3, Y3, new ECFieldElement[]{ Z3 });
+            return new SecP256R1Point(curve, X3, Y3, new ECFieldElement[]{ Z3 }, IsCompressed);
         }
 
         public override ECPoint TwicePlus(ECPoint b)
@@ -241,7 +275,7 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec
             if (IsInfinity)
                 return this;
 
-            return new SecP256R1Point(Curve, RawXCoord, RawYCoord.Negate(), RawZCoords);
+            return new SecP256R1Point(Curve, RawXCoord, RawYCoord.Negate(), RawZCoords, IsCompressed);
         }
     }
 }

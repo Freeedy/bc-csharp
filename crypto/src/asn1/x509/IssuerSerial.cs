@@ -1,44 +1,40 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.X509
 {
     public class IssuerSerial
         : Asn1Encodable
     {
-		public static IssuerSerial GetInstance(object obj)
+        internal readonly GeneralNames	issuer;
+        internal readonly DerInteger	serial;
+        internal readonly DerBitString	issuerUid;
+
+		public static IssuerSerial GetInstance(
+            object obj)
         {
-            if (obj == null)
-                return null;
-            if (obj is IssuerSerial issuerSerial)
-                return issuerSerial;
-            return new IssuerSerial(Asn1Sequence.GetInstance(obj));
+            if (obj == null || obj is IssuerSerial)
+            {
+                return (IssuerSerial) obj;
+            }
+
+			if (obj is Asn1Sequence)
+            {
+                return new IssuerSerial((Asn1Sequence) obj);
+            }
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
 		}
 
-        public static IssuerSerial GetInstance(Asn1TaggedObject obj, bool explicitly)
+        public static IssuerSerial GetInstance(
+            Asn1TaggedObject	obj,
+            bool				explicitly)
         {
-            return new IssuerSerial(Asn1Sequence.GetInstance(obj, explicitly));
+            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
         }
 
-        public static IssuerSerial GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is IssuerSerial issuerSerial)
-                return issuerSerial;
-
-            Asn1Sequence asn1Sequence = Asn1Sequence.GetOptional(element);
-            if (asn1Sequence != null)
-                return new IssuerSerial(asn1Sequence);
-
-            return null;
-        }
-
-        private readonly GeneralNames issuer;
-        private readonly DerInteger serial;
-        private readonly DerBitString issuerUid;
-
-        private IssuerSerial(
+		private IssuerSerial(
             Asn1Sequence seq)
         {
 			if (seq.Count != 2 && seq.Count != 3)

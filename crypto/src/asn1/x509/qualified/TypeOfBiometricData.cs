@@ -49,13 +49,7 @@ namespace Org.BouncyCastle.Asn1.X509.Qualified
 			throw new ArgumentException("unknown object in GetInstance: " + Platform.GetTypeName(obj), "obj");
 		}
 
-        public static TypeOfBiometricData GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public static TypeOfBiometricData GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public TypeOfBiometricData(
+		public TypeOfBiometricData(
 			int predefinedBiometricType)
         {
             if (predefinedBiometricType == Picture || predefinedBiometricType == HandwrittenSignature)

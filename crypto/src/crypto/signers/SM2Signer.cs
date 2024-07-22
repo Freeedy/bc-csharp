@@ -15,18 +15,10 @@ namespace Org.BouncyCastle.Crypto.Signers
     public class SM2Signer
         : ISigner
     {
-        private enum State
-        {
-            Uninitialized = 0,
-            Init          = 1,
-            Data          = 2,
-        }
-
         private readonly IDsaKCalculator kCalculator = new RandomDsaKCalculator();
         private readonly IDigest digest;
         private readonly IDsaEncoding encoding;
 
-        private State m_state = State.Uninitialized;
         private ECDomainParameters ecParams;
         private ECPoint pubPoint;
         private ECKeyParameters ecKey;
@@ -63,10 +55,10 @@ namespace Org.BouncyCastle.Crypto.Signers
             ICipherParameters baseParam;
             byte[] userID;
 
-            if (parameters is ParametersWithID withID)
+            if (parameters is ParametersWithID)
             {
-                baseParam = withID.Parameters;
-                userID = withID.GetID();
+                baseParam = ((ParametersWithID)parameters).Parameters;
+                userID = ((ParametersWithID)parameters).GetID();
 
                 if (userID.Length >= 8192)
                     throw new ArgumentException("SM2 user ID must be less than 2^16 bits long");
@@ -80,23 +72,20 @@ namespace Org.BouncyCastle.Crypto.Signers
 
             if (forSigning)
             {
-                SecureRandom random = null;
-                if (baseParam is ParametersWithRandom rParam)
+                if (baseParam is ParametersWithRandom)
                 {
+                    ParametersWithRandom rParam = (ParametersWithRandom)baseParam;
+
                     ecKey = (ECKeyParameters)rParam.Parameters;
                     ecParams = ecKey.Parameters;
-                    random = rParam.Random;
+                    kCalculator.Init(ecParams.N, rParam.Random);
                 }
                 else
                 {
                     ecKey = (ECKeyParameters)baseParam;
                     ecParams = ecKey.Parameters;
+                    kCalculator.Init(ecParams.N, new SecureRandom());
                 }
-                if (!kCalculator.IsDeterministic)
-                {
-                    random = CryptoServicesRegistrar.GetSecureRandom(random);
-                }
-                kCalculator.Init(ecParams.N, random);
                 pubPoint = CreateBasePointMultiplier().Multiply(ecParams.G, ((ECPrivateKeyParameters)ecKey).D).Normalize();
             }
             else
@@ -108,38 +97,46 @@ namespace Org.BouncyCastle.Crypto.Signers
 
             digest.Reset();
             z = GetZ(userID);
-            m_state = State.Init;
+
+            digest.BlockUpdate(z, 0, z.Length);
         }
 
         public virtual void Update(byte b)
         {
-            CheckData();
-
             digest.Update(b);
         }
 
-        public virtual void BlockUpdate(byte[] input, int inOff, int inLen)
+        public virtual void BlockUpdate(byte[] buf, int off, int len)
         {
-            CheckData();
-
-            digest.BlockUpdate(input, inOff, inLen);
+            digest.BlockUpdate(buf, off, len);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void BlockUpdate(ReadOnlySpan<byte> input)
+        public virtual bool VerifySignature(byte[] signature)
         {
-            CheckData();
+            try
+            {
+                BigInteger[] rs = encoding.Decode(ecParams.N, signature);
 
-            digest.BlockUpdate(input);
+                return VerifySignature(rs[0], rs[1]);
+            }
+            catch (Exception)
+            {
+            }
+
+            return false;
         }
-#endif
 
-        public virtual int GetMaxSignatureSize() => encoding.GetMaxEncodingSize(ecParams.N);
+        public virtual void Reset()
+        {
+            if (z != null)
+            {
+                digest.Reset();
+                digest.BlockUpdate(z, 0, z.Length);
+            }
+        }
 
         public virtual byte[] GenerateSignature()
         {
-            CheckData();
-
             byte[] eHash = DigestUtilities.DoFinal(digest);
 
             BigInteger n = ecParams.N;
@@ -184,47 +181,6 @@ namespace Org.BouncyCastle.Crypto.Signers
             {
                 throw new CryptoException("unable to encode signature: " + ex.Message, ex);
             }
-            finally
-            {
-                Reset();
-            }
-        }
-
-        public virtual bool VerifySignature(byte[] signature)
-        {
-            CheckData();
-
-            try
-            {
-                BigInteger[] rs = encoding.Decode(ecParams.N, signature);
-
-                return VerifySignature(rs[0], rs[1]);
-            }
-            catch (Exception)
-            {
-            }
-            finally
-            {
-                Reset();
-            }
-
-            return false;
-        }
-
-        public virtual void Reset()
-        {
-            switch (m_state)
-            {
-            case State.Init:
-                return;
-            case State.Data:
-                break;
-            default:
-                throw new InvalidOperationException(AlgorithmName + " needs to be initialized");
-            }
-
-            digest.Reset();
-            m_state = State.Init;
         }
 
         private bool VerifySignature(BigInteger r, BigInteger s)
@@ -258,25 +214,7 @@ namespace Org.BouncyCastle.Crypto.Signers
                 return false;
 
             // B7
-            BigInteger expectedR = e.Add(x1y1.AffineXCoord.ToBigInteger()).Mod(n);
-
-            return expectedR.Equals(r);
-        }
-
-        private void CheckData()
-        {
-            switch (m_state)
-            {
-            case State.Init:
-                break;
-            case State.Data:
-                return;
-            default:
-                throw new InvalidOperationException(AlgorithmName + " needs to be initialized");
-            }
-
-            digest.BlockUpdate(z, 0, z.Length);
-            m_state = State.Data;
+            return r.Equals(e.Add(x1y1.AffineXCoord.ToBigInteger()).Mod(n));
         }
 
         private byte[] GetZ(byte[] userID)

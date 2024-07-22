@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Text;
 using System.Threading;
 
 using NUnit.Framework;
 
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Tls.Crypto;
-using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tls.Tests
@@ -24,9 +21,9 @@ namespace Org.BouncyCastle.Tls.Tests
 
             MockDatagramAssociation network = new MockDatagramAssociation(1500);
 
-            ServerTask serverTask = new ServerTask(serverProtocol, network.Server);
+            Server server = new Server(serverProtocol, network.Server);
 
-            Thread serverThread = new Thread(new ThreadStart(serverTask.Run));
+            Thread serverThread = new Thread(new ThreadStart(server.Run));
             serverThread.Start();
 
             DatagramTransport clientTransport = network.Client;
@@ -53,16 +50,16 @@ namespace Org.BouncyCastle.Tls.Tests
 
             dtlsClient.Close();
 
-            serverTask.Shutdown(serverThread);
+            server.Shutdown(serverThread);
         }
 
-        internal class ServerTask
+        internal class Server
         {
             private readonly DtlsServerProtocol m_serverProtocol;
             private readonly DatagramTransport m_serverTransport;
             private volatile bool m_isShutdown = false;
 
-            internal ServerTask(DtlsServerProtocol serverProtocol, DatagramTransport serverTransport)
+            internal Server(DtlsServerProtocol serverProtocol, DatagramTransport serverTransport)
             {
                 this.m_serverProtocol = serverProtocol;
                 this.m_serverTransport = serverTransport;
@@ -72,50 +69,18 @@ namespace Org.BouncyCastle.Tls.Tests
             {
                 try
                 {
-                    TlsCrypto serverCrypto = new BcTlsCrypto();
-
-                    DtlsRequest request = null;
-
-                    // Use DtlsVerifier to require a HelloVerifyRequest cookie exchange before accepting
+                    MockDtlsServer server = new MockDtlsServer();
+                    DtlsTransport dtlsServer = m_serverProtocol.Accept(server, m_serverTransport);
+                    byte[] buf = new byte[dtlsServer.GetReceiveLimit()];
+                    while (!m_isShutdown)
                     {
-                        DtlsVerifier verifier = new DtlsVerifier(serverCrypto);
-
-                        // NOTE: Test value only - would typically be the client IP address
-                        byte[] clientID = Encoding.UTF8.GetBytes("MockDtlsClient");
-
-                        int receiveLimit = m_serverTransport.GetReceiveLimit();
-                        int dummyOffset = serverCrypto.SecureRandom.Next(16) + 1;
-                        byte[] buf = new byte[dummyOffset + m_serverTransport.GetReceiveLimit()];
-
-                        do
+                        int length = dtlsServer.Receive(buf, 0, buf.Length, 1000);
+                        if (length >= 0)
                         {
-                            if (m_isShutdown)
-                                return;
-
-                            int length = m_serverTransport.Receive(buf, dummyOffset, receiveLimit, 100);
-                            if (length > 0)
-                            {
-                                request = verifier.VerifyRequest(clientID, buf, dummyOffset, length, m_serverTransport);
-                            }
+                            dtlsServer.Send(buf, 0, length);
                         }
-                        while (request == null);
                     }
-
-                    // NOTE: A real server would handle each DtlsRequest in a new task/thread and continue accepting
-                    {
-                        MockDtlsServer server = new MockDtlsServer(serverCrypto);
-                        DtlsTransport dtlsTransport = m_serverProtocol.Accept(server, m_serverTransport, request);
-                        byte[] buf = new byte[dtlsTransport.GetReceiveLimit()];
-                        while (!m_isShutdown)
-                        {
-                            int length = dtlsTransport.Receive(buf, 0, buf.Length, 100);
-                            if (length >= 0)
-                            {
-                                dtlsTransport.Send(buf, 0, length);
-                            }
-                        }
-                        dtlsTransport.Close();
-                    }
+                    dtlsServer.Close();
                 }
                 catch (Exception e)
                 {

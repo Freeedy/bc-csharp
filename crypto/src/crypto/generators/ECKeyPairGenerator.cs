@@ -50,26 +50,26 @@ namespace Org.BouncyCastle.Crypto.Generators
                 DerObjectIdentifier oid;
                 switch (parameters.Strength)
                 {
-                case 192:
-                    oid = X9ObjectIdentifiers.Prime192v1;
-                    break;
-                case 224:
-                    oid = SecObjectIdentifiers.SecP224r1;
-                    break;
-                case 239:
-                    oid = X9ObjectIdentifiers.Prime239v1;
-                    break;
-                case 256:
-                    oid = X9ObjectIdentifiers.Prime256v1;
-                    break;
-                case 384:
-                    oid = SecObjectIdentifiers.SecP384r1;
-                    break;
-                case 521:
-                    oid = SecObjectIdentifiers.SecP521r1;
-                    break;
-                default:
-                    throw new InvalidParameterException("unknown key size.");
+                    case 192:
+                        oid = X9ObjectIdentifiers.Prime192v1;
+                        break;
+                    case 224:
+                        oid = SecObjectIdentifiers.SecP224r1;
+                        break;
+                    case 239:
+                        oid = X9ObjectIdentifiers.Prime239v1;
+                        break;
+                    case 256:
+                        oid = X9ObjectIdentifiers.Prime256v1;
+                        break;
+                    case 384:
+                        oid = SecObjectIdentifiers.SecP384r1;
+                        break;
+                    case 521:
+                        oid = SecObjectIdentifiers.SecP521r1;
+                        break;
+                    default:
+                        throw new InvalidParameterException("unknown key size.");
                 }
 
                 X9ECParameters ecps = FindECCurveByOid(oid);
@@ -83,7 +83,7 @@ namespace Org.BouncyCastle.Crypto.Generators
 
             if (this.random == null)
             {
-                this.random = CryptoServicesRegistrar.GetSecureRandom();
+                this.random = new SecureRandom();
             }
         }
 
@@ -131,22 +131,42 @@ namespace Org.BouncyCastle.Crypto.Generators
 
         internal static X9ECParameters FindECCurveByName(string name)
         {
-            return CustomNamedCurves.GetByName(name) ?? ECNamedCurveTable.GetByName(name);
+            X9ECParameters ecP = CustomNamedCurves.GetByName(name);
+            if (ecP == null)
+            {
+                ecP = ECNamedCurveTable.GetByName(name);
+            }
+            return ecP;
         }
 
         internal static X9ECParametersHolder FindECCurveByNameLazy(string name)
         {
-            return CustomNamedCurves.GetByNameLazy(name) ?? ECNamedCurveTable.GetByNameLazy(name);
+            X9ECParametersHolder holder = CustomNamedCurves.GetByNameLazy(name);
+            if (holder == null)
+            {
+                holder = ECNamedCurveTable.GetByNameLazy(name);
+            }
+            return holder;
         }
 
         internal static X9ECParameters FindECCurveByOid(DerObjectIdentifier oid)
         {
-            return CustomNamedCurves.GetByOid(oid) ?? ECNamedCurveTable.GetByOid(oid);
+            X9ECParameters ecP = CustomNamedCurves.GetByOid(oid);
+            if (ecP == null)
+            {
+                ecP = ECNamedCurveTable.GetByOid(oid);
+            }
+            return ecP;
         }
 
         internal static X9ECParametersHolder FindECCurveByOidLazy(DerObjectIdentifier oid)
         {
-            return CustomNamedCurves.GetByOidLazy(oid) ?? ECNamedCurveTable.GetByOidLazy(oid);
+            X9ECParametersHolder holder = CustomNamedCurves.GetByOidLazy(oid);
+            if (holder == null)
+            {
+                holder = ECNamedCurveTable.GetByOidLazy(oid);
+            }
+            return holder;
         }
 
         internal static ECPublicKeyParameters GetCorrespondingPublicKey(

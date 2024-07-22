@@ -1,5 +1,5 @@
 using System;
-using System.Diagnostics;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1.X500;
 using Org.BouncyCastle.Asn1.X509;
@@ -7,7 +7,7 @@ using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.IsisMtt.X509
 {
-    /**
+	/**
 	* Attribute to indicate that the certificate holder may sign in the name of a
 	* third person.
 	* <p>
@@ -41,29 +41,31 @@ namespace Org.BouncyCastle.Asn1.IsisMtt.X509
 	* </pre>
 	* 
 	*/
-    public class ProcurationSyntax
+	public class ProcurationSyntax
 		: Asn1Encodable
 	{
-        public static ProcurationSyntax GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is ProcurationSyntax procurationSyntax)
-                return procurationSyntax;
-            return new ProcurationSyntax(Asn1Sequence.GetInstance(obj));
-        }
+		private readonly string				country;
+		private readonly DirectoryString	typeOfSubstitution;
+		private readonly GeneralName		thirdPerson;
+		private readonly IssuerSerial		certRef;
 
-        public static ProcurationSyntax GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new ProcurationSyntax(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+		public static ProcurationSyntax GetInstance(
+			object obj)
+		{
+			if (obj == null || obj is ProcurationSyntax)
+			{
+				return (ProcurationSyntax) obj;
+			}
 
-        public static ProcurationSyntax GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new ProcurationSyntax(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
+			if (obj is Asn1Sequence)
+			{
+				return new ProcurationSyntax((Asn1Sequence) obj);
+			}
 
-        private readonly DerPrintableString m_country;
-        private readonly DirectoryString m_typeOfSubstitution;
-		private readonly Asn1Encodable m_signingFor;
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
 
-        /**
+		/**
 		* Constructor from Asn1Sequence.
 		* <p/>
 		* The sequence is of type ProcurationSyntax:
@@ -84,21 +86,43 @@ namespace Org.BouncyCastle.Asn1.IsisMtt.X509
 		*
 		* @param seq The ASN.1 sequence.
 		*/
-        private ProcurationSyntax(Asn1Sequence seq)
+		private ProcurationSyntax(
+			Asn1Sequence seq)
 		{
-            int count = seq.Count, pos = 0;
-            if (count < 1 || count > 3)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (seq.Count < 1 || seq.Count > 3)
+				throw new ArgumentException("Bad sequence size: " + seq.Count);
 
-			m_country = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, DerPrintableString.GetTagged);
-            m_typeOfSubstitution = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 2, true, DirectoryString.GetTagged);
-            m_signingFor = Asn1Utilities.ReadContextTagged(seq, ref pos, 3, true, GetTaggedSigningFor);
+			IEnumerator e = seq.GetEnumerator();
 
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			while (e.MoveNext())
+			{
+				Asn1TaggedObject o = Asn1TaggedObject.GetInstance(e.Current);
+				switch (o.TagNo)
+				{
+					case 1:
+						country = DerPrintableString.GetInstance(o, true).GetString();
+						break;
+					case 2:
+						typeOfSubstitution = DirectoryString.GetInstance(o, true);
+						break;
+					case 3:
+						Asn1Object signingFor = o.GetObject();
+						if (signingFor is Asn1TaggedObject)
+						{
+							thirdPerson = GeneralName.GetInstance(signingFor);
+						}
+						else
+						{
+							certRef = IssuerSerial.GetInstance(signingFor);
+						}
+						break;
+					default:
+						throw new ArgumentException("Bad tag number: " + o.TagNo);
+				}
+			}
 		}
 
-        /**
+		/**
 		* Constructor from a given details.
 		* <p/>
 		* <p/>
@@ -109,14 +133,18 @@ namespace Org.BouncyCastle.Asn1.IsisMtt.X509
 		* @param typeOfSubstitution The type of procuration.
 		* @param certRef            Reference to certificate of the person who is represented.
 		*/
-        public ProcurationSyntax(string country, DirectoryString typeOfSubstitution, IssuerSerial certRef)
-        {
-            m_country = country == null ? null : new DerPrintableString(country, true);
-			m_typeOfSubstitution = typeOfSubstitution;
-			m_signingFor = certRef ?? throw new ArgumentNullException(nameof(certRef));
+		public ProcurationSyntax(
+			string			country,
+			DirectoryString	typeOfSubstitution,
+			IssuerSerial	certRef)
+		{
+			this.country = country;
+			this.typeOfSubstitution = typeOfSubstitution;
+			this.thirdPerson = null;
+			this.certRef = certRef;
 		}
 
-        /**
+		/**
 		 * Constructor from a given details.
 		 * <p/>
 		 * <p/>
@@ -127,20 +155,36 @@ namespace Org.BouncyCastle.Asn1.IsisMtt.X509
 		 * @param typeOfSubstitution The type of procuration.
 		 * @param thirdPerson        The GeneralName of the person who is represented.
 		 */
-        public ProcurationSyntax(string country, DirectoryString typeOfSubstitution, GeneralName thirdPerson)
-        {
-            m_country = country == null ? null : new DerPrintableString(country, true);
-            m_typeOfSubstitution = typeOfSubstitution;
-            m_signingFor = thirdPerson ?? throw new ArgumentNullException(nameof(thirdPerson));
+		public ProcurationSyntax(
+			string			country,
+			DirectoryString	typeOfSubstitution,
+			GeneralName		thirdPerson)
+		{
+			this.country = country;
+			this.typeOfSubstitution = typeOfSubstitution;
+			this.thirdPerson = thirdPerson;
+			this.certRef = null;
 		}
 
-		public virtual string Country => m_country?.GetString();
+		public virtual string Country
+		{
+			get { return country; }
+		}
 
-		public virtual DirectoryString TypeOfSubstitution => m_typeOfSubstitution;
+		public virtual DirectoryString TypeOfSubstitution
+		{
+			get { return typeOfSubstitution; }
+		}
 
-		public virtual GeneralName ThirdPerson => m_signingFor as GeneralName;
+		public virtual GeneralName ThirdPerson
+		{
+			get { return thirdPerson; }
+		}
 
-		public virtual IssuerSerial CertRef => m_signingFor as IssuerSerial;
+		public virtual IssuerSerial CertRef
+		{
+			get { return certRef; }
+		}
 
 		/**
 		* Produce an object suitable for an Asn1OutputStream.
@@ -165,32 +209,25 @@ namespace Org.BouncyCastle.Asn1.IsisMtt.X509
 		*/
 		public override Asn1Object ToAsn1Object()
 		{
-            Asn1EncodableVector v = new Asn1EncodableVector(3);
-			v.AddOptionalTagged(true, 1, m_country);
-            v.AddOptionalTagged(true, 2, m_typeOfSubstitution);
-			v.Add(new DerTaggedObject(true, 3, m_signingFor));
+            Asn1EncodableVector v = new Asn1EncodableVector();
+
+            if (country != null)
+            {
+                v.Add(new DerTaggedObject(true, 1, new DerPrintableString(country, true)));
+            }
+
+            v.AddOptionalTagged(true, 2, typeOfSubstitution);
+
+            if (thirdPerson != null)
+            {
+                v.Add(new DerTaggedObject(true, 3, thirdPerson));
+            }
+            else
+            {
+                v.Add(new DerTaggedObject(true, 3, certRef));
+            }
+
             return new DerSequence(v);
 		}
-
-        private static Asn1Encodable GetInstanceSigningFor(Asn1Encodable obj)
-        {
-			var generalName = GeneralName.GetOptional(obj);
-			if (generalName != null)
-				return generalName;
-
-			var issuerSerial = IssuerSerial.GetOptional(obj);
-			if (issuerSerial != null)
-				return issuerSerial;
-
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), nameof(obj));
-        }
-
-		private static Asn1Encodable GetTaggedSigningFor(Asn1TaggedObject taggedObject, bool declaredExplicit)
-		{
-			Debug.Assert(taggedObject != null);
-			Debug.Assert(declaredExplicit);
-
-            return GetInstanceSigningFor(taggedObject.GetExplicitBaseObject());
-        }
-    }
+	}
 }

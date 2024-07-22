@@ -1,21 +1,19 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
-using Org.BouncyCastle.Asn1.CryptoPro;
 using Org.BouncyCastle.Asn1.Kisa;
 using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.Ntt;
-using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.Pkcs;
-using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Cms
@@ -33,7 +31,7 @@ namespace Org.BouncyCastle.Cms
 	*      CMSEnvelopedData         data = fact.generate(content, algorithm, "BC");
 	* </pre>
 	*/
-	public abstract class CmsEnvelopedGenerator
+	public class CmsEnvelopedGenerator
 	{
 		// Note: These tables are complementary: If rc2Table[i]==j, then rc2Ekb[j]==i
 		internal static readonly short[] rc2Table =
@@ -77,24 +75,14 @@ namespace Org.BouncyCastle.Cms
 //		};
 
 
-		public static readonly string DesCbc			= OiwObjectIdentifiers.DesCbc.Id;
+		// TODO Create named constants for all of these
 		public static readonly string DesEde3Cbc		= PkcsObjectIdentifiers.DesEde3Cbc.Id;
 		public static readonly string RC2Cbc			= PkcsObjectIdentifiers.RC2Cbc.Id;
-        // TODO[api] Change to static readonly
 		public const string IdeaCbc						= "1.3.6.1.4.1.188.7.1.1.2";
-        //public static readonly string IdeaCbc           = MiscObjectIdentifiers.as_sys_sec_alg_ideaCBC.Id;
-        // TODO[api] Change to static readonly
-        public const string Cast5Cbc					= "1.2.840.113533.7.66.10";
-		//public static readonly string CastCbc           = MiscObjectIdentifiers.cast5CBC.Id;
-        public static readonly string Aes128Cbc			= NistObjectIdentifiers.IdAes128Cbc.Id;
+		public const string Cast5Cbc					= "1.2.840.113533.7.66.10";
+		public static readonly string Aes128Cbc			= NistObjectIdentifiers.IdAes128Cbc.Id;
 		public static readonly string Aes192Cbc			= NistObjectIdentifiers.IdAes192Cbc.Id;
 		public static readonly string Aes256Cbc			= NistObjectIdentifiers.IdAes256Cbc.Id;
-		public static readonly string Aes128Ccm			= NistObjectIdentifiers.IdAes128Ccm.Id;
-		public static readonly string Aes192Ccm			= NistObjectIdentifiers.IdAes192Ccm.Id;
-		public static readonly string Aes256Ccm			= NistObjectIdentifiers.IdAes256Ccm.Id;
-		public static readonly string Aes128Gcm			= NistObjectIdentifiers.IdAes128Gcm.Id;
-		public static readonly string Aes192Gcm			= NistObjectIdentifiers.IdAes192Gcm.Id;
-		public static readonly string Aes256Gcm			= NistObjectIdentifiers.IdAes256Gcm.Id;
 		public static readonly string Camellia128Cbc	= NttObjectIdentifiers.IdCamellia128Cbc.Id;
 		public static readonly string Camellia192Cbc	= NttObjectIdentifiers.IdCamellia192Cbc.Id;
 		public static readonly string Camellia256Cbc	= NttObjectIdentifiers.IdCamellia256Cbc.Id;
@@ -109,47 +97,25 @@ namespace Org.BouncyCastle.Cms
 		public static readonly string Camellia256Wrap	= NttObjectIdentifiers.IdCamellia256Wrap.Id;
 		public static readonly string SeedWrap			= KisaObjectIdentifiers.IdNpkiAppCmsSeedWrap.Id;
 
-        public static readonly string Gost28147Wrap     = CryptoProObjectIdentifiers.id_Gost28147_89_None_KeyWrap.Id;
-		public static readonly string Gost28147CryptoProWrap = CryptoProObjectIdentifiers.id_Gost28147_89_CryptoPro_KeyWrap.Id;
+		public static readonly string ECDHSha1Kdf		= X9ObjectIdentifiers.DHSinglePassStdDHSha1KdfScheme.Id;
+		public static readonly string ECMqvSha1Kdf		= X9ObjectIdentifiers.MqvSinglePassSha1KdfScheme.Id;
 
-        public static readonly string ECDHSha1Kdf       = X9ObjectIdentifiers.DHSinglePassStdDHSha1KdfScheme.Id;
-        public static readonly string ECCDHSha1Kdf      = X9ObjectIdentifiers.DHSinglePassCofactorDHSha1KdfScheme.Id;
-        public static readonly string ECMqvSha1Kdf      = X9ObjectIdentifiers.MqvSinglePassSha1KdfScheme.Id;
-
-        public static readonly string ECDHSha224Kdf     = SecObjectIdentifiers.dhSinglePass_stdDH_sha224kdf_scheme.Id;
-        public static readonly string ECCDHSha224Kdf    = SecObjectIdentifiers.dhSinglePass_cofactorDH_sha224kdf_scheme.Id;
-        public static readonly string ECMqvSha224Kdf    = SecObjectIdentifiers.mqvSinglePass_sha224kdf_scheme.Id;
-
-        public static readonly string ECDHSha256Kdf     = SecObjectIdentifiers.dhSinglePass_stdDH_sha256kdf_scheme.Id;
-        public static readonly string ECCDHSha256Kdf    = SecObjectIdentifiers.dhSinglePass_cofactorDH_sha256kdf_scheme.Id;
-        public static readonly string ECMqvSha256Kdf    = SecObjectIdentifiers.mqvSinglePass_sha256kdf_scheme.Id;
-
-        public static readonly string ECDHSha384Kdf     = SecObjectIdentifiers.dhSinglePass_stdDH_sha384kdf_scheme.Id;
-        public static readonly string ECCDHSha384Kdf    = SecObjectIdentifiers.dhSinglePass_cofactorDH_sha384kdf_scheme.Id;
-        public static readonly string ECMqvSha384Kdf    = SecObjectIdentifiers.mqvSinglePass_sha384kdf_scheme.Id;
-
-        public static readonly string ECDHSha512Kdf     = SecObjectIdentifiers.dhSinglePass_stdDH_sha512kdf_scheme.Id;
-        public static readonly string ECCDHSha512Kdf    = SecObjectIdentifiers.dhSinglePass_cofactorDH_sha512kdf_scheme.Id;
-        public static readonly string ECMqvSha512Kdf    = SecObjectIdentifiers.mqvSinglePass_sha512kdf_scheme.Id;
-
-		internal readonly IList<RecipientInfoGenerator> recipientInfoGenerators = new List<RecipientInfoGenerator>();
-		internal readonly SecureRandom m_random;
+		internal readonly IList recipientInfoGenerators = Platform.CreateArrayList();
+		internal readonly SecureRandom rand;
 
         internal CmsAttributeTableGenerator unprotectedAttributeGenerator = null;
 
-        protected CmsEnvelopedGenerator()
-			: this(CryptoServicesRegistrar.GetSecureRandom())
+		public CmsEnvelopedGenerator()
+			: this(new SecureRandom())
 		{
 		}
 
 		/// <summary>Constructor allowing specific source of randomness</summary>
-		/// <param name="random">Instance of <c>SecureRandom</c> to use.</param>
-		protected CmsEnvelopedGenerator(SecureRandom random)
+		/// <param name="rand">Instance of <c>SecureRandom</c> to use.</param>
+		public CmsEnvelopedGenerator(
+			SecureRandom rand)
 		{
-			if (random == null)
-				throw new ArgumentNullException(nameof(random));
-
-			m_random = random;
+			this.rand = rand;
 		}
 
         public CmsAttributeTableGenerator UnprotectedAttributeGenerator
@@ -164,24 +130,12 @@ namespace Org.BouncyCastle.Cms
 		 * @param cert recipient's public key certificate
 		 * @exception ArgumentException if there is a problem with the certificate
 		 */
-		public void AddKeyTransRecipient(X509Certificate cert)
+		public void AddKeyTransRecipient(
+			X509Certificate cert)
 		{
-			var algorithm = cert.SubjectPublicKeyInfo.Algorithm;
-			var keyWrapper = new Asn1KeyWrapper(algorithm, cert);
-			AddRecipientInfoGenerator(new KeyTransRecipientInfoGenerator(cert, keyWrapper));
-		}
-
-		/**
-		 * add a recipient.
-		 *
-		 * @param algorithm to override automatic selection (useful for OAEP with PKCS#1v1.5 certs)
-		 * @param cert recipient's public key certificate
-		 * @exception ArgumentException if there is a problem with the certificate
-		 */
-		public void AddKeyTransRecipient(string algorithm, X509Certificate cert)
-		{
-			var keyWrapper = new Asn1KeyWrapper(algorithm, cert);
-			AddRecipientInfoGenerator(new KeyTransRecipientInfoGenerator(cert, keyWrapper));
+			TbsCertificateStructure recipientTbsCert = CmsUtilities.GetTbsCertificateStructure(cert);
+			SubjectPublicKeyInfo info = recipientTbsCert.SubjectPublicKeyInfo;
+			this.AddRecipientInfoGenerator(new KeyTransRecipientInfoGenerator(cert, new Asn1KeyWrapper(info.AlgorithmID.Algorithm, info.AlgorithmID.Parameters, cert)));
 		}
 
 		/**
@@ -191,26 +145,12 @@ namespace Org.BouncyCastle.Cms
 		* @param subKeyId the identifier for the recipient's public key
 		* @exception ArgumentException if there is a problem with the key
 		*/
-		public void AddKeyTransRecipient(AsymmetricKeyParameter pubKey, byte[] subKeyId)
+		public void AddKeyTransRecipient(
+			AsymmetricKeyParameter	pubKey,
+			byte[]					subKeyId)
 		{
 			SubjectPublicKeyInfo info = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(pubKey);
-			AddRecipientInfoGenerator(
-				new KeyTransRecipientInfoGenerator(subKeyId, new Asn1KeyWrapper(info.Algorithm, pubKey)));
-		}
-
-		/**
-		* add a recipient
-		*
-		* @param algorithm to override automatic selection (useful for OAEP with PKCS#1v1.5 certs)
-		* @param key the public key used by the recipient
-		* @param subKeyId the identifier for the recipient's public key
-		* @exception ArgumentException if there is a problem with the key
-		*/
-		public void AddKeyTransRecipient(string algorithm, AsymmetricKeyParameter pubKey, byte[] subKeyId)
-		{
-			SubjectPublicKeyInfo info = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(pubKey);
-			AddRecipientInfoGenerator(
-				new KeyTransRecipientInfoGenerator(subKeyId, new Asn1KeyWrapper(algorithm, pubKey)));
+			this.AddRecipientInfoGenerator(new KeyTransRecipientInfoGenerator(subKeyId, new Asn1KeyWrapper(info.AlgorithmID.Algorithm, info.AlgorithmID.Parameters, pubKey)));
 		}
 
 		/**
@@ -276,10 +216,11 @@ namespace Org.BouncyCastle.Cms
 			X509Certificate			recipientCert,
 			string					cekWrapAlgorithm)
 		{
-            var recipientCerts = new List<X509Certificate>(1){ recipientCert };
+            IList recipientCerts = Platform.CreateArrayList(1);
+			recipientCerts.Add(recipientCert);
 
-			AddKeyAgreementRecipients(agreementAlgorithm, senderPrivateKey, senderPublicKey, recipientCerts,
-				cekWrapAlgorithm);
+			AddKeyAgreementRecipients(agreementAlgorithm, senderPrivateKey, senderPublicKey,
+				recipientCerts, cekWrapAlgorithm);
 		}
 
 		/**
@@ -297,49 +238,27 @@ namespace Org.BouncyCastle.Cms
 			string					agreementAlgorithm,
 			AsymmetricKeyParameter	senderPrivateKey,
 			AsymmetricKeyParameter	senderPublicKey,
-			IEnumerable<X509Certificate> recipientCerts,
+			ICollection				recipientCerts,
 			string					cekWrapAlgorithm)
 		{
 			if (!senderPrivateKey.IsPrivate)
-				throw new ArgumentException("Expected private key", nameof(senderPrivateKey));
+				throw new ArgumentException("Expected private key", "senderPrivateKey");
 			if (senderPublicKey.IsPrivate)
-				throw new ArgumentException("Expected public key", nameof(senderPublicKey));
+				throw new ArgumentException("Expected public key", "senderPublicKey");
 
 			/* TODO
 			 * "a recipient X.509 version 3 certificate that contains a key usage extension MUST
 			 * assert the keyAgreement bit."
 			 */
 
-			recipientInfoGenerators.Add(new KeyAgreeRecipientInfoGenerator(recipientCerts)
-            {
-                KeyAgreementOid = new DerObjectIdentifier(agreementAlgorithm),
-                KeyEncryptionOid = new DerObjectIdentifier(cekWrapAlgorithm),
-                SenderKeyPair = new AsymmetricCipherKeyPair(senderPublicKey, senderPrivateKey),
-            });
+			KeyAgreeRecipientInfoGenerator karig = new KeyAgreeRecipientInfoGenerator();
+			karig.KeyAgreementOID = new DerObjectIdentifier(agreementAlgorithm);
+			karig.KeyEncryptionOID = new DerObjectIdentifier(cekWrapAlgorithm);
+			karig.RecipientCerts = recipientCerts;
+			karig.SenderKeyPair = new AsymmetricCipherKeyPair(senderPublicKey, senderPrivateKey);
+
+			recipientInfoGenerators.Add(karig);
 		}
-
-        public void AddKeyAgreementRecipient(
-			string agreementAlgorithm,
-            AsymmetricKeyParameter senderPrivateKey,
-            AsymmetricKeyParameter senderPublicKey,
-			byte[] recipientKeyID,
-            AsymmetricKeyParameter recipientPublicKey,
-            string cekWrapAlgorithm)
-        {
-            if (!senderPrivateKey.IsPrivate)
-                throw new ArgumentException("Expected private key", nameof(senderPrivateKey));
-            if (senderPublicKey.IsPrivate)
-                throw new ArgumentException("Expected public key", nameof(senderPublicKey));
-            if (recipientPublicKey.IsPrivate)
-                throw new ArgumentException("Expected public key", nameof(recipientPublicKey));
-
-            recipientInfoGenerators.Add(new KeyAgreeRecipientInfoGenerator(recipientKeyID, recipientPublicKey)
-            {
-                KeyAgreementOid = new DerObjectIdentifier(agreementAlgorithm),
-                KeyEncryptionOid = new DerObjectIdentifier(cekWrapAlgorithm),
-                SenderKeyPair = new AsymmetricCipherKeyPair(senderPublicKey, senderPrivateKey),
-            });
-        }
 
         /// <summary>
         /// Add a generator to produce the recipient info required.
@@ -386,7 +305,7 @@ namespace Org.BouncyCastle.Cms
 				if (encryptionOid.Equals(RC2Cbc))
 				{
 					byte[] iv = new byte[8];
-                    m_random.NextBytes(iv);
+					rand.NextBytes(iv);
 
 					// TODO Is this detailed repeat of Java version really necessary?
 					int effKeyBits = encKeyBytes.Length * 8;
@@ -405,7 +324,7 @@ namespace Org.BouncyCastle.Cms
 				}
 				else
 				{
-					asn1Params = ParameterUtilities.GenerateParameters(encryptionOid, m_random);
+					asn1Params = ParameterUtilities.GenerateParameters(encryptionOid, rand);
 				}
 			}
 			catch (SecurityUtilityException)

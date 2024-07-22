@@ -1,17 +1,17 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Math.EC.Multiplier;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Org.BouncyCastle.Asn1.Anssi
 {
-    /// <summary>Elliptic curve registry for ANSSI.</summary>
-    public static class AnssiNamedCurves
+    public class AnssiNamedCurves
     {
         private static X9ECPoint ConfigureBasepoint(ECCurve curve, string encoding)
         {
@@ -30,6 +30,9 @@ namespace Org.BouncyCastle.Asn1.Anssi
             return new BigInteger(1, Hex.DecodeStrict(hex));
         }
 
+        /*
+         * FRP256v1
+         */
         internal class Frp256v1Holder
             : X9ECParametersHolder
         {
@@ -45,7 +48,7 @@ namespace Org.BouncyCastle.Asn1.Anssi
                 BigInteger n = FromHex("F1FD178C0B3AD58F10126DE8CE42435B53DC67E140D2BF941FFDD459C6D655E1");
                 BigInteger h = BigInteger.One;
 
-                return ConfigureCurve(new FpCurve(p, a, b, n, h, isInternal: true));
+                return ConfigureCurve(new FpCurve(p, a, b, n, h, true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -60,16 +63,16 @@ namespace Org.BouncyCastle.Asn1.Anssi
             }
         }
 
-        private static readonly Dictionary<string, DerObjectIdentifier> objIds =
-            new Dictionary<string, DerObjectIdentifier>(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<DerObjectIdentifier, X9ECParametersHolder> curves =
-            new Dictionary<DerObjectIdentifier, X9ECParametersHolder>();
-        private static readonly Dictionary<DerObjectIdentifier, string> names =
-            new Dictionary<DerObjectIdentifier, string>();
+        private static readonly IDictionary objIds = Platform.CreateHashtable();
+        private static readonly IDictionary curves = Platform.CreateHashtable();
+        private static readonly IDictionary names = Platform.CreateHashtable();
 
-        private static void DefineCurve(string name, DerObjectIdentifier oid, X9ECParametersHolder holder)
+        private static void DefineCurve(
+            string					name,
+            DerObjectIdentifier		oid,
+            X9ECParametersHolder	holder)
         {
-            objIds.Add(name, oid);
+            objIds.Add(Platform.ToUpperInvariant(name), oid);
             names.Add(oid, name);
             curves.Add(oid, holder);
         }
@@ -79,64 +82,63 @@ namespace Org.BouncyCastle.Asn1.Anssi
             DefineCurve("FRP256v1", AnssiObjectIdentifiers.FRP256v1, Frp256v1Holder.Instance);
         }
 
-        /// <summary>Look up the <see cref="X9ECParameters"/> for the curve with the given name.</summary>
-        /// <param name="name">The name of the curve.</param>
         public static X9ECParameters GetByName(string name)
         {
             DerObjectIdentifier oid = GetOid(name);
             return oid == null ? null : GetByOid(oid);
         }
 
-        /// <summary>Look up an <see cref="X9ECParametersHolder"/> for the curve with the given name.</summary>
-        /// <remarks>
-        /// Allows accessing the <see cref="ECCurve">curve</see> without necessarily triggering the creation of the
-        /// full <see cref="X9ECParameters"/>.
-        /// </remarks>
-        /// <param name="name">The name of the curve.</param>
         public static X9ECParametersHolder GetByNameLazy(string name)
         {
             DerObjectIdentifier oid = GetOid(name);
             return oid == null ? null : GetByOidLazy(oid);
         }
 
-        /// <summary>Look up the <see cref="X9ECParameters"/> for the curve with the given
-        /// <see cref="DerObjectIdentifier">OID</see>.</summary>
-        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
+        /**
+         * return the X9ECParameters object for the named curve represented by
+         * the passed in object identifier. Null if the curve isn't present.
+         *
+         * @param oid an object identifier representing a named curve, if present.
+         */
         public static X9ECParameters GetByOid(DerObjectIdentifier oid)
         {
-            return GetByOidLazy(oid)?.Parameters;
+            X9ECParametersHolder holder = GetByOidLazy(oid);
+            return holder == null ? null : holder.Parameters;
         }
 
-        /// <summary>Look up an <see cref="X9ECParametersHolder"/> for the curve with the given
-        /// <see cref="DerObjectIdentifier">OID</see>.</summary>
-        /// <remarks>
-        /// Allows accessing the <see cref="ECCurve">curve</see> without necessarily triggering the creation of the
-        /// full <see cref="X9ECParameters"/>.
-        /// </remarks>
-        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
         public static X9ECParametersHolder GetByOidLazy(DerObjectIdentifier oid)
         {
-            return CollectionUtilities.GetValueOrNull(curves, oid);
+            return (X9ECParametersHolder)curves[oid];
         }
 
-        /// <summary>Look up the name of the curve with the given <see cref="DerObjectIdentifier">OID</see>.</summary>
-        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
-        public static string GetName(DerObjectIdentifier oid)
+        /**
+         * return the object identifier signified by the passed in name. Null
+         * if there is no object identifier associated with name.
+         *
+         * @return the object identifier associated with name, if present.
+         */
+        public static DerObjectIdentifier GetOid(
+            string name)
         {
-            return CollectionUtilities.GetValueOrNull(names, oid);
+            return (DerObjectIdentifier)objIds[Platform.ToUpperInvariant(name)];
         }
 
-        /// <summary>Look up the <see cref="DerObjectIdentifier">OID</see> of the curve with the given name.</summary>
-        /// <param name="name">The name of the curve.</param>
-        public static DerObjectIdentifier GetOid(string name)
+        /**
+         * return the named curve name represented by the given object identifier.
+         */
+        public static string GetName(
+            DerObjectIdentifier oid)
         {
-            return CollectionUtilities.GetValueOrNull(objIds, name);
+            return (string)names[oid];
         }
 
-        /// <summary>Enumerate the available curve names in this registry.</summary>
-        public static IEnumerable<string> Names
+        /**
+         * returns an enumeration containing the name strings for curves
+         * contained in this structure.
+         */
+        public static IEnumerable Names
         {
-            get { return CollectionUtilities.Proxy(objIds.Keys); }
+            get { return new EnumerableProxy(names.Values); }
         }
     }
 }

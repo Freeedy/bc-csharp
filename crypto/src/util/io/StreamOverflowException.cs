@@ -1,10 +1,11 @@
 using System;
 using System.IO;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Utilities.IO
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
+#endif
     public class StreamOverflowException
 		: IOException
 	{
@@ -13,18 +14,16 @@ namespace Org.BouncyCastle.Utilities.IO
 		{
 		}
 
-		public StreamOverflowException(string message)
+		public StreamOverflowException(
+			string message)
 			: base(message)
 		{
 		}
 
-		public StreamOverflowException(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected StreamOverflowException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
+		public StreamOverflowException(
+			string		message,
+			Exception	exception)
+			: base(message, exception)
 		{
 		}
 	}

@@ -22,7 +22,7 @@ namespace Org.BouncyCastle.Crypto.Digests
 
 		public int GetDigestSize()
 		{
-			return Convert.ToInt32(bOut.Length);
+			return (int)bOut.Length;
 		}
 
 		public void Update(byte b)
@@ -35,48 +35,17 @@ namespace Org.BouncyCastle.Crypto.Digests
 			bOut.Write(inBytes, inOff, len);
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-		public void BlockUpdate(ReadOnlySpan<byte> input)
-		{
-			bOut.Write(input);
-		}
-#endif
-
-		public int DoFinal(byte[] outBytes, int outOff)
+        public int DoFinal(byte[] outBytes, int outOff)
 		{
             try
             {
-                byte[] data = bOut.GetBuffer();
-				int length = Convert.ToInt32(bOut.Length);
-
-				Array.Copy(data, 0, outBytes, outOff, length);
-
-				return length;
-			}
-			finally
-            {
-                Reset();
-            }
-        }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int DoFinal(Span<byte> output)
-        {
-            try
-            {
-				byte[] data = bOut.GetBuffer();
-				int length = Convert.ToInt32(bOut.Length);
-
-				data.AsSpan(0, length).CopyTo(output);
-
-				return length;
+                return Streams.WriteBufTo(bOut, outBytes, outOff);
             }
             finally
             {
                 Reset();
             }
         }
-#endif
 
         public void Reset()
 		{

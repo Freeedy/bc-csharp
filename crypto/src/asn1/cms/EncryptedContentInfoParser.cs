@@ -15,24 +15,32 @@ namespace Org.BouncyCastle.Asn1.Cms
 	*/
 	public class EncryptedContentInfoParser
 	{
-		private readonly DerObjectIdentifier m_contentType;
-		private readonly AlgorithmIdentifier m_contentEncryptionAlgorithm;
-		private readonly Asn1TaggedObjectParser	m_encryptedContent;
+		private DerObjectIdentifier		_contentType;
+		private AlgorithmIdentifier		_contentEncryptionAlgorithm;
+		private Asn1TaggedObjectParser	_encryptedContent;
 
-		public EncryptedContentInfoParser(Asn1SequenceParser seq)
+		public EncryptedContentInfoParser(
+			Asn1SequenceParser seq)
 		{
-			m_contentType = (DerObjectIdentifier)seq.ReadObject();
-			m_contentEncryptionAlgorithm = AlgorithmIdentifier.GetInstance(seq.ReadObject().ToAsn1Object());
-			m_encryptedContent = (Asn1TaggedObjectParser)seq.ReadObject();
+			_contentType = (DerObjectIdentifier)seq.ReadObject();
+			_contentEncryptionAlgorithm = AlgorithmIdentifier.GetInstance(seq.ReadObject().ToAsn1Object());
+			_encryptedContent = (Asn1TaggedObjectParser)seq.ReadObject();
 		}
 
-		public DerObjectIdentifier ContentType => m_contentType;
-
-		public AlgorithmIdentifier ContentEncryptionAlgorithm => m_contentEncryptionAlgorithm;
-
-		public IAsn1Convertible GetEncryptedContent(int tag)
+		public DerObjectIdentifier ContentType
 		{
-			return Asn1Utilities.ParseContextBaseUniversal(m_encryptedContent, 0, false, tag);
+			get { return _contentType; }
+		}
+
+		public AlgorithmIdentifier ContentEncryptionAlgorithm
+		{
+			get { return _contentEncryptionAlgorithm; }
+		}
+
+		public IAsn1Convertible GetEncryptedContent(
+			int tag)
+		{
+			return _encryptedContent.GetObjectParser(tag, false);
 		}
 	}
 }

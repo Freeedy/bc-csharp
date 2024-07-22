@@ -1,6 +1,5 @@
-﻿using System;
-
-using Org.BouncyCastle.Utilities;
+﻿using Org.BouncyCastle.Utilities;
+using System;
 
 namespace Org.BouncyCastle.Asn1.Nist
 {
@@ -10,73 +9,94 @@ namespace Org.BouncyCastle.Asn1.Nist
     ///     customizationString  OCTET STRING DEFAULT ''H
     /// } 
     /// </summary>
-    public class KMacWithShake256Params
-        : Asn1Encodable
-    {
-        private const int _DefaultOutputLength = 512;
+public class KMacWithShake256Params : Asn1Encodable
+{
+    private static readonly byte[] EMPTY_STRING = new byte[0];
+    private static readonly int DEF_LENGTH = 512;
 
-        public static readonly DerInteger DefaultOutputLength = new DerInteger(_DefaultOutputLength);
-        public static readonly Asn1OctetString DefaultCustomizationString = DerOctetString.Empty;
-        public static KMacWithShake256Params GetInstance(object o)
+    private readonly int outputLength;
+    private readonly byte[] customizationString;
+
+    public KMacWithShake256Params(int outputLength)
+    {
+        this.outputLength = outputLength;
+        this.customizationString = EMPTY_STRING;
+    }
+
+    public KMacWithShake256Params(int outputLength, byte[] customizationString)
+    {
+        this.outputLength = outputLength;
+        this.customizationString = Arrays.Clone(customizationString);
+    }
+
+    public static KMacWithShake256Params GetInstance(Object o)
+    {
+        if (o is KMacWithShake256Params)
         {
-            if (o == null)
-                return null;
-            if (o is KMacWithShake256Params kMacWithShake256Params)
-                return kMacWithShake256Params;
+            return (KMacWithShake256Params)o;
+        }
+        else if (o != null)
+        {
             return new KMacWithShake256Params(Asn1Sequence.GetInstance(o));
         }
 
-        public static KMacWithShake256Params GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new KMacWithShake256Params(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+        return null;
+    }
 
-        public static KMacWithShake256Params GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new KMacWithShake256Params(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
+    private KMacWithShake256Params(Asn1Sequence seq)
+    {
+        if (seq.Count > 2)
+            throw new InvalidOperationException("sequence size greater than 2");
 
-        private readonly DerInteger m_outputLength;
-        private readonly Asn1OctetString m_customizationString;
-
-        private KMacWithShake256Params(Asn1Sequence seq)
+        if (seq.Count == 2)
         {
-            int count = seq.Count, pos = 0;
-            if (count < 0 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_outputLength = Asn1Utilities.ReadOptional(seq, ref pos, DerInteger.GetOptional)
-                ?? DefaultOutputLength;
-            m_customizationString = Asn1Utilities.ReadOptional(seq, ref pos, Asn1OctetString.GetOptional)
-                ?? DefaultCustomizationString;
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+            this.outputLength = DerInteger.GetInstance(seq[0]).IntValueExact;
+            this.customizationString = Arrays.Clone(Asn1OctetString.GetInstance(seq[1]).GetOctets());
         }
-
-        public KMacWithShake256Params(int outputLength)
+        else if (seq.Count == 1)
         {
-            m_outputLength = new DerInteger(outputLength);
-            m_customizationString = DefaultCustomizationString;
-        }
-
-        public KMacWithShake256Params(int outputLength, byte[] customizationString)
-        {
-            m_outputLength = new DerInteger(outputLength);
-            m_customizationString = new DerOctetString(customizationString);
-        }
-        public int OutputLength => m_outputLength.IntValueExact;
-
-        public byte[] CustomizationString => Arrays.Clone(m_customizationString.GetOctets());
-
-        public override Asn1Object ToAsn1Object()
-        {
-            Asn1EncodableVector v = new Asn1EncodableVector(2);
-            if (!m_outputLength.HasValue(_DefaultOutputLength))
+            if (seq[0] is DerInteger)
             {
-                v.Add(m_outputLength);
+                this.outputLength = DerInteger.GetInstance(seq[0]).IntValueExact;
+                this.customizationString = EMPTY_STRING;
             }
-            if (m_customizationString.GetOctetsLength() != 0)
+            else
             {
-                v.Add(m_customizationString);
+                this.outputLength = DEF_LENGTH;
+                this.customizationString = Arrays.Clone(Asn1OctetString.GetInstance(seq[0]).GetOctets());
             }
-            return new DerSequence(v);
+        }
+        else
+        {
+            this.outputLength = DEF_LENGTH;
+            this.customizationString = EMPTY_STRING;
         }
     }
+
+    public int OutputLength
+    {
+        get { return outputLength; }
+    }
+
+    public byte[] CustomizationString
+    {
+        get { return Arrays.Clone(customizationString); }
+    }
+
+    public override Asn1Object ToAsn1Object()
+    {
+        Asn1EncodableVector v = new Asn1EncodableVector();
+        if (outputLength != DEF_LENGTH)
+        {
+            v.Add(new DerInteger(outputLength));
+        }
+
+        if (customizationString.Length != 0)
+        {
+            v.Add(new DerOctetString(CustomizationString));
+        }
+
+        return new DerSequence(v);
+    }
+}
 }

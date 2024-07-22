@@ -6,7 +6,6 @@ using NUnit.Framework;
 using Org.BouncyCastle.Asn1.CryptoPro;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
@@ -261,14 +260,16 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name("CN=Test"));
             certGen.SetPublicKey(vKey);
-
-            X509Certificate cert = certGen.Generate(new Asn1SignatureFactory("GOST3411withGOST3410", sKey, null));
+            certGen.SetSignatureAlgorithm("GOST3411withGOST3410");
+    
+            X509Certificate cert = certGen.Generate(sKey);
             X509CertificateEntry certEntry = new X509CertificateEntry(cert);
 
-            ks.SetKeyEntry("gost", new AsymmetricKeyEntry(sKey), new X509CertificateEntry[]{ certEntry });
-
+//	        ks.SetKeyEntry("gost", sKey, "gost".ToCharArray(), new X509Certificate[] { cert });
+            ks.SetKeyEntry("gost", new AsymmetricKeyEntry(sKey), new X509CertificateEntry[] { certEntry });
+    
             MemoryStream bOut = new MemoryStream();
-
+    
             ks.Save(bOut, "gost".ToCharArray(), new SecureRandom());
     
 //	        ks = KeyStore.getInstance("JKS");
@@ -364,6 +365,12 @@ namespace Org.BouncyCastle.Tests
             ecGOST3410Test();
             generationTest();
             parametersTest();
+        }
+
+        public static void Main(
+            string[]	args)
+        {
+            RunTest(new Gost3410Test());
         }
 
         [Test]

@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
@@ -12,7 +12,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl
     public abstract class AbstractTlsCrypto
         : TlsCrypto
     {
-        public abstract bool HasAnyStreamVerifiers(IList<SignatureAndHashAlgorithm> signatureAndHashAlgorithms);
+        public abstract bool HasAnyStreamVerifiers(IList signatureAndHashAlgorithms);
 
         public abstract bool HasAnyStreamVerifiersLegacy(short[] clientCertificateTypes);
 
@@ -48,12 +48,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl
 
         public abstract SecureRandom SecureRandom { get; }
 
-        public virtual TlsCertificate CreateCertificate(byte[] encoding)
-        {
-            return CreateCertificate(CertificateType.X509, encoding);
-        }
-
-        public abstract TlsCertificate CreateCertificate(short type, byte[] encoding);
+        public abstract TlsCertificate CreateCertificate(byte[] encoding);
 
         public abstract TlsCipher CreateCipher(TlsCryptoParameters cryptoParams, int encryptionAlgorithm, int macAlgorithm);
 
@@ -64,10 +59,14 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl
         public virtual TlsSecret AdoptSecret(TlsSecret secret)
         {
             // TODO[tls] Need an alternative that doesn't require AbstractTlsSecret (which holds literal data)
-            if (secret is AbstractTlsSecret abstractTlsSecret)
-                return CreateSecret(abstractTlsSecret.CopyData());
+            if (secret is AbstractTlsSecret)
+            {
+                AbstractTlsSecret sec = (AbstractTlsSecret)secret;
 
-            throw new ArgumentException("unrecognized TlsSecret - cannot copy data: " + secret.GetType().FullName);
+                return CreateSecret(sec.CopyData());
+            }
+
+            throw new ArgumentException("unrecognized TlsSecret - cannot copy data: " + Platform.GetTypeName(secret));
         }
 
         public abstract TlsHash CreateHash(int cryptoHashAlgorithm);
@@ -77,10 +76,6 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl
         public abstract TlsHmac CreateHmacForHash(int cryptoHashAlgorithm);
 
         public abstract TlsNonceGenerator CreateNonceGenerator(byte[] additionalSeedMaterial);
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public abstract TlsNonceGenerator CreateNonceGenerator(ReadOnlySpan<byte> additionalSeedMaterial);
-#endif
 
         public abstract TlsSrp6Client CreateSrp6Client(TlsSrpConfig srpConfig);
 

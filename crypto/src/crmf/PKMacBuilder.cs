@@ -8,33 +8,80 @@ using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.IO;
-using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crmf
 {
-    internal sealed class PKMacFactory
-        : IMacFactory
+    internal class PKMacStreamCalculator
+        : IStreamCalculator
     {
-        private readonly KeyParameter m_key;
-        private readonly PbmParameter m_parameters;
+        private readonly MacSink _stream;
 
-        internal PKMacFactory(byte[] key, PbmParameter parameters)
+        public PKMacStreamCalculator(IMac mac)
         {
-            m_key = new KeyParameter(key);
-            m_parameters = parameters;
+            _stream = new MacSink(mac);
         }
 
-        public object AlgorithmDetails =>
-            new AlgorithmIdentifier(CmpObjectIdentifiers.passwordBasedMac, m_parameters);
-
-        public IStreamCalculator<IBlockResult> CreateCalculator()
+        public Stream Stream
         {
-            IMac mac = MacUtilities.GetMac(m_parameters.Mac.Algorithm);
-            mac.Init(m_key);
-            return new DefaultMacCalculator(mac);
+            get { return _stream; }
+        }
+
+        public object GetResult()
+        {
+            return new DefaultPKMacResult(_stream.Mac);
+        }
+    }
+
+    internal class PKMacFactory
+        : IMacFactory
+    {
+        protected readonly PbmParameter parameters;
+        private readonly byte[] key;
+
+        public PKMacFactory(byte[] key, PbmParameter parameters)
+        {
+            this.key = Arrays.Clone(key);
+            this.parameters = parameters;
+        }
+
+        public virtual object AlgorithmDetails
+        {
+            get { return new AlgorithmIdentifier(CmpObjectIdentifiers.passwordBasedMac, parameters); }
+        }
+
+        public virtual IStreamCalculator CreateCalculator()
+        {
+            IMac mac = MacUtilities.GetMac(parameters.Mac.Algorithm);
+            mac.Init(new KeyParameter(key));
+            return new PKMacStreamCalculator(mac);
+        }
+    }
+
+    internal class DefaultPKMacResult
+        : IBlockResult
+    {
+        private readonly IMac mac;
+
+        public DefaultPKMacResult(IMac mac)
+        {
+            this.mac = mac;
+        }
+
+        public byte[] Collect()
+        {
+            byte[] res = new byte[mac.GetMacSize()];
+            mac.DoFinal(res, 0);
+            return res;
+        }
+
+        public int Collect(byte[] sig, int sigOff)
+        {
+            byte[] signature = Collect();
+            signature.CopyTo(sig, sigOff);
+            return signature.Length;
         }
     }
 
@@ -47,15 +94,13 @@ namespace Org.BouncyCastle.Crmf
         private PbmParameter parameters;
         private int iterationCount;
         private int saltLength = 20;
-        private readonly int maxIterations;
+        private int maxIterations;
 
         /// <summary>
         /// Default, IterationCount = 1000, OIW=IdSha1, Mac=HmacSHA1
         /// </summary>
-        public PKMacBuilder()
-            :   this(new AlgorithmIdentifier(OiwObjectIdentifiers.IdSha1), 1000,
-                    new AlgorithmIdentifier(IanaObjectIdentifiers.HmacSha1, DerNull.Instance),
-                    new DefaultPKMacPrimitivesProvider())
+        public PKMacBuilder() :
+            this(new AlgorithmIdentifier(OiwObjectIdentifiers.IdSha1), 1000, new AlgorithmIdentifier(IanaObjectIdentifiers.HmacSha1, DerNull.Instance), new DefaultPKMacPrimitivesProvider())
         {
         }
 
@@ -63,9 +108,8 @@ namespace Org.BouncyCastle.Crmf
         /// Defaults with IPKMacPrimitivesProvider
         /// </summary>
         /// <param name="provider"></param>
-        public PKMacBuilder(IPKMacPrimitivesProvider provider)
-            :   this(new AlgorithmIdentifier(OiwObjectIdentifiers.IdSha1), 1000,
-                    new AlgorithmIdentifier(IanaObjectIdentifiers.HmacSha1, DerNull.Instance), provider)
+        public PKMacBuilder(IPKMacPrimitivesProvider provider) :
+            this(new AlgorithmIdentifier(OiwObjectIdentifiers.IdSha1), 1000, new AlgorithmIdentifier(IanaObjectIdentifiers.HmacSha1, DerNull.Instance), provider)
         {
         }
 
@@ -75,9 +119,8 @@ namespace Org.BouncyCastle.Crmf
         /// <param name="provider">The Mac provider</param>
         /// <param name="digestAlgorithmIdentifier">Digest Algorithm Id</param>
         /// <param name="macAlgorithmIdentifier">Mac Algorithm Id</param>
-        public PKMacBuilder(IPKMacPrimitivesProvider provider, AlgorithmIdentifier digestAlgorithmIdentifier,
-            AlgorithmIdentifier macAlgorithmIdentifier)
-            : this(digestAlgorithmIdentifier, 1000, macAlgorithmIdentifier, provider)
+        public PKMacBuilder(IPKMacPrimitivesProvider provider, AlgorithmIdentifier digestAlgorithmIdentifier, AlgorithmIdentifier macAlgorithmIdentifier) :
+            this(digestAlgorithmIdentifier, 1000, macAlgorithmIdentifier, provider)
         {
         }
 
@@ -92,8 +135,7 @@ namespace Org.BouncyCastle.Crmf
             this.maxIterations = maxIterations;
         }
 
-        private PKMacBuilder(AlgorithmIdentifier digestAlgorithmIdentifier, int iterationCount,
-            AlgorithmIdentifier macAlgorithmIdentifier, IPKMacPrimitivesProvider provider)
+        private PKMacBuilder(AlgorithmIdentifier digestAlgorithmIdentifier, int iterationCount, AlgorithmIdentifier macAlgorithmIdentifier, IPKMacPrimitivesProvider provider)
         {
             this.iterationCount = iterationCount;
             this.mac = macAlgorithmIdentifier;
@@ -136,18 +178,6 @@ namespace Org.BouncyCastle.Crmf
         }
 
         /// <summary>
-        /// The Secure random
-        /// </summary>
-        /// <param name="random">The random.</param>
-        /// <returns>this</returns>
-        public PKMacBuilder SetSecureRandom(SecureRandom random)
-        {
-            this.random = random;
-
-            return this;
-        }
-
-        /// <summary>
         /// Set PbmParameters
         /// </summary>
         /// <param name="parameters">The parameters.</param>
@@ -161,31 +191,17 @@ namespace Org.BouncyCastle.Crmf
             return this;
         }
 
-        public IMacFactory Get(AlgorithmIdentifier algorithm, char[] password)
+        /// <summary>
+        /// The Secure random
+        /// </summary>
+        /// <param name="random">The random.</param>
+        /// <returns>this</returns>
+        public PKMacBuilder SetSecureRandom(SecureRandom random)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return Get(algorithm, password.AsSpan());
-#else
-            if (!CmpObjectIdentifiers.passwordBasedMac.Equals(algorithm.Algorithm))
-                throw new ArgumentException("protection algorithm not mac based", nameof(algorithm));
+            this.random = random;
 
-            SetParameters(PbmParameter.GetInstance(algorithm.Parameters));
-
-            return Build(password);
-#endif
+            return this;
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public IMacFactory Get(AlgorithmIdentifier algorithm, ReadOnlySpan<char> password)
-        {
-            if (!CmpObjectIdentifiers.passwordBasedMac.Equals(algorithm.Algorithm))
-                throw new ArgumentException("protection algorithm not mac based", nameof(algorithm));
-
-            SetParameters(PbmParameter.GetInstance(algorithm.Parameters));
-
-            return Build(password);
-        }
-#endif
 
         /// <summary>
         /// Build an IMacFactory.
@@ -194,31 +210,20 @@ namespace Org.BouncyCastle.Crmf
         /// <returns>IMacFactory</returns>
         public IMacFactory Build(char[] password)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return Build(password.AsSpan());
-#else
-            PbmParameter pbmParameter = parameters;
-            if (pbmParameter == null)
+            if (parameters != null)
+                return GenCalculator(parameters, password);
+
+            byte[] salt = new byte[saltLength];
+
+            if (random == null)
             {
-                pbmParameter = GenParameters();
+                this.random = new SecureRandom();
             }
 
-            return GenCalculator(pbmParameter, password);
-#endif
-        }
+            random.NextBytes(salt);
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public IMacFactory Build(ReadOnlySpan<char> password)
-        {
-            PbmParameter pbmParameter = parameters;
-            if (pbmParameter == null)
-            {
-                pbmParameter = GenParameters();
-            }
-
-            return GenCalculator(pbmParameter, password);
+            return GenCalculator(new PbmParameter(salt, owf, iterationCount, mac), password);
         }
-#endif
 
         private void CheckIterationCountCeiling(int iterationCount)
         {
@@ -226,19 +231,7 @@ namespace Org.BouncyCastle.Crmf
                 throw new ArgumentException("iteration count exceeds limit (" + iterationCount + " > " + maxIterations + ")");
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        private IMacFactory GenCalculator(PbmParameter parameters, ReadOnlySpan<char> password)
-        {
-            return GenCalculator(parameters, Strings.ToUtf8ByteArray(password));
-        }
-#else
         private IMacFactory GenCalculator(PbmParameter parameters, char[] password)
-        {
-            return GenCalculator(parameters, Strings.ToUtf8ByteArray(password));
-        }
-#endif
-
-        private IMacFactory GenCalculator(PbmParameter parameters, byte[] pw)
         {
             // From RFC 4211
             //
@@ -255,6 +248,7 @@ namespace Org.BouncyCastle.Crmf
             //       MAC = HASH( K XOR opad, HASH( K XOR ipad, data) )
             //
             //       Where opad and ipad are defined in [HMAC].
+            byte[] pw = Strings.ToUtf8ByteArray(password);
             byte[] salt = parameters.Salt.GetOctets();
             byte[] K = new byte[pw.Length + salt.Length];
 
@@ -281,13 +275,6 @@ namespace Org.BouncyCastle.Crmf
             byte[] key = K;
 
             return new PKMacFactory(key, parameters);
-        }
-
-        private PbmParameter GenParameters()
-        {
-            byte[] salt = SecureRandom.GetNextBytes(CryptoServicesRegistrar.GetSecureRandom(random), saltLength);
-
-            return new PbmParameter(salt, owf, iterationCount, mac);
         }
     }
 }

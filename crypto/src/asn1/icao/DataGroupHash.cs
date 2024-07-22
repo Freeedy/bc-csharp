@@ -1,4 +1,7 @@
 using System;
+using System.Collections;
+
+using Org.BouncyCastle.Asn1;
 
 namespace Org.BouncyCastle.Asn1.Icao
 {
@@ -32,43 +35,52 @@ namespace Org.BouncyCastle.Asn1.Icao
     public class DataGroupHash
         : Asn1Encodable
     {
-        public static DataGroupHash GetInstance(object obj)
+        private readonly DerInteger dataGroupNumber;
+        private readonly Asn1OctetString dataGroupHashValue;
+
+		public static DataGroupHash GetInstance(
+            object obj)
         {
-            if (obj == null)
-                return null;
-            if (obj is DataGroupHash dataGroupHash)
-                return dataGroupHash;
-            return new DataGroupHash(Asn1Sequence.GetInstance(obj));
+            if (obj is DataGroupHash)
+                return (DataGroupHash)obj;
+
+			if (obj != null)
+				return new DataGroupHash(Asn1Sequence.GetInstance(obj));
+
+			return null;
+		}
+
+		private DataGroupHash(
+			Asn1Sequence seq)
+        {
+			if (seq.Count != 2)
+				throw new ArgumentException("Wrong number of elements in sequence", "seq");
+
+			this.dataGroupNumber = DerInteger.GetInstance(seq[0]);
+            this.dataGroupHashValue = Asn1OctetString.GetInstance(seq[1]);
         }
 
-        public static DataGroupHash GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+		public DataGroupHash(
+            int				dataGroupNumber,
+            Asn1OctetString	dataGroupHashValue)
         {
-            return new DataGroupHash(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+            this.dataGroupNumber = new DerInteger(dataGroupNumber);
+            this.dataGroupHashValue = dataGroupHashValue;
         }
 
-        private readonly DerInteger m_dataGroupNumber;
-        private readonly Asn1OctetString m_dataGroupHashValue;
+		public int DataGroupNumber
+		{
+            get { return dataGroupNumber.IntValueExact; }
+		}
 
-        private DataGroupHash(Asn1Sequence seq)
+		public Asn1OctetString DataGroupHashValue
+		{
+			get { return dataGroupHashValue; }
+		}
+
+		public override Asn1Object ToAsn1Object()
         {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-			m_dataGroupNumber = DerInteger.GetInstance(seq[0]);
-            m_dataGroupHashValue = Asn1OctetString.GetInstance(seq[1]);
+			return new DerSequence(dataGroupNumber, dataGroupHashValue);
         }
-
-		public DataGroupHash(int dataGroupNumber, Asn1OctetString dataGroupHashValue)
-        {
-            m_dataGroupNumber = new DerInteger(dataGroupNumber);
-            m_dataGroupHashValue = dataGroupHashValue ?? throw new ArgumentNullException(nameof(dataGroupHashValue));
-        }
-
-		public int DataGroupNumber => m_dataGroupNumber.IntValueExact;
-
-		public Asn1OctetString DataGroupHashValue => m_dataGroupHashValue;
-
-		public override Asn1Object ToAsn1Object() => new DerSequence(m_dataGroupNumber, m_dataGroupHashValue);
     }
 }
