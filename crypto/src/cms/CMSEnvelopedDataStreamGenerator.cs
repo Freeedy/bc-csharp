@@ -1,16 +1,21 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
+using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.IO;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Security.Certificates;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.IO;
+using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Cms
 {
@@ -26,7 +31,7 @@ namespace Org.BouncyCastle.Cms
 	*      MemoryStream  bOut = new MemoryStream();
 	*
 	*      Stream out = edGen.Open(
-	*                              bOut, CMSEnvelopedGenerator.AES128_CBC);*
+	*                              bOut, CMSEnvelopedDataGenerator.AES128_CBC);*
 	*      out.Write(data);
 	*
 	*      out.Close();
@@ -46,9 +51,10 @@ namespace Org.BouncyCastle.Cms
 		}
 
 		/// <summary>Constructor allowing specific source of randomness</summary>
-		/// <param name="random">Instance of <c>SecureRandom</c> to use.</param>
-		public CmsEnvelopedDataStreamGenerator(SecureRandom random)
-			: base(random)
+		/// <param name="rand">Instance of <c>SecureRandom</c> to use.</param>
+		public CmsEnvelopedDataStreamGenerator(
+			SecureRandom rand)
+			: base(rand)
 		{
 		}
 
@@ -97,13 +103,13 @@ namespace Org.BouncyCastle.Cms
 			AlgorithmIdentifier encAlgID = GetAlgorithmIdentifier(
 				encryptionOid, encKey, asn1Params, out cipherParameters);
 
-			Asn1EncodableVector recipientInfos = new Asn1EncodableVector(recipientInfoGenerators.Count);
+			Asn1EncodableVector recipientInfos = new Asn1EncodableVector();
 
 			foreach (RecipientInfoGenerator rig in recipientInfoGenerators)
 			{
 				try
 				{
-					recipientInfos.Add(rig.Generate(encKey, m_random));
+					recipientInfos.Add(rig.Generate(encKey, rand));
 				}
 				catch (InvalidKeyException e)
 				{
@@ -142,28 +148,29 @@ namespace Org.BouncyCastle.Cms
 				envGen.AddObject(this.Version);
 
 				Stream envRaw = envGen.GetRawOutputStream();
-				using (var recipGen = _berEncodeRecipientSet
-					? (Asn1Generator)new BerSetGenerator(envRaw)
-					: new DerSetGenerator(envRaw))
+				Asn1Generator recipGen = _berEncodeRecipientSet
+					?	(Asn1Generator) new BerSetGenerator(envRaw)
+					:	new DerSetGenerator(envRaw);
+
+				foreach (Asn1Encodable ae in recipientInfos)
 				{
-                    foreach (Asn1Encodable ae in recipientInfos)
-                    {
-                        recipGen.AddObject(ae);
-                    }
-                }
+					recipGen.AddObject(ae);
+				}
+
+				recipGen.Close();
 
 				BerSequenceGenerator eiGen = new BerSequenceGenerator(envRaw);
 				eiGen.AddObject(CmsObjectIdentifiers.Data);
 				eiGen.AddObject(encAlgID);
 
-                BerOctetStringGenerator octGen = new BerOctetStringGenerator(eiGen.GetRawOutputStream(), 0, false);
-                Stream octetOutputStream = octGen.GetOctetOutputStream(_bufferSize);
+				Stream octetOutputStream = CmsUtilities.CreateBerOctetOutputStream(
+					eiGen.GetRawOutputStream(), 0, false, _bufferSize);
 
                 IBufferedCipher cipher = CipherUtilities.GetCipher(encAlgID.Algorithm);
-				cipher.Init(true, new ParametersWithRandom(cipherParameters, m_random));
+				cipher.Init(true, new ParametersWithRandom(cipherParameters, rand));
 				CipherStream cOut = new CipherStream(octetOutputStream, null, cipher);
 
-				return new CmsEnvelopedDataOutputStream(this, cOut, cGen, envGen, eiGen, octGen);
+				return new CmsEnvelopedDataOutputStream(this, cOut, cGen, envGen, eiGen);
 			}
 			catch (SecurityUtilityException e)
 			{
@@ -189,7 +196,7 @@ namespace Org.BouncyCastle.Cms
 		{
 			CipherKeyGenerator keyGen = GeneratorUtilities.GetKeyGenerator(encryptionOid);
 
-			keyGen.Init(new KeyGenerationParameters(m_random, keyGen.DefaultStrength));
+			keyGen.Init(new KeyGenerationParameters(rand, keyGen.DefaultStrength));
 
 			return Open(outStream, encryptionOid, keyGen);
 		}
@@ -205,7 +212,7 @@ namespace Org.BouncyCastle.Cms
 		{
 			CipherKeyGenerator keyGen = GeneratorUtilities.GetKeyGenerator(encryptionOid);
 
-			keyGen.Init(new KeyGenerationParameters(m_random, keySize));
+			keyGen.Init(new KeyGenerationParameters(rand, keySize));
 
 			return Open(outStream, encryptionOid, keyGen);
 		}
@@ -219,22 +226,19 @@ namespace Org.BouncyCastle.Cms
 			private readonly BerSequenceGenerator	_cGen;
 			private readonly BerSequenceGenerator	_envGen;
 			private readonly BerSequenceGenerator	_eiGen;
-			private readonly BerOctetStringGenerator _octGen;
 
-            public CmsEnvelopedDataOutputStream(
+			public CmsEnvelopedDataOutputStream(
 				CmsEnvelopedGenerator	outer,
 				CipherStream			outStream,
 				BerSequenceGenerator	cGen,
 				BerSequenceGenerator	envGen,
-				BerSequenceGenerator	eiGen,
-                BerOctetStringGenerator octGen)
+				BerSequenceGenerator	eiGen)
 			{
 				_outer = outer;
 				_out = outStream;
 				_cGen = cGen;
 				_envGen = envGen;
 				_eiGen = eiGen;
-				_octGen = octGen;
 			}
 
 			public override void Write(byte[] buffer, int offset, int count)
@@ -242,44 +246,59 @@ namespace Org.BouncyCastle.Cms
 				_out.Write(buffer, offset, count);
 			}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            public override void Write(ReadOnlySpan<byte> buffer)
-            {
-                _out.Write(buffer);
-            }
-#endif
-
-            public override void WriteByte(byte value)
+			public override void WriteByte(byte value)
 			{
 				_out.WriteByte(value);
 			}
 
+#if PORTABLE
             protected override void Dispose(bool disposing)
             {
                 if (disposing)
- 				{
-                    _out.Dispose();
+                {
+                    Platform.Dispose(_out);
 
-					// TODO Parent context(s) should really be closed explicitly
+                    // TODO Parent context(s) should really be closed explicitly
 
-					_octGen.Dispose();
-                    _eiGen.Dispose();
+				    _eiGen.Close();
 
                     if (_outer.unprotectedAttributeGenerator != null)
                     {
-                        Asn1.Cms.AttributeTable attrTable = _outer.unprotectedAttributeGenerator.GetAttributes(
-                            new Dictionary<CmsAttributeTableParameter, object>());
+                        Asn1.Cms.AttributeTable attrTable = _outer.unprotectedAttributeGenerator.GetAttributes(Platform.CreateHashtable());
 
-                        Asn1Set unprotectedAttrs = BerSet.FromVector(attrTable.ToAsn1EncodableVector());
+                        Asn1Set unprotectedAttrs = new BerSet(attrTable.ToAsn1EncodableVector());
 
                         _envGen.AddObject(new DerTaggedObject(false, 1, unprotectedAttrs));
                     }
 
-                    _envGen.Dispose();
-                    _cGen.Dispose();
+				    _envGen.Close();
+				    _cGen.Close();
                 }
                 base.Dispose(disposing);
             }
+#else
+			public override void Close()
+			{
+                Platform.Dispose(_out);
+
+                // TODO Parent context(s) should really be closed explicitly
+
+                _eiGen.Close();
+
+                if (_outer.unprotectedAttributeGenerator != null)
+                {
+                    Asn1.Cms.AttributeTable attrTable = _outer.unprotectedAttributeGenerator.GetAttributes(Platform.CreateHashtable());
+
+                    Asn1Set unprotectedAttrs = new BerSet(attrTable.ToAsn1EncodableVector());
+
+                    _envGen.AddObject(new DerTaggedObject(false, 1, unprotectedAttrs));
+                }
+
+				_envGen.Close();
+				_cGen.Close();
+				base.Close();
+			}
+#endif
 		}
 	}
 }

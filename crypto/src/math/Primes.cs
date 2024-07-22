@@ -1,14 +1,15 @@
 ﻿using System;
 
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Math
 {
-    /// <summary>Utility methods for generating primes and testing for primality.</summary>
-    public static class Primes
+    /**
+     * Utility methods for generating primes and testing for primality.
+     */
+    public abstract class Primes
     {
         public static readonly int SmallFactorLimit = 211;
 
@@ -16,10 +17,12 @@ namespace Org.BouncyCastle.Math
         private static readonly BigInteger Two = BigInteger.Two;
         private static readonly BigInteger Three = BigInteger.Three;
 
-        /// <summary>Used to return the output from the
-        /// <see cref="EnhancedMRProbablePrimeTest(BigInteger, SecureRandom, int)">
-        /// Enhanced Miller-Rabin Probabilistic Primality Test</see></summary>
-        public sealed class MROutput
+        /**
+         * Used to return the output from the
+         * {@linkplain Primes#enhancedMRProbablePrimeTest(BigInteger, SecureRandom, int) Enhanced
+         * Miller-Rabin Probabilistic Primality Test}
+         */
+        public class MROutput
         {
             internal static MROutput ProbablyPrime()
             {
@@ -36,83 +39,115 @@ namespace Org.BouncyCastle.Math
                 return new MROutput(true, null);
             }
 
-            private readonly bool m_provablyComposite;
-            private readonly BigInteger m_factor;
+            private readonly bool mProvablyComposite;
+            private readonly BigInteger mFactor;
 
             private MROutput(bool provablyComposite, BigInteger factor)
             {
-                m_provablyComposite = provablyComposite;
-                m_factor = factor;
+                this.mProvablyComposite = provablyComposite;
+                this.mFactor = factor;
             }
 
-            public BigInteger Factor => m_factor;
+            public BigInteger Factor
+            {
+                get { return mFactor; }
+            }
 
-            public bool IsProvablyComposite => m_provablyComposite;
+            public bool IsProvablyComposite
+            {
+                get { return mProvablyComposite; }
+            }
 
-            public bool IsNotPrimePower => m_provablyComposite && m_factor == null;
+            public bool IsNotPrimePower
+            {
+                get { return mProvablyComposite && mFactor == null; }
+            }
         }
 
-        /// <summary>Used to return the output from the <see cref="GenerateSTRandomPrime(IDigest, int, byte[])">
-        /// Shawe-Taylor Random_Prime Routine</see></summary>
-        public sealed class STOutput
+        /**
+         * Used to return the output from the {@linkplain Primes#generateSTRandomPrime(Digest, int, byte[]) Shawe-Taylor Random_Prime Routine} 
+         */
+        public class STOutput
         {
-            private readonly BigInteger m_prime;
-            private readonly byte[] m_primeSeed;
-            private readonly int m_primeGenCounter;
+            private readonly BigInteger mPrime;
+            private readonly byte[] mPrimeSeed;
+            private readonly int mPrimeGenCounter;
 
             internal STOutput(BigInteger prime, byte[] primeSeed, int primeGenCounter)
             {
-                m_prime = prime;
-                m_primeSeed = primeSeed;
-                m_primeGenCounter = primeGenCounter;
+                this.mPrime = prime;
+                this.mPrimeSeed = primeSeed;
+                this.mPrimeGenCounter = primeGenCounter;
             }
 
-            public BigInteger Prime => m_prime;
+            public BigInteger Prime
+            {
+                get { return mPrime; }
+            }
 
-            public byte[] PrimeSeed => m_primeSeed;
+            public byte[] PrimeSeed
+            {
+                get { return mPrimeSeed; }
+            }
 
-            public int PrimeGenCounter => m_primeGenCounter;
+            public int PrimeGenCounter
+            {
+                get { return mPrimeGenCounter; }
+            }
         }
 
-        /// <summary>FIPS 186-4 C.6 Shawe-Taylor Random_Prime Routine.</summary>
-        /// <remarks>Construct a provable prime number using a hash function.</remarks>
-        /// <param name="hash">The <see cref="IDigest"/> instance to use (as "Hash()"). Cannot be null.</param>
-        /// <param name="length">The length (in bits) of the prime to be generated. Must be at least 2.</param>
-        /// <param name="inputSeed">The seed to be used for the generation of the requested prime. Cannot be null or
-        /// empty.</param>
-        /// <returns>An <see cref="STOutput"/> instance containing the requested prime.</returns>
+        /**
+         * FIPS 186-4 C.6 Shawe-Taylor Random_Prime Routine
+         * 
+         * Construct a provable prime number using a hash function.
+         * 
+         * @param hash
+         *            the {@link Digest} instance to use (as "Hash()"). Cannot be null.
+         * @param length
+         *            the length (in bits) of the prime to be generated. Must be at least 2.
+         * @param inputSeed
+         *            the seed to be used for the generation of the requested prime. Cannot be null or
+         *            empty.
+         * @return an {@link STOutput} instance containing the requested prime.
+         */
         public static STOutput GenerateSTRandomPrime(IDigest hash, int length, byte[] inputSeed)
         {
             if (hash == null)
-                throw new ArgumentNullException(nameof(hash));
+                throw new ArgumentNullException("hash");
             if (length < 2)
-                throw new ArgumentException("must be >= 2", nameof(length));
+                throw new ArgumentException("must be >= 2", "length");
             if (inputSeed == null)
-                throw new ArgumentNullException(nameof(inputSeed));
+                throw new ArgumentNullException("inputSeed");
             if (inputSeed.Length == 0)
-                throw new ArgumentException("cannot be empty", nameof(inputSeed));
+                throw new ArgumentException("cannot be empty", "inputSeed");
 
             return ImplSTRandomPrime(hash, length, Arrays.Clone(inputSeed));
         }
 
-        /// <summary>FIPS 186-4 C.3.2 Enhanced Miller-Rabin Probabilistic Primality Test.</summary>
-        /// <remarks>
-        /// Run several iterations of the Miller-Rabin algorithm with randomly-chosen bases. This is an alternative to
-        /// <see cref="IsMRProbablePrime(BigInteger, SecureRandom, int)"/> that provides more information about a
-        /// composite candidate, which may be useful when generating or validating RSA moduli.
-        /// </remarks>
-        /// <param name="candidate">The <see cref="BigInteger"/> instance to test for primality.</param>
-        /// <param name="random">The source of randomness to use to choose bases.</param>
-        /// <param name="iterations">The number of randomly-chosen bases to perform the test for.</param>
-        /// <returns>An <see cref="MROutput"/> instance that can be further queried for details.</returns>
+        /**
+         * FIPS 186-4 C.3.2 Enhanced Miller-Rabin Probabilistic Primality Test
+         * 
+         * Run several iterations of the Miller-Rabin algorithm with randomly-chosen bases. This is an
+         * alternative to {@link #isMRProbablePrime(BigInteger, SecureRandom, int)} that provides more
+         * information about a composite candidate, which may be useful when generating or validating
+         * RSA moduli.
+         * 
+         * @param candidate
+         *            the {@link BigInteger} instance to test for primality.
+         * @param random
+         *            the source of randomness to use to choose bases.
+         * @param iterations
+         *            the number of randomly-chosen bases to perform the test for.
+         * @return an {@link MROutput} instance that can be further queried for details.
+         */
         public static MROutput EnhancedMRProbablePrimeTest(BigInteger candidate, SecureRandom random, int iterations)
         {
-            CheckCandidate(candidate, nameof(candidate));
+            CheckCandidate(candidate, "candidate");
 
             if (random == null)
-                throw new ArgumentNullException(nameof(random));
+                throw new ArgumentNullException("random");
             if (iterations < 1)
-                throw new ArgumentException("must be > 0", nameof(iterations));
+                throw new ArgumentException("must be > 0", "iterations");
 
             if (candidate.BitLength == 2)
                 return MROutput.ProbablyPrime();
@@ -145,7 +180,7 @@ namespace Org.BouncyCastle.Math
                 BigInteger x = z;
                 for (int j = 1; j < a; ++j)
                 {
-                    z = z.Square().Mod(w);
+                    z = z.ModPow(Two, w);
 
                     if (z.Equals(wSubOne))
                     {
@@ -164,7 +199,7 @@ namespace Org.BouncyCastle.Math
                     if (!z.Equals(One))
                     {
                         x = z;
-                        z = z.Square().Mod(w);
+                        z = z.ModPow(Two, w);
 
                         if (!z.Equals(One))
                         {
@@ -184,34 +219,46 @@ namespace Org.BouncyCastle.Math
             return MROutput.ProbablyPrime();
         }
 
-        /// <summary>A fast check for small divisors, up to some implementation-specific limit.</summary>
-        /// <param name="candidate">The <see cref="BigInteger"/> instance to test for division by small factors.</param>
-        /// <returns><c>true</c> if the candidate is found to have any small factors, <c>false</c> otherwise.</returns>
+        /**
+         * A fast check for small divisors, up to some implementation-specific limit.
+         * 
+         * @param candidate
+         *            the {@link BigInteger} instance to test for division by small factors.
+         * 
+         * @return <code>true</code> if the candidate is found to have any small factors,
+         *         <code>false</code> otherwise.
+         */
         public static bool HasAnySmallFactors(BigInteger candidate)
         {
-            CheckCandidate(candidate, nameof(candidate));
+            CheckCandidate(candidate, "candidate");
 
             return ImplHasAnySmallFactors(candidate);
         }
 
-        /// <summary>FIPS 186-4 C.3.1 Miller-Rabin Probabilistic Primality Test.</summary>
-        /// <remarks>Run several iterations of the Miller-Rabin algorithm with randomly-chosen bases.</remarks>
-        /// <param name="candidate">The <see cref="BigInteger"/> instance to test for primality.</param>
-        /// <param name="random">The source of randomness to use to choose bases.</param>
-        /// <param name="iterations">The number of randomly-chosen bases to perform the test for.</param>
-        /// <returns>
-        /// <c>false</c> if any witness to compositeness is found amongst the chosen bases (so
-        /// <paramref name="candidate"/> is definitely NOT prime), or else <c>true</c> (indicating primality with some
-        /// probability dependent on the number of iterations that were performed).
-        /// </returns>
+        /**
+         * FIPS 186-4 C.3.1 Miller-Rabin Probabilistic Primality Test
+         * 
+         * Run several iterations of the Miller-Rabin algorithm with randomly-chosen bases.
+         * 
+         * @param candidate
+         *            the {@link BigInteger} instance to test for primality.
+         * @param random
+         *            the source of randomness to use to choose bases.
+         * @param iterations
+         *            the number of randomly-chosen bases to perform the test for.
+         * @return <code>false</code> if any witness to compositeness is found amongst the chosen bases
+         *         (so <code>candidate</code> is definitely NOT prime), or else <code>true</code>
+         *         (indicating primality with some probability dependent on the number of iterations
+         *         that were performed).
+         */
         public static bool IsMRProbablePrime(BigInteger candidate, SecureRandom random, int iterations)
         {
-            CheckCandidate(candidate, nameof(candidate));
+            CheckCandidate(candidate, "candidate");
 
             if (random == null)
-                throw new ArgumentException("cannot be null", nameof(random));
+                throw new ArgumentException("cannot be null", "random");
             if (iterations < 1)
-                throw new ArgumentException("must be > 0", nameof(iterations));
+                throw new ArgumentException("must be > 0", "iterations");
 
             if (candidate.BitLength == 2)
                 return true;
@@ -236,19 +283,25 @@ namespace Org.BouncyCastle.Math
             return true;
         }
 
-        /// <summary>FIPS 186-4 C.3.1 Miller-Rabin Probabilistic Primality Test (to a fixed base).</summary>
-        /// <remarks>Run a single iteration of the Miller-Rabin algorithm against the specified base.</remarks>
-        /// <param name="candidate">The <see cref="BigInteger"/> instance to test for primality.</param>
-        /// <param name="baseValue">The base value to use for this iteration.</param>
-        /// <returns><c>false</c> if <paramref name="baseValue"/> is a witness to compositeness (so
-        /// <paramref name="candidate"/> is definitely NOT prime), or else <c>true</c>.</returns>
+        /**
+         * FIPS 186-4 C.3.1 Miller-Rabin Probabilistic Primality Test (to a fixed base).
+         * 
+         * Run a single iteration of the Miller-Rabin algorithm against the specified base.
+         * 
+         * @param candidate
+         *            the {@link BigInteger} instance to test for primality.
+         * @param baseValue
+         *            the base value to use for this iteration.
+         * @return <code>false</code> if the specified base is a witness to compositeness (so
+         *         <code>candidate</code> is definitely NOT prime), or else <code>true</code>.
+         */
         public static bool IsMRProbablePrimeToBase(BigInteger candidate, BigInteger baseValue)
         {
-            CheckCandidate(candidate, nameof(candidate));
-            CheckCandidate(baseValue, nameof(baseValue));
+            CheckCandidate(candidate, "candidate");
+            CheckCandidate(baseValue, "baseValue");
 
             if (baseValue.CompareTo(candidate.Subtract(One)) >= 0)
-                throw new ArgumentException("must be < ('candidate' - 1)", nameof(baseValue));
+                throw new ArgumentException("must be < ('candidate' - 1)", "baseValue");
 
             if (candidate.BitLength == 2)
                 return true;
@@ -358,52 +411,59 @@ namespace Org.BouncyCastle.Math
             if (z.Equals(One) || z.Equals(wSubOne))
                 return true;
 
+            bool result = false;
+
             for (int j = 1; j < a; ++j)
             {
-                z = z.Square().Mod(w);
+                z = z.ModPow(Two, w);
 
                 if (z.Equals(wSubOne))
-                    return true;
+                {
+                    result = true;
+                    break;
+                }
 
                 if (z.Equals(One))
                     return false;
             }
 
-            return false;
+            return result;
         }
 
         private static STOutput ImplSTRandomPrime(IDigest d, int length, byte[] primeSeed)
         {
             int dLen = d.GetDigestSize();
-            int cLen = System.Math.Max(4, dLen);
 
             if (length < 33)
             {
                 int primeGenCounter = 0;
 
-                byte[] c0 = new byte[cLen];
-                byte[] c1 = new byte[cLen];
+                byte[] c0 = new byte[dLen];
+                byte[] c1 = new byte[dLen];
 
                 for (;;)
                 {
-                    Hash(d, primeSeed, c0, cLen - dLen);
+                    Hash(d, primeSeed, c0, 0);
                     Inc(primeSeed, 1);
 
-                    Hash(d, primeSeed, c1, cLen - dLen);
+                    Hash(d, primeSeed, c1, 0);
                     Inc(primeSeed, 1);
 
-                    uint c = Pack.BE_To_UInt32(c0, cLen - 4)
-                           ^ Pack.BE_To_UInt32(c1, cLen - 4);
-                    c &= uint.MaxValue >> (32 - length);
+                    uint c = Extract32(c0) ^ Extract32(c1);
+                    c &= (uint.MaxValue >> (32 - length));
                     c |= (1U << (length - 1)) | 1U;
 
                     ++primeGenCounter;
 
                     if (IsPrime32(c))
-                        return new STOutput(BigInteger.ValueOf(c), primeSeed, primeGenCounter);
+                    {
+                        return new STOutput(BigInteger.ValueOf((long)c), primeSeed, primeGenCounter);
+                    }
 
                     if (primeGenCounter > (4 * length))
+                    {
                         throw new InvalidOperationException("Too many iterations in Shawe-Taylor Random_Prime Routine");
+                    }
                 }
             }
 
@@ -448,11 +508,7 @@ namespace Org.BouncyCastle.Math
                      * 
                      * NOTE: 'primeSeed' is still incremented as if we performed the full check!
                      */
-                    if (ImplHasAnySmallFactors(c))
-                    {
-                        Inc(primeSeed, iterations + 1);
-                    }
-                    else
+                    if (!ImplHasAnySmallFactors(c))
                     {
                         BigInteger a = HashGen(d, primeSeed, iterations + 1);
                         a = a.Mod(c.Subtract(Three)).Add(Two);
@@ -463,16 +519,38 @@ namespace Org.BouncyCastle.Math
                         BigInteger z = a.ModPow(tx2, c);
 
                         if (c.Gcd(z.Subtract(One)).Equals(One) && z.ModPow(c0, c).Equals(One))
+                        {
                             return new STOutput(c, primeSeed, primeGenCounter);
+                        }
+                    }
+                    else
+                    {
+                        Inc(primeSeed, iterations + 1);
                     }
 
                     if (primeGenCounter >= ((4 * length) + oldCounter))
+                    {
                         throw new InvalidOperationException("Too many iterations in Shawe-Taylor Random_Prime Routine");
+                    }
 
                     dt += 2;
                     c = c.Add(c0x2);
                 }
             }
+        }
+
+        private static uint Extract32(byte[] bs)
+        {
+            uint result = 0;
+
+            int count = System.Math.Min(4, bs.Length);
+            for (int i = 0; i < count; ++i)
+            {
+                uint b = bs[bs.Length - (i + 1)];
+                result |= (b << (8 * i));
+            }
+
+            return result;
         }
 
         private static void Hash(IDigest d, byte[] input, byte[] output, int outPos)
@@ -512,15 +590,19 @@ namespace Org.BouncyCastle.Math
              * Use wheel factorization with 2, 3, 5 to select trial divisors.
              */
 
-            if (x < 32)
-                return ((1 << (int)x) & 0b0010_0000_1000_1010_0010_1000_1010_1100) != 0;
+            if (x <= 5)
+            {
+                return x == 2 || x == 3 || x == 5;
+            }
 
-            if (((1 << (int)(x % 30U)) & 0b1010_0000_1000_1010_0010_1000_1000_0010U) == 0)
+            if ((x & 1) == 0 || (x % 3) == 0 || (x % 5) == 0)
+            {
                 return false;
+            }
 
             uint[] ds = new uint[]{ 1, 7, 11, 13, 17, 19, 23, 29 };
             uint b = 0;
-            for (int pos = 1;; pos = 0)
+            for (int pos = 1; ; pos = 0)
             {
                 /*
                  * Trial division by wheel-selected divisors
@@ -529,15 +611,18 @@ namespace Org.BouncyCastle.Math
                 {
                     uint d = b + ds[pos];
                     if (x % d == 0)
-                        return false;
-
+                    {
+                        return x < 30;
+                    }
                     ++pos;
                 }
 
                 b += 30;
 
                 if ((b >> 16 != 0) || (b * b >= x))
+                {
                     return true;
+                }
             }
         }
     }

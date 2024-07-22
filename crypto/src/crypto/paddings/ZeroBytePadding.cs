@@ -1,69 +1,68 @@
 using System;
-
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Security;
 
 namespace Org.BouncyCastle.Crypto.Paddings
 {
-    /// <summary> A padder that adds zero byte padding to a block.</summary>
-    public class ZeroBytePadding
-        : IBlockCipherPadding
-    {
-        public string PaddingName => "ZeroBytePadding";
 
+    /// <summary> A padder that adds Null byte padding to a block.</summary>
+    public class ZeroBytePadding : IBlockCipherPadding
+    {
+        /// <summary> Return the name of the algorithm the cipher implements.
+        ///
+        /// </summary>
+        /// <returns> the name of the algorithm the cipher implements.
+        /// </returns>
+        public string PaddingName
+        {
+            get { return "ZeroBytePadding"; }
+        }
+
+		/// <summary> Initialise the padder.
+        ///
+        /// </summary>
+        /// <param name="random">- a SecureRandom if available.
+        /// </param>
         public void Init(SecureRandom random)
         {
             // nothing to do.
         }
 
-        public int AddPadding(byte[] input, int inOff)
+        /// <summary> add the pad bytes to the passed in block, returning the
+        /// number of bytes added.
+        /// </summary>
+        public int AddPadding(
+			byte[]	input,
+			int		inOff)
         {
-            int added = input.Length - inOff;
+            int added = (input.Length - inOff);
 
             while (inOff < input.Length)
             {
-                input[inOff++] = 0x00;
+                input[inOff] = (byte) 0;
+                inOff++;
             }
 
             return added;
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int AddPadding(Span<byte> block, int position)
+		/// <summary> return the number of pad bytes present in the block.</summary>
+        public int PadCount(
+			byte[] input)
         {
-            int count = block.Length - position;
-            block[position..].Fill(0x00);
-            return count;
-        }
-#endif
+            int count = input.Length;
 
-        public int PadCount(byte[] input)
-        {
-            int count = 0, still00Mask = -1;
-            int i = input.Length;
-            while (--i >= 0)
+            while (count > 0)
             {
-                int next = input[i];
-                int match00Mask = ((next ^ 0x00) - 1) >> 31;
-                still00Mask &= match00Mask;
-                count -= still00Mask;
-            }
-            return count;
-        }
+                if (input[count - 1] != 0)
+                {
+                    break;
+                }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int PadCount(ReadOnlySpan<byte> block)
-        {
-            int count = 0, still00Mask = -1;
-            int i = block.Length;
-            while (--i >= 0)
-            {
-                int next = block[i];
-                int match00Mask = ((next ^ 0x00) - 1) >> 31;
-                still00Mask &= match00Mask;
-                count -= still00Mask;
+                count--;
             }
-            return count;
+
+            return input.Length - count;
         }
-#endif
     }
 }

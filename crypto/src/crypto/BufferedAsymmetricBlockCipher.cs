@@ -1,4 +1,7 @@
 using System;
+using System.Diagnostics;
+
+using Org.BouncyCastle.Crypto.Engines;
 
 namespace Org.BouncyCastle.Crypto
 {
@@ -19,7 +22,8 @@ namespace Org.BouncyCastle.Crypto
         *
         * @param cipher the cipher this buffering object wraps.
         */
-        public BufferedAsymmetricBlockCipher(IAsymmetricBlockCipher cipher)
+        public BufferedAsymmetricBlockCipher(
+            IAsymmetricBlockCipher cipher)
         {
             this.cipher = cipher;
 		}
@@ -44,14 +48,16 @@ namespace Org.BouncyCastle.Crypto
 			return cipher.GetInputBlockSize();
         }
 
-        public override int GetOutputSize(int length)
-        {
-            return cipher.GetOutputBlockSize();
+		public override int GetOutputSize(
+			int length)
+		{
+			return cipher.GetOutputBlockSize();
 		}
 
-        public override int GetUpdateOutputSize(int length)
-        {
-            return 0;
+		public override int GetUpdateOutputSize(
+			int length)
+		{
+			return 0;
 		}
 
 		/**
@@ -61,7 +67,9 @@ namespace Org.BouncyCastle.Crypto
         *  encryption, if false for decryption.
         * @param param the key and other data required by the cipher.
         */
-        public override void Init(bool forEncryption, ICipherParameters parameters)
+        public override void Init(
+            bool				forEncryption,
+            ICipherParameters	parameters)
         {
 			Reset();
 
@@ -75,58 +83,35 @@ namespace Org.BouncyCastle.Crypto
 			this.bufOff = 0;
         }
 
-        public override byte[] ProcessByte(byte input)
-        {
-            Check.DataLength(bufOff >= buffer.Length, "attempt to process message too long for cipher");
+		public override byte[] ProcessByte(
+			byte input)
+		{
+			if (bufOff >= buffer.Length)
+				throw new DataLengthException("attempt to process message too long for cipher");
 
 			buffer[bufOff++] = input;
 			return null;
 		}
 
-        public override int ProcessByte(byte input, byte[] output, int outOff)
-        {
-            Check.DataLength(bufOff >= buffer.Length, "attempt to process message too long for cipher");
-
-            buffer[bufOff++] = input;
-            return 0;
-        }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int ProcessByte(byte input, Span<byte> output)
-        {
-            Check.DataLength(bufOff >= buffer.Length, "attempt to process message too long for cipher");
-
-            buffer[bufOff++] = input;
-            return 0;
-        }
-#endif
-
-        public override byte[] ProcessBytes(byte[] input, int inOff, int length)
-        {
-            if (length < 1)
+		public override byte[] ProcessBytes(
+			byte[]	input,
+			int		inOff,
+			int		length)
+		{
+			if (length < 1)
 				return null;
 
 			if (input == null)
 				throw new ArgumentNullException("input");
-            Check.DataLength(length > buffer.Length - bufOff, "attempt to process message too long for cipher");
+			if (bufOff + length > buffer.Length)
+				throw new DataLengthException("attempt to process message too long for cipher");
 
 			Array.Copy(input, inOff, buffer, bufOff, length);
 			bufOff += length;
 			return null;
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int ProcessBytes(ReadOnlySpan<byte> input, Span<byte> output)
-		{
-            Check.DataLength(input.Length > buffer.Length - bufOff, "attempt to process message too long for cipher");
-
-			input.CopyTo(buffer.AsSpan(bufOff));
-            bufOff += input.Length;
-            return 0;
-        }
-#endif
-
-        /**
+		/**
         * process the contents of the buffer using the underlying
         * cipher.
         *
@@ -145,30 +130,16 @@ namespace Org.BouncyCastle.Crypto
 			return outBytes;
         }
 
-        public override byte[] DoFinal(byte[] input, int inOff, int length)
-        {
-            ProcessBytes(input, inOff, length);
+		public override byte[] DoFinal(
+			byte[]	input,
+			int		inOff,
+			int		length)
+		{
+			ProcessBytes(input, inOff, length);
 			return DoFinal();
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int DoFinal(Span<byte> output)
-		{
-			int result = 0;
-			if (bufOff > 0)
-			{
-				byte[] outBytes = cipher.ProcessBlock(buffer, 0, bufOff);
-				outBytes.CopyTo(output);
-				result = outBytes.Length;
-            }
-
-            Reset();
-
-            return result;
-        }
-#endif
-
-        /// <summary>Reset the buffer</summary>
+		/// <summary>Reset the buffer</summary>
         public override void Reset()
         {
 			if (buffer != null)

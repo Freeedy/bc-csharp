@@ -5,7 +5,8 @@ namespace Org.BouncyCastle.Bcpg
     {
         private readonly BcpgInputStream bcpgIn;
 
-		public InputStreamPacket(BcpgInputStream bcpgIn)
+		public InputStreamPacket(
+            BcpgInputStream bcpgIn)
         {
             this.bcpgIn = bcpgIn;
         }

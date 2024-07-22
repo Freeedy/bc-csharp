@@ -1,5 +1,6 @@
 using System;
 
+using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
@@ -13,7 +14,7 @@ namespace Org.BouncyCastle.Crypto.Signers
      * EC-DSA as described in X9.62
      */
     public class ECDsaSigner
-        : IDsa
+        : IDsaExt
     {
         private static readonly BigInteger Eight = BigInteger.ValueOf(8);
 
@@ -51,23 +52,25 @@ namespace Org.BouncyCastle.Crypto.Signers
 
             if (forSigning)
             {
-                if (parameters is ParametersWithRandom rParam)
+                if (parameters is ParametersWithRandom)
                 {
+                    ParametersWithRandom rParam = (ParametersWithRandom)parameters;
+
                     providedRandom = rParam.Random;
                     parameters = rParam.Parameters;
                 }
 
-                if (!(parameters is ECPrivateKeyParameters ecPrivateKeyParameters))
+                if (!(parameters is ECPrivateKeyParameters))
                     throw new InvalidKeyException("EC private key required for signing");
 
-                this.key = ecPrivateKeyParameters;
+                this.key = (ECPrivateKeyParameters)parameters;
             }
             else
             {
-                if (!(parameters is ECPublicKeyParameters ecPublicKeyParameters))
+                if (!(parameters is ECPublicKeyParameters))
                     throw new InvalidKeyException("EC public key required for verification");
 
-                this.key = ecPublicKeyParameters;
+                this.key = (ECPublicKeyParameters)parameters;
             }
 
             this.random = InitSecureRandom(forSigning && !kCalculator.IsDeterministic, providedRandom);
@@ -237,7 +240,7 @@ namespace Org.BouncyCastle.Crypto.Signers
 
         protected virtual SecureRandom InitSecureRandom(bool needed, SecureRandom provided)
         {
-            return !needed ? null : CryptoServicesRegistrar.GetSecureRandom(provided);
+            return !needed ? null : (provided != null) ? provided : new SecureRandom();
         }
     }
 }

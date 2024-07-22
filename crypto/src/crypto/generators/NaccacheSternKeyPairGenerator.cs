@@ -1,18 +1,21 @@
-using System.Collections.Generic;
+using System;
+using System.Collections;
 
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
+using Org.BouncyCastle.Utilities.Collections;
 
 namespace Org.BouncyCastle.Crypto.Generators
 {
-    /**
+	/**
 	 * Key generation parameters for NaccacheStern cipher. For details on this cipher, please see
 	 *
 	 * http://www.gemplus.com/smart/rd/publications/pdf/NS98pkcs.pdf
 	 */
-    public class NaccacheSternKeyPairGenerator
+	public class NaccacheSternKeyPairGenerator
 		: IAsymmetricCipherKeyPairGenerator
 	{
 		private static readonly int[] smallPrimes =
@@ -49,20 +52,20 @@ namespace Org.BouncyCastle.Crypto.Generators
 			SecureRandom rand = param.Random;
 			int certainty = param.Certainty;
 
-			var smallPrimes = FindFirstPrimes(param.CountSmallPrimes);
+			IList smallPrimes = findFirstPrimes(param.CountSmallPrimes);
 
-			smallPrimes = PermuteList(smallPrimes, rand);
+			smallPrimes = permuteList(smallPrimes, rand);
 
 			BigInteger u = BigInteger.One;
 			BigInteger v = BigInteger.One;
 
 			for (int i = 0; i < smallPrimes.Count / 2; i++)
 			{
-				u = u.Multiply(smallPrimes[i]);
+				u = u.Multiply((BigInteger)smallPrimes[i]);
 			}
 			for (int i = smallPrimes.Count / 2; i < smallPrimes.Count; i++)
 			{
-				v = v.Multiply(smallPrimes[i]);
+				v = v.Multiply((BigInteger)smallPrimes[i]);
 			}
 
 			BigInteger sigma = u.Multiply(v);
@@ -74,8 +77,8 @@ namespace Org.BouncyCastle.Crypto.Generators
 			// remainingStrength = strength - sigma.bitLength() - _p.bitLength() -
 			// _q.bitLength() - 1 -1
 			int remainingStrength = strength - sigma.BitLength - 48;
-			BigInteger a = GeneratePrime(remainingStrength / 2 + 1, certainty, rand);
-			BigInteger b = GeneratePrime(remainingStrength / 2 + 1, certainty, rand);
+			BigInteger a = generatePrime(remainingStrength / 2 + 1, certainty, rand);
+			BigInteger b = generatePrime(remainingStrength / 2 + 1, certainty, rand);
 
 			BigInteger _p;
 			BigInteger _q;
@@ -87,12 +90,11 @@ namespace Org.BouncyCastle.Crypto.Generators
 			BigInteger _2au = a.Multiply(u).ShiftLeft(1);
 			BigInteger _2bv = b.Multiply(v).ShiftLeft(1);
 
-			BigInteger n;
 			for (;;)
 			{
 				tries++;
 
-				_p = GeneratePrime(24, certainty, rand);
+				_p = generatePrime(24, certainty, rand);
 
 				p = _p.Multiply(_2au).Add(BigInteger.One);
 
@@ -101,7 +103,7 @@ namespace Org.BouncyCastle.Crypto.Generators
 
 				for (;;)
 				{
-					_q = GeneratePrime(24, certainty, rand);
+					_q = generatePrime(24, certainty, rand);
 
 					if (_p.Equals(_q))
 						continue;
@@ -112,18 +114,20 @@ namespace Org.BouncyCastle.Crypto.Generators
 						break;
 				}
 
-				if (!BigIntegers.ModOddIsCoprime(_p.Multiply(_q), sigma))
+				if (!sigma.Gcd(_p.Multiply(_q)).Equals(BigInteger.One))
 				{
                     //Console.WriteLine("sigma.gcd(_p.mult(_q)) != 1!\n _p: " + _p +"\n _q: "+ _q );
 					continue;
 				}
 
-                n = p.Multiply(q);
-
-				if (n.BitLength >= strength)
-					break;
+				if (p.Multiply(q).BitLength < strength)
+				{
+					continue;
+				}
+				break;
 			}
 
+			BigInteger n = p.Multiply(q);
 			BigInteger phi_n = p.Subtract(BigInteger.One).Multiply(q.Subtract(BigInteger.One));
 			BigInteger g;
 			tries = 0;
@@ -131,17 +135,17 @@ namespace Org.BouncyCastle.Crypto.Generators
 			for (;;)
 			{
 				// TODO After the first loop, just regenerate one randomly-selected gPart each time?
-				var gParts = new List<BigInteger>();
+				IList gParts = Platform.CreateArrayList();
 				for (int ind = 0; ind != smallPrimes.Count; ind++)
 				{
-					BigInteger i = smallPrimes[ind];
+					BigInteger i = (BigInteger)smallPrimes[ind];
 					BigInteger e = phi_n.Divide(i);
 
 					for (;;)
 					{
 						tries++;
 
-						g = GeneratePrime(strength, certainty, rand);
+						g = generatePrime(strength, certainty, rand);
 
 						if (!g.ModPow(e, n).Equals(BigInteger.One))
 						{
@@ -153,8 +157,8 @@ namespace Org.BouncyCastle.Crypto.Generators
 				g = BigInteger.One;
 				for (int i = 0; i < smallPrimes.Count; i++)
 				{
-					BigInteger gPart = gParts[i];
-					BigInteger smallPrime = smallPrimes[i];
+					BigInteger gPart = (BigInteger) gParts[i];
+					BigInteger smallPrime = (BigInteger) smallPrimes[i];
 					g = g.Multiply(gPart.ModPow(sigma.Divide(smallPrime), n)).Mod(n);
 				}
 
@@ -162,7 +166,7 @@ namespace Org.BouncyCastle.Crypto.Generators
 				bool divisible = false;
 				for (int i = 0; i < smallPrimes.Count; i++)
 				{
-					if (g.ModPow(phi_n.Divide(smallPrimes[i]), n).Equals(BigInteger.One))
+					if (g.ModPow(phi_n.Divide((BigInteger)smallPrimes[i]), n).Equals(BigInteger.One))
 					{
 						divisible = true;
 						break;
@@ -201,12 +205,14 @@ namespace Org.BouncyCastle.Crypto.Generators
 				break;
 			}
 
-			return new AsymmetricCipherKeyPair(
-				new NaccacheSternKeyParameters(false, g, n, sigma.BitLength),
+			return new AsymmetricCipherKeyPair(new NaccacheSternKeyParameters(false, g, n, sigma.BitLength),
 				new NaccacheSternPrivateKeyParameters(g, n, sigma.BitLength, smallPrimes, phi_n));
 		}
 
-		private static BigInteger GeneratePrime(int bitLength, int certainty, SecureRandom rand)
+		private static BigInteger generatePrime(
+			int bitLength,
+			int certainty,
+			SecureRandom rand)
 		{
 			return new BigInteger(bitLength, certainty, rand);
 		}
@@ -221,13 +227,15 @@ namespace Org.BouncyCastle.Crypto.Generators
 		 *            the source of Randomness for permutation
 		 * @return a new IList with the permuted elements.
 		 */
-		private static IList<T> PermuteList<T>(IList<T> arr, SecureRandom rand)
+		private static IList permuteList(
+			IList           arr,
+			SecureRandom    rand)
 		{
             // TODO Create a utility method for generating permutation of first 'n' integers
 
-            var retval = new List<T>(arr.Count);
+            IList retval = Platform.CreateArrayList(arr.Count);
 
-			foreach (var element in arr)
+			foreach (object element in arr)
 			{
 				int index = rand.Next(retval.Count + 1);
 				retval.Insert(index, element);
@@ -243,9 +251,10 @@ namespace Org.BouncyCastle.Crypto.Generators
 		 *            the number of primes to find
 		 * @return a vector containing the found primes as Integer
 		 */
-		private static IList<BigInteger> FindFirstPrimes(int count)
+		private static IList findFirstPrimes(
+			int count)
 		{
-			var primes = new List<BigInteger>(count);
+			IList primes = Platform.CreateArrayList(count);
 
 			for (int i = 0; i != count; i++)
 			{
@@ -254,5 +263,6 @@ namespace Org.BouncyCastle.Crypto.Generators
 
 			return primes;
 		}
+
 	}
 }

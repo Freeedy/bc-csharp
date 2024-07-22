@@ -1,8 +1,7 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
-using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Utilities;
 
@@ -16,9 +15,9 @@ namespace Org.BouncyCastle.Tls
         protected ProtocolVersion[] m_protocolVersions;
         protected int[] m_cipherSuites;
 
-        protected IList<int> m_supportedGroups;
-        protected IList<SignatureAndHashAlgorithm> m_supportedSignatureAlgorithms;
-        protected IList<SignatureAndHashAlgorithm> m_supportedSignatureAlgorithmsCert;
+        protected IList m_supportedGroups;
+        protected IList m_supportedSignatureAlgorithms;
+        protected IList m_supportedSignatureAlgorithmsCert;
 
         protected AbstractTlsClient(TlsCrypto crypto)
             : base(crypto)
@@ -53,14 +52,14 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        protected virtual IList<int> GetNamedGroupRoles()
+        protected virtual IList GetNamedGroupRoles()
         {
-            var namedGroupRoles = TlsUtilities.GetNamedGroupRoles(GetCipherSuites());
-            var sigAlgs = m_supportedSignatureAlgorithms;
-            var sigAlgsCert = m_supportedSignatureAlgorithmsCert;
+            IList namedGroupRoles = TlsUtilities.GetNamedGroupRoles(GetCipherSuites());
+            IList sigAlgs = m_supportedSignatureAlgorithms, sigAlgsCert = m_supportedSignatureAlgorithmsCert;
 
-            if ((null == sigAlgs || TlsUtilities.ContainsAnySignatureAlgorithm(sigAlgs, SignatureAlgorithm.ecdsa)) ||
-                (null != sigAlgsCert && TlsUtilities.ContainsAnySignatureAlgorithm(sigAlgsCert, SignatureAlgorithm.ecdsa)))
+            if ((null == sigAlgs || TlsUtilities.ContainsAnySignatureAlgorithm(sigAlgs, SignatureAlgorithm.ecdsa))
+                || (null != sigAlgsCert
+                    && TlsUtilities.ContainsAnySignatureAlgorithm(sigAlgsCert, SignatureAlgorithm.ecdsa)))
             {
                 TlsUtilities.AddToSet(namedGroupRoles, NamedGroupRole.ecdsa);
             }
@@ -69,22 +68,12 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        protected virtual void CheckForUnexpectedServerExtension(IDictionary<int, byte[]> serverExtensions,
-            int extensionType)
+        protected virtual void CheckForUnexpectedServerExtension(IDictionary serverExtensions, int extensionType)
         {
             byte[] extensionData = TlsUtilities.GetExtensionData(serverExtensions, extensionType);
             if (extensionData != null && !AllowUnexpectedServerExtension(extensionType, extensionData))
                 throw new TlsFatalAlert(AlertDescription.illegal_parameter);
         }
-
-        /// <summary>RFC 9146 DTLS connection ID.</summary>
-        /// <remarks>
-        /// The default <see cref="GetClientExtensions"/> implementation calls this to get the connection_id extension
-        /// the client will send. As future communication doesn't include the connection IDs length, this should either
-        /// be fixed-length or include the connection ID's length. (see explanation in RFC 9146 4. "cid:")
-        /// </remarks>
-        /// <returns>The connection ID to use.</returns>
-        protected virtual byte[] GetNewConnectionID() => null;
 
         /// <exception cref="IOException"/>
         public virtual TlsPskIdentity GetPskIdentity()
@@ -108,12 +97,12 @@ namespace Org.BouncyCastle.Tls
             return new DefaultTlsSrpConfigVerifier();
         }
 
-        protected virtual IList<X509Name> GetCertificateAuthorities()
+        protected virtual IList GetCertificateAuthorities()
         {
             return null;
         }
 
-        protected virtual IList<ProtocolName> GetProtocolNames()
+        protected virtual IList GetProtocolNames()
         {
             return null;
         }
@@ -123,13 +112,13 @@ namespace Org.BouncyCastle.Tls
             return new CertificateStatusRequest(CertificateStatusType.ocsp, new OcspStatusRequest(null, null));
         }
 
-        /// <returns>an <see cref="IList{T}"/> of <see cref="CertificateStatusRequestItemV2"/> (or null).</returns>
-        protected virtual IList<CertificateStatusRequestItemV2> GetMultiCertStatusRequest()
+        /// <returns>an <see cref="IList"/> of <see cref="CertificateStatusRequestItemV2"/> (or null).</returns>
+        protected virtual IList GetMultiCertStatusRequest()
         {
             return null;
         }
 
-        protected virtual IList<ServerName> GetSniServerNames()
+        protected virtual IList GetSniServerNames()
         {
             return null;
         }
@@ -139,12 +128,12 @@ namespace Org.BouncyCastle.Tls
         /// <param name="namedGroupRoles">The <see cref="NamedGroupRole">named group roles</see> for which there should
         /// be at least one supported group. By default this is inferred from the offered cipher suites and signature
         /// algorithms.</param>
-        /// <returns>an <see cref="IList{T}"/> of <see cref="Int32"/>. See <see cref="NamedGroup"/> for group constants.
+        /// <returns>an <see cref="IList"/> of <see cref="Int32"/>. See <see cref="NamedGroup"/> for group constants.
         /// </returns>
-        protected virtual IList<int> GetSupportedGroups(IList<int> namedGroupRoles)
+        protected virtual IList GetSupportedGroups(IList namedGroupRoles)
         {
             TlsCrypto crypto = Crypto;
-            var supportedGroups = new List<int>();
+            IList supportedGroups = Platform.CreateArrayList();
 
             if (namedGroupRoles.Contains(NamedGroupRole.ecdh))
             {
@@ -168,27 +157,17 @@ namespace Org.BouncyCastle.Tls
             return supportedGroups;
         }
 
-        protected virtual IList<SignatureAndHashAlgorithm> GetSupportedSignatureAlgorithms()
+        protected virtual IList GetSupportedSignatureAlgorithms()
         {
             return TlsUtilities.GetDefaultSupportedSignatureAlgorithms(m_context);
         }
 
-        protected virtual IList<SignatureAndHashAlgorithm> GetSupportedSignatureAlgorithmsCert()
+        protected virtual IList GetSupportedSignatureAlgorithmsCert()
         {
             return null;
         }
 
-        protected virtual IList<TrustedAuthority> GetTrustedCAIndication()
-        {
-            return null;
-        }
-
-        protected virtual short[] GetAllowedClientCertificateTypes()
-        {
-            return null;
-        }
-
-        protected virtual short[] GetAllowedServerCertificateTypes()
+        protected virtual IList GetTrustedCAIndication()
         {
             return null;
         }
@@ -226,7 +205,7 @@ namespace Org.BouncyCastle.Tls
             return null;
         }
 
-        public virtual IList<TlsPskExternal> GetExternalPsks()
+        public virtual IList GetExternalPsks()
         {
             return null;
         }
@@ -242,19 +221,17 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public virtual IDictionary<int, byte[]> GetClientExtensions()
+        public virtual IDictionary GetClientExtensions()
         {
-            var clientExtensions = new Dictionary<int, byte[]>();
+            IDictionary clientExtensions = Platform.CreateHashtable();
 
             bool offeringTlsV13Plus = false;
             bool offeringPreTlsV13 = false;
-            bool offeringDtlsV12 = false;
             {
                 ProtocolVersion[] supportedVersions = GetProtocolVersions();
                 for (int i = 0; i < supportedVersions.Length; ++i)
                 {
-                    var supportedVersion = supportedVersions[i];
-                    if (TlsUtilities.IsTlsV13(supportedVersion))
+                    if (TlsUtilities.IsTlsV13(supportedVersions[i]))
                     {
                         offeringTlsV13Plus = true;
                     }
@@ -262,18 +239,16 @@ namespace Org.BouncyCastle.Tls
                     {
                         offeringPreTlsV13 = true;
                     }
-
-                    offeringDtlsV12 |= ProtocolVersion.DTLSv12.Equals(supportedVersion);
                 }
             }
 
-            var protocolNames = GetProtocolNames();
+            IList protocolNames = GetProtocolNames();
             if (protocolNames != null)
             {
                 TlsExtensionsUtilities.AddAlpnExtensionClient(clientExtensions, protocolNames);
             }
 
-            var sniServerNames = GetSniServerNames();
+            IList sniServerNames = GetSniServerNames();
             if (sniServerNames != null)
             {
                 TlsExtensionsUtilities.AddServerNameExtensionClient(clientExtensions, sniServerNames);
@@ -287,7 +262,7 @@ namespace Org.BouncyCastle.Tls
 
             if (offeringTlsV13Plus)
             {
-                var certificateAuthorities = GetCertificateAuthorities();
+                IList certificateAuthorities = GetCertificateAuthorities();
                 if (certificateAuthorities != null)
                 {
                     TlsExtensionsUtilities.AddCertificateAuthoritiesExtension(clientExtensions, certificateAuthorities);
@@ -299,13 +274,13 @@ namespace Org.BouncyCastle.Tls
                 // TODO Shouldn't add if no offered cipher suite uses a block cipher?
                 TlsExtensionsUtilities.AddEncryptThenMacExtension(clientExtensions);
 
-                var statusRequestV2 = GetMultiCertStatusRequest();
+                IList statusRequestV2 = GetMultiCertStatusRequest();
                 if (statusRequestV2 != null)
                 {
                     TlsExtensionsUtilities.AddStatusRequestV2Extension(clientExtensions, statusRequestV2);
                 }
 
-                var trustedCAKeys = GetTrustedCAIndication();
+                IList trustedCAKeys = GetTrustedCAIndication();
                 if (trustedCAKeys != null)
                 {
                     TlsExtensionsUtilities.AddTrustedCAKeysExtensionClient(clientExtensions, trustedCAKeys);
@@ -320,7 +295,7 @@ namespace Org.BouncyCastle.Tls
              */
             if (TlsUtilities.IsSignatureAlgorithmsExtensionAllowed(clientVersion))
             {
-                var supportedSigAlgs = GetSupportedSignatureAlgorithms();
+                IList supportedSigAlgs = GetSupportedSignatureAlgorithms();
                 if (null != supportedSigAlgs && supportedSigAlgs.Count > 0)
                 {
                     this.m_supportedSignatureAlgorithms = supportedSigAlgs;
@@ -328,7 +303,7 @@ namespace Org.BouncyCastle.Tls
                     TlsExtensionsUtilities.AddSignatureAlgorithmsExtension(clientExtensions, supportedSigAlgs);
                 }
 
-                var supportedSigAlgsCert = GetSupportedSignatureAlgorithmsCert();
+                IList supportedSigAlgsCert = GetSupportedSignatureAlgorithmsCert();
                 if (null != supportedSigAlgsCert && supportedSigAlgsCert.Count > 0)
                 {
                     this.m_supportedSignatureAlgorithmsCert = supportedSigAlgsCert;
@@ -337,9 +312,9 @@ namespace Org.BouncyCastle.Tls
                 }
             }
 
-            var namedGroupRoles = GetNamedGroupRoles();
+            IList namedGroupRoles = GetNamedGroupRoles();
 
-            var supportedGroups = GetSupportedGroups(namedGroupRoles);
+            IList supportedGroups = GetSupportedGroups(namedGroupRoles);
             if (supportedGroups != null && supportedGroups.Count > 0)
             {
                 this.m_supportedGroups = supportedGroups;
@@ -357,49 +332,10 @@ namespace Org.BouncyCastle.Tls
                 }
             }
 
-            {
-                /*
-                 * RFC 7250 4.1. If the client has no remaining certificate types to send in the client hello, other
-                 * than the default X.509 type, it MUST omit the client_certificate_type extension [..].
-                 */
-                short[] clientCertTypes = GetAllowedClientCertificateTypes();
-                if (clientCertTypes != null &&
-                    TlsUtilities.ContainsNot(clientCertTypes, 0, clientCertTypes.Length, CertificateType.X509))
-                {
-                    TlsExtensionsUtilities.AddClientCertificateTypeExtensionClient(clientExtensions, clientCertTypes);
-                }
-            }
-
-            {
-                /*
-                 * RFC 7250 4.1. If the client has no remaining certificate types to send in the client hello, other than
-                 * the default X.509 certificate type, it MUST omit the entire server_certificate_type extension [..].
-                 */
-                short[] serverCertTypes = GetAllowedServerCertificateTypes();
-                if (serverCertTypes != null &&
-                    TlsUtilities.ContainsNot(serverCertTypes, 0, serverCertTypes.Length, CertificateType.X509))
-                {
-                    TlsExtensionsUtilities.AddServerCertificateTypeExtensionClient(clientExtensions, serverCertTypes);
-                }
-            }
-
-            if (offeringDtlsV12)
-            {
-                /*
-                 * RFC 9146 3. When a DTLS session is resumed or renegotiated, the "connection_id" extension is
-                 * negotiated afresh.
-                 */
-                var clientConnectionID = GetNewConnectionID();
-                if (clientConnectionID != null)
-                {
-                    TlsExtensionsUtilities.AddConnectionIDExtension(clientExtensions, clientConnectionID);
-                }
-            }
-
             return clientExtensions;
         }
 
-        public virtual IList<int> GetEarlyKeyShareGroups()
+        public virtual IList GetEarlyKeyShareGroups()
         {
             /*
              * RFC 8446 4.2.8. Each KeyShareEntry value MUST correspond to a group offered in the
@@ -418,11 +354,6 @@ namespace Org.BouncyCastle.Tls
                 return TlsUtilities.VectorOfOne(NamedGroup.secp256r1);
 
             return TlsUtilities.VectorOfOne(m_supportedGroups[0]);
-        }
-
-        public virtual bool ShouldUseCompatibilityMode()
-        {
-            return true;
         }
 
         /// <exception cref="IOException"/>
@@ -448,7 +379,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public virtual void ProcessServerExtensions(IDictionary<int, byte[]> serverExtensions)
+        public virtual void ProcessServerExtensions(IDictionary serverExtensions)
         {
             if (null == serverExtensions)
                 return;
@@ -492,7 +423,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public virtual void ProcessServerSupplementalData(IList<SupplementalDataEntry> serverSupplementalData)
+        public virtual void ProcessServerSupplementalData(IList serverSupplementalData)
         {
             if (serverSupplementalData != null)
                 throw new TlsFatalAlert(AlertDescription.unexpected_message);
@@ -501,7 +432,7 @@ namespace Org.BouncyCastle.Tls
         public abstract TlsAuthentication GetAuthentication();
 
         /// <exception cref="IOException"/>
-        public virtual IList<SupplementalDataEntry> GetClientSupplementalData()
+        public virtual IList GetClientSupplementalData()
         {
             return null;
         }

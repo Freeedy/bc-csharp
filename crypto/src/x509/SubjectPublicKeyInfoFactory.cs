@@ -1,5 +1,6 @@
 using System;
 
+using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.CryptoPro;
 using Org.BouncyCastle.Asn1.EdEC;
@@ -9,7 +10,6 @@ using Org.BouncyCastle.Asn1.Rosstandart;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Utilities;
@@ -19,8 +19,12 @@ namespace Org.BouncyCastle.X509
     /// <summary>
     /// A factory to produce Public Key Info Objects.
     /// </summary>
-    public static class SubjectPublicKeyInfoFactory
+    public sealed class SubjectPublicKeyInfoFactory
     {
+        private SubjectPublicKeyInfoFactory()
+        {
+        }
+
         /// <summary>
         /// Create a Subject Public Key Info object for a given public key.
         /// </summary>
@@ -139,7 +143,7 @@ namespace Org.BouncyCastle.X509
                 if (_key.AlgorithmName == "ECGOST3410")
                 {
                     if (_key.PublicKeyParamSet == null)
-                        throw new NotImplementedException("Not a CryptoPro parameter set");
+                        throw Platform.CreateNotImplementedException("Not a CryptoPro parameter set");
 
                     ECPoint q = _key.Q.Normalize();
                     BigInteger bX = q.AffineXCoord.ToBigInteger();
@@ -164,8 +168,7 @@ namespace Org.BouncyCastle.X509
                     if (_key.PublicKeyParamSet == null)
                     {
                         ECDomainParameters kp = _key.Parameters;
-                        X9ECParameters ecP = new X9ECParameters(kp.Curve, new X9ECPoint(kp.G, false), kp.N, kp.H,
-                            kp.GetSeed());
+                        X9ECParameters ecP = new X9ECParameters(kp.Curve, kp.G, kp.N, kp.H, kp.GetSeed());
 
                         x962 = new X962Parameters(ecP);
                     }
@@ -174,17 +177,7 @@ namespace Org.BouncyCastle.X509
                         x962 = new X962Parameters(_key.PublicKeyParamSet);
                     }
 
-                    var q = _key.Q;
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                    int encodedLength = q.GetEncodedLength(false);
-                    Span<byte> pubKey = encodedLength <= 512
-                        ? stackalloc byte[encodedLength]
-                        : new byte[encodedLength];
-                    q.EncodeTo(false, pubKey);
-#else
-                    byte[] pubKey = q.GetEncoded(false);
-#endif
+                    byte[] pubKey = _key.Q.GetEncoded(false);
 
                     AlgorithmIdentifier algID = new AlgorithmIdentifier(
                         X9ObjectIdentifiers.IdECPublicKey, x962.ToAsn1Object());
@@ -198,7 +191,7 @@ namespace Org.BouncyCastle.X509
                 Gost3410PublicKeyParameters _key = (Gost3410PublicKeyParameters) publicKey;
 
                 if (_key.PublicKeyParamSet == null)
-                    throw new NotImplementedException("Not a CryptoPro parameter set");
+                    throw Platform.CreateNotImplementedException("Not a CryptoPro parameter set");
 
                 byte[] keyEnc = _key.Y.ToByteArrayUnsigned();
                 byte[] keyBytes = new byte[keyEnc.Length];
@@ -222,22 +215,14 @@ namespace Org.BouncyCastle.X509
             {
                 X448PublicKeyParameters key = (X448PublicKeyParameters)publicKey;
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                return new SubjectPublicKeyInfo(new AlgorithmIdentifier(EdECObjectIdentifiers.id_X448), key.DataSpan);
-#else
                 return new SubjectPublicKeyInfo(new AlgorithmIdentifier(EdECObjectIdentifiers.id_X448), key.GetEncoded());
-#endif
             }
 
             if (publicKey is X25519PublicKeyParameters)
             {
                 X25519PublicKeyParameters key = (X25519PublicKeyParameters)publicKey;
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                return new SubjectPublicKeyInfo(new AlgorithmIdentifier(EdECObjectIdentifiers.id_X25519), key.DataSpan);
-#else
                 return new SubjectPublicKeyInfo(new AlgorithmIdentifier(EdECObjectIdentifiers.id_X25519), key.GetEncoded());
-#endif
             }
 
             if (publicKey is Ed448PublicKeyParameters)

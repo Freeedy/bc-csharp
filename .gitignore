@@ -1,27 +1,25 @@
-*.coverage
-*.exe
-*.nupkg
 *.psess
 *.suo
 *.swp
 *.user
 *.userprefs
 *.vsp
+*.coverage
+*.exe
+*.nupkg
 
 Backup/
 bin/
 dist/
 doc/
 obj/
-packages/
+
 _Resharper.*/
 _Resharper*/
 *.ide/
-.idea/
-.store/
+packages/
 .vs/
-BC_codesign.p12
-BC_password.txt
+.store/
 
 *.nuget.props
 *.nuget.targets

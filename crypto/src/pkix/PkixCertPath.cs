@@ -1,15 +1,18 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
+using System.Text;
 
 using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.Pkcs;
+using Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Asn1.Pkcs;
+using Org.BouncyCastle.Cms;
+using Org.BouncyCastle.X509;
 using Org.BouncyCastle.OpenSsl;
 using Org.BouncyCastle.Security.Certificates;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
-using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Pkix
 {
@@ -78,25 +81,38 @@ namespace Org.BouncyCastle.Pkix
 	public class PkixCertPath
 //		: CertPath
 	{
-		private static readonly List<string> EncodingNames = new List<string>{ "PkiPath", "PEM", "PKCS7" };
+		internal static readonly IList certPathEncodings;
 
-        private readonly IList<X509Certificate> m_certificates;
+        static PkixCertPath()
+        {
+            IList encodings = Platform.CreateArrayList();
+            encodings.Add("PkiPath");
+            encodings.Add("PEM");
+            encodings.Add("PKCS7");
+            certPathEncodings = CollectionUtilities.ReadOnly(encodings);
+        }
 
-		private static IList<X509Certificate> SortCerts(IList<X509Certificate> certs)
+        private readonly IList certificates;
+
+		/**
+		 * @param certs
+		 */
+		private static IList SortCerts(
+			IList certs)
 		{
 			if (certs.Count < 2)
 				return certs;
 
-			X509Name issuer = certs[0].IssuerDN;
+			X509Name issuer = ((X509Certificate)certs[0]).IssuerDN;
 			bool okay = true;
 
 			for (int i = 1; i != certs.Count; i++)
 			{
-				X509Certificate cert = certs[i];
+				X509Certificate cert = (X509Certificate)certs[i];
 
 				if (issuer.Equivalent(cert.SubjectDN, true))
 				{
-					issuer = cert.IssuerDN;
+					issuer = ((X509Certificate)certs[i]).IssuerDN;
 				}
 				else
 				{
@@ -109,13 +125,13 @@ namespace Org.BouncyCastle.Pkix
 				return certs;
 
 			// find end-entity cert
-            var retList = new List<X509Certificate>(certs.Count);
-            var orig = new List<X509Certificate>(certs);
+            IList retList = Platform.CreateArrayList(certs.Count);
+            IList orig = Platform.CreateArrayList(certs);
 
 			for (int i = 0; i < certs.Count; i++)
 			{
-				X509Certificate cert = certs[i];
-				bool found = false;
+				X509Certificate cert = (X509Certificate)certs[i];
+				bool           found = false;
 
 				X509Name subject = cert.SubjectDN;
 				foreach (X509Certificate c in certs)
@@ -140,11 +156,11 @@ namespace Org.BouncyCastle.Pkix
 
 			for (int i = 0; i != retList.Count; i++)
 			{
-				issuer = retList[i].IssuerDN;
+				issuer = ((X509Certificate)retList[i]).IssuerDN;
 
 				for (int j = 0; j < certs.Count; j++)
 				{
-					X509Certificate c = certs[j];
+					X509Certificate c = (X509Certificate)certs[j];
 					if (issuer.Equivalent(c.SubjectDN, true))
 					{
 						retList.Add(c);
@@ -167,12 +183,15 @@ namespace Org.BouncyCastle.Pkix
 		 * a CertificateFactory to create CertPaths.
 		 * @param type the standard name of the type of Certificatesin this path
 		 **/
-		public PkixCertPath(IList<X509Certificate> certificates)
+		public PkixCertPath(
+			ICollection certificates)
+//			: base("X.509")
 		{
-			m_certificates = SortCerts(new List<X509Certificate>(certificates));
+			this.certificates = SortCerts(Platform.CreateArrayList(certificates));
 		}
 
-		public PkixCertPath(Stream inStream)
+		public PkixCertPath(
+			Stream inStream)
 			: this(inStream, "PkiPath")
 		{
 		}
@@ -184,33 +203,40 @@ namespace Org.BouncyCastle.Pkix
 		 *
 		 * @param type the standard name of the type of Certificatesin this path
 		 **/
-		public PkixCertPath(Stream inStream, string encoding)
+		public PkixCertPath(
+			Stream	inStream,
+			string	encoding)
+//			: base("X.509")
 		{
-            IList<X509Certificate> certs;
+            string upper = Platform.ToUpperInvariant(encoding);
+
+            IList certs;
 			try
 			{
-				if (Platform.EqualsIgnoreCase("PkiPath", encoding))
+				if (upper.Equals(Platform.ToUpperInvariant("PkiPath")))
 				{
-					using (var asn1In = new Asn1InputStream(inStream, int.MaxValue, leaveOpen: true))
+					Asn1InputStream derInStream = new Asn1InputStream(inStream);
+					Asn1Object derObject = derInStream.ReadObject();
+					if (!(derObject is Asn1Sequence))
 					{
-                        if (!(asn1In.ReadObject() is Asn1Sequence asn1Sequence))
-                        {
-                            throw new CertificateException(
-                                "input stream does not contain a ASN1 SEQUENCE while reading PkiPath encoded data to load CertPath");
-                        }
+						throw new CertificateException(
+							"input stream does not contain a ASN1 SEQUENCE while reading PkiPath encoded data to load CertPath");
+					}
 
-                        var certArray = asn1Sequence.MapElements(
-                            element => new X509Certificate(X509CertificateStructure.GetInstance(element.ToAsn1Object())));
+                    certs = Platform.CreateArrayList();
 
-                        Array.Reverse(certArray);
+                    foreach (Asn1Encodable ae in (Asn1Sequence)derObject)
+                    {
+                        byte[] derBytes = ae.GetEncoded(Asn1Encodable.Der);
+                        Stream certInStream = new MemoryStream(derBytes, false);
 
-                        certs = new List<X509Certificate>(certArray);
-                    }
-                }
-				else if (Platform.EqualsIgnoreCase("PEM", encoding) ||
-					     Platform.EqualsIgnoreCase("PKCS7", encoding))
+                        // TODO Is inserting at the front important (list will be sorted later anyway)?
+                        certs.Insert(0, new X509CertificateParser().ReadCertificate(certInStream));
+					}
+				}
+                else if (upper.Equals("PKCS7") || upper.Equals("PEM"))
 				{
-                    certs = new X509CertificateParser().ReadCertificates(inStream);
+                    certs = Platform.CreateArrayList(new X509CertificateParser().ReadCertificates(inStream));
 				}
 				else
 				{
@@ -224,7 +250,7 @@ namespace Org.BouncyCastle.Pkix
 					+ ex.ToString());
 			}
 
-			m_certificates = SortCerts(certs);
+			this.certificates = SortCerts(certs);
 		}
 
 		/**
@@ -235,9 +261,9 @@ namespace Org.BouncyCastle.Pkix
 		 *
 		 * @return an Iterator over the names of the supported encodings (as Strings)
 		 **/
-		public virtual IEnumerable<string> Encodings
+		public virtual IEnumerable Encodings
 		{
-            get { return CollectionUtilities.Proxy(EncodingNames); }
+            get { return new EnumerableProxy(certPathEncodings); }
 		}
 
 		/**
@@ -257,28 +283,36 @@ namespace Org.BouncyCastle.Pkix
 		*
 		* @see Object#hashCode() Object.hashCode()
 		*/
-		public override bool Equals(object obj)
+		public override bool Equals(
+			object obj)
 		{
 			if (this == obj)
 				return true;
 
-			if (!(obj is PkixCertPath that))
+			PkixCertPath other = obj as PkixCertPath;
+			if (other == null)
 				return false;
 
-			var thisCerts = this.Certificates;
-			var thatCerts = that.Certificates;
+//			if (!this.Type.Equals(other.Type))
+//				return false;
 
-			if (thisCerts.Count != thatCerts.Count)
+			//return this.Certificates.Equals(other.Certificates);
+
+			// TODO Extract this to a utility class
+			IList thisCerts = this.Certificates;
+			IList otherCerts = other.Certificates;
+
+			if (thisCerts.Count != otherCerts.Count)
 				return false;
 
-			var e1 = thisCerts.GetEnumerator();
-			var e2 = thatCerts.GetEnumerator();
+			IEnumerator e1 = thisCerts.GetEnumerator();
+			IEnumerator e2 = otherCerts.GetEnumerator();
 
 			while (e1.MoveNext())
 			{
 				e2.MoveNext();
 
-				if (!Equals(e1.Current, e2.Current))
+				if (!Platform.Equals(e1.Current, e2.Current))
 					return false;
 			}
 
@@ -287,7 +321,8 @@ namespace Org.BouncyCastle.Pkix
 
 		public override int GetHashCode()
 		{
-			return m_certificates.GetHashCode();
+			// FIXME?
+			return this.Certificates.GetHashCode();
 		}
 
 		/**
@@ -299,7 +334,14 @@ namespace Org.BouncyCastle.Pkix
 		 **/
 		public virtual byte[] GetEncoded()
 		{
-			return GetEncoded(EncodingNames[0]);
+			foreach (object enc in Encodings)
+			{
+				if (enc is string)
+				{
+					return GetEncoded((string)enc);
+				}
+			}
+			return null;
 		}
 
 		/**
@@ -312,51 +354,54 @@ namespace Org.BouncyCastle.Pkix
 		 * occurs or the encoding requested is not supported
 		 *
 		 */
-		public virtual byte[] GetEncoded(string encoding)
+		public virtual byte[] GetEncoded(
+			string encoding)
 		{
 			if (Platform.EqualsIgnoreCase(encoding, "PkiPath"))
 			{
-				Asn1EncodableVector v = new Asn1EncodableVector(m_certificates.Count);
-				for (int i = m_certificates.Count - 1; i >= 0; i--)
+				Asn1EncodableVector v = new Asn1EncodableVector();
+
+				for (int i = certificates.Count - 1; i >= 0; i--)
 				{
-					v.Add(ToAsn1Object(m_certificates[i]));
+					v.Add(ToAsn1Object((X509Certificate) certificates[i]));
 				}
 
 				return ToDerEncoded(new DerSequence(v));
 			}
             else if (Platform.EqualsIgnoreCase(encoding, "PKCS7"))
 			{
-				ContentInfo encInfo = new ContentInfo(PkcsObjectIdentifiers.Data, null);
+				Asn1.Pkcs.ContentInfo encInfo = new Asn1.Pkcs.ContentInfo(
+					PkcsObjectIdentifiers.Data, null);
 
-				Asn1EncodableVector v = new Asn1EncodableVector(m_certificates.Count);
-				foreach (var cert in m_certificates)
-                {
-                    v.Add(ToAsn1Object(cert));
-                }
+				Asn1EncodableVector v = new Asn1EncodableVector();
+				for (int i = 0; i != certificates.Count; i++)
+				{
+					v.Add(ToAsn1Object((X509Certificate)certificates[i]));
+				}
 
-                SignedData sd = new SignedData(
-					DerInteger.One,
+				Asn1.Pkcs.SignedData sd = new Asn1.Pkcs.SignedData(
+					new DerInteger(1),
 					new DerSet(),
 					encInfo,
-                    DerSet.FromVector(v),
+					new DerSet(v),
 					null,
 					new DerSet());
 
-				return ToDerEncoded(new ContentInfo(PkcsObjectIdentifiers.SignedData, sd));
+				return ToDerEncoded(new Asn1.Pkcs.ContentInfo(PkcsObjectIdentifiers.SignedData, sd));
 			}
             else if (Platform.EqualsIgnoreCase(encoding, "PEM"))
 			{
 				MemoryStream bOut = new MemoryStream();
+				PemWriter pWrt = new PemWriter(new StreamWriter(bOut));
 
 				try
 				{
-					using (var pWrt = new PemWriter(new StreamWriter(bOut)))
+					for (int i = 0; i != certificates.Count; i++)
 					{
-                        foreach (var cert in m_certificates)
-                        {
-                            pWrt.WriteObject(cert);
-                        }
-                    }
+						pWrt.WriteObject(certificates[i]);
+					}
+
+                    Platform.Dispose(pWrt.Writer);
 				}
 				catch (Exception)
 				{
@@ -375,9 +420,9 @@ namespace Org.BouncyCastle.Pkix
 		/// Returns the list of certificates in this certification
 		/// path.
 		/// </summary>
-		public virtual IList<X509Certificate> Certificates
+		public virtual IList Certificates
 		{
-            get { return CollectionUtilities.ReadOnly(m_certificates); }
+            get { return CollectionUtilities.ReadOnly(certificates); }
 		}
 
 		/**
@@ -387,11 +432,12 @@ namespace Org.BouncyCastle.Pkix
 		 *
 		 * @return the DERObject
 		 **/
-		private Asn1Object ToAsn1Object(X509Certificate cert)
+		private Asn1Object ToAsn1Object(
+			X509Certificate cert)
 		{
 			try
 			{
-				return cert.CertificateStructure.ToAsn1Object();
+				return Asn1Object.FromByteArray(cert.GetEncoded());
 			}
 			catch (Exception e)
 			{

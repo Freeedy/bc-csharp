@@ -1,8 +1,10 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
-using Org.BouncyCastle.X509;
+using Org.BouncyCastle.Utilities.Date;
+using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.Pkix
 {
@@ -10,6 +12,7 @@ namespace Org.BouncyCastle.Pkix
 	/// Summary description for PkixParameters.
 	/// </summary>
 	public class PkixParameters
+//		: ICertPathParameters
 	{
 		/**
 		* This is the default PKIX validity model. Actually there are two variants
@@ -36,29 +39,25 @@ namespace Org.BouncyCastle.Pkix
 		*/
 		public const int ChainValidityModel = 1;
 
-		private HashSet<TrustAnchor> trustAnchors;
-		private DateTime? date;
-		private List<PkixCertPathChecker> m_checkers;
+		private ISet trustAnchors;
+		private DateTimeObject date;
+		private IList certPathCheckers;
 		private bool revocationEnabled = true;
-		private HashSet<string> initialPolicies;
+		private ISet initialPolicies;
 		//private bool checkOnlyEECertificateCrl = false;
 		private bool explicitPolicyRequired = false;
 		private bool anyPolicyInhibited = false;
 		private bool policyMappingInhibited = false;
 		private bool policyQualifiersRejected = true;
-
-		private List<IStore<X509V2AttributeCertificate>> m_storesAttrCert;
-		private List<IStore<X509Certificate>> m_storesCert;
-		private List<IStore<X509Crl>> m_storesCrl;
-
-		private ISelector<X509V2AttributeCertificate> m_targetConstraintsAttrCert;
-		private ISelector<X509Certificate> m_targetConstraintsCert;
-
+		private IX509Selector certSelector;
+		private IList stores;
+		private IX509Selector selector;
 		private bool additionalLocationsEnabled;
-		private HashSet<TrustAnchor> trustedACIssuers;
-		private HashSet<string> necessaryACAttributes;
-		private HashSet<string> prohibitedACAttributes;
-		private HashSet<PkixAttrCertChecker> attrCertCheckers;
+		private IList additionalStores;
+		private ISet trustedACIssuers;
+		private ISet necessaryACAttributes;
+		private ISet prohibitedACAttributes;
+		private ISet attrCertCheckers;
 		private int validityModel = PkixValidityModel;
 		private bool useDeltas = false;
 
@@ -80,19 +79,19 @@ namespace Org.BouncyCastle.Pkix
 		 *                if any of the elements in the Set are not of type
 		 *                <code>java.security.cert.TrustAnchor</code>
 		 */
-		public PkixParameters(ISet<TrustAnchor> trustAnchors)
+		public PkixParameters(
+			ISet trustAnchors)
 		{
 			SetTrustAnchors(trustAnchors);
 
-			this.initialPolicies = new HashSet<string>();
-			this.m_checkers = new List<PkixCertPathChecker>();
-			this.m_storesAttrCert = new List<IStore<X509V2AttributeCertificate>>();
-			this.m_storesCert = new List<IStore<X509Certificate>>();
-			this.m_storesCrl = new List<IStore<X509Crl>>();
-			this.trustedACIssuers = new HashSet<TrustAnchor>();
-			this.necessaryACAttributes = new HashSet<string>();
-			this.prohibitedACAttributes = new HashSet<string>();
-			this.attrCertCheckers = new HashSet<PkixAttrCertChecker>();
+			this.initialPolicies = new HashSet();
+			this.certPathCheckers = Platform.CreateArrayList();
+            this.stores = Platform.CreateArrayList();
+			this.additionalStores = Platform.CreateArrayList();
+			this.trustedACIssuers = new HashSet();
+			this.necessaryACAttributes = new HashSet();
+			this.prohibitedACAttributes = new HashSet();
+			this.attrCertCheckers = new HashSet();
 		}
 
 //		// TODO implement for other keystores (see Java build)?
@@ -173,27 +172,30 @@ namespace Org.BouncyCastle.Pkix
 		//	set { this.checkOnlyEECertificateCrl = value; }
 		//}
 
-		public virtual DateTime? Date
+		public virtual DateTimeObject Date
 		{
 			get { return this.date; }
 			set { this.date = value; }
 		}
 
 		// Returns a Set of the most-trusted CAs.
-		public virtual ISet<TrustAnchor> GetTrustAnchors()
+		public virtual ISet GetTrustAnchors()
 		{
-			return new HashSet<TrustAnchor>(this.trustAnchors);
+			return new HashSet(this.trustAnchors);
 		}
 
 		// Sets the set of most-trusted CAs.
 		// Set is copied to protect against subsequent modifications.
-		public virtual void SetTrustAnchors(ISet<TrustAnchor> tas)
+		public virtual void SetTrustAnchors(
+			ISet tas)
 		{
 			if (tas == null)
-				throw new ArgumentNullException(nameof(tas));
+				throw new ArgumentNullException("value");
+			if (tas.IsEmpty)
+				throw new ArgumentException("non-empty set required", "value");
 
 			// Explicit copy to enforce type-safety
-			this.trustAnchors = new HashSet<TrustAnchor>();
+			this.trustAnchors = new HashSet();
 			foreach (TrustAnchor ta in tas)
 			{
 				if (ta != null)
@@ -201,60 +203,6 @@ namespace Org.BouncyCastle.Pkix
 					trustAnchors.Add(ta);
 				}
 			}
-
-            if (trustAnchors.Count < 1)
-                throw new ArgumentException("non-empty set required", nameof(tas));
-        }
-
-        /**
-		* Returns the required constraints on the target certificate or attribute
-		* certificate. The constraints are returned as an instance of
-		* <code>IX509Selector</code>. If <code>null</code>, no constraints are
-		* defined.
-		*
-		* <p>
-		* The target certificate in a PKIX path may be a certificate or an
-		* attribute certificate.
-		* </p><p>
-		* Note that the <code>IX509Selector</code> returned is cloned to protect
-		* against subsequent modifications.
-		* </p>
-		* @return a <code>IX509Selector</code> specifying the constraints on the
-		*         target certificate or attribute certificate (or <code>null</code>)
-		* @see #setTargetConstraints
-		* @see X509CertStoreSelector
-		* @see X509AttributeCertStoreSelector
-		*/
-		public virtual ISelector<X509V2AttributeCertificate> GetTargetConstraintsAttrCert()
-		{
-			return (ISelector<X509V2AttributeCertificate>)m_targetConstraintsAttrCert?.Clone();
-		}
-
-		/**
-		* Sets the required constraints on the target certificate or attribute
-		* certificate. The constraints are specified as an instance of
-		* <code>IX509Selector</code>. If <code>null</code>, no constraints are
-		* defined.
-		* <p>
-		* The target certificate in a PKIX path may be a certificate or an
-		* attribute certificate.
-		* </p><p>
-		* Note that the <code>IX509Selector</code> specified is cloned to protect
-		* against subsequent modifications.
-		* </p>
-		*
-		* @param selector a <code>IX509Selector</code> specifying the constraints on
-		*            the target certificate or attribute certificate (or
-		*            <code>null</code>)
-		* @see #getTargetConstraints
-		* @see X509CertStoreSelector
-		* @see X509AttributeCertStoreSelector
-		*/
-		public virtual void SetTargetConstraintsAttrCert(
-			ISelector<X509V2AttributeCertificate> targetConstraintsAttrCert)
-		{
-			this.m_targetConstraintsAttrCert = (ISelector<X509V2AttributeCertificate>)
-				targetConstraintsAttrCert?.Clone();
 		}
 
 		/**
@@ -270,9 +218,14 @@ namespace Org.BouncyCastle.Pkix
 		*
 		* @see #setTargetCertConstraints(CertSelector)
 		*/
-		public virtual ISelector<X509Certificate> GetTargetConstraintsCert()
+		public virtual X509CertStoreSelector GetTargetCertConstraints()
 		{
-			return (ISelector<X509Certificate>)m_targetConstraintsCert?.Clone();
+			if (certSelector == null)
+			{
+				return null;
+			}
+
+			return (X509CertStoreSelector)certSelector.Clone();
 		}
 
 		/**
@@ -289,9 +242,17 @@ namespace Org.BouncyCastle.Pkix
 		 *
 		 * @see #getTargetCertConstraints()
 		 */
-		public virtual void SetTargetConstraintsCert(ISelector<X509Certificate> targetConstraintsCert)
+		public virtual void SetTargetCertConstraints(
+			IX509Selector selector)
 		{
-			m_targetConstraintsCert = (ISelector<X509Certificate>)targetConstraintsCert?.Clone();
+			if (selector == null)
+			{
+				certSelector = null;
+			}
+			else
+			{
+				certSelector = (IX509Selector)selector.Clone();
+			}
 		}
 
 		/**
@@ -307,13 +268,17 @@ namespace Org.BouncyCastle.Pkix
 		*
 		* @see #setInitialPolicies(java.util.Set)
 		*/
-		public virtual ISet<string> GetInitialPolicies()
+		public virtual ISet GetInitialPolicies()
 		{
+			ISet returnSet = initialPolicies;
+
 			// TODO Can it really be null?
 			if (initialPolicies == null)
-				return new HashSet<string>();
+			{
+				returnSet = new HashSet();
+			}
 
-			return new HashSet<string>(initialPolicies);
+			return new HashSet(returnSet);
 		}
 
 		/**
@@ -337,9 +302,10 @@ namespace Org.BouncyCastle.Pkix
 		*
 		* @see #getInitialPolicies()
 		*/
-		public virtual void SetInitialPolicies(ISet<string> initialPolicies)
+		public virtual void SetInitialPolicies(
+			ISet initialPolicies)
 		{
-			this.initialPolicies = new HashSet<string>();
+			this.initialPolicies = new HashSet();
 			if (initialPolicies != null)
 			{
 				foreach (string obj in initialPolicies)
@@ -387,15 +353,14 @@ namespace Org.BouncyCastle.Pkix
 		*                <code>java.security.cert.PKIXCertPathChecker</code>
 		* @see #getCertPathCheckers()
 		*/
-		public virtual void SetCertPathCheckers(IList<PkixCertPathChecker> checkers)
+		public virtual void SetCertPathCheckers(IList checkers)
 		{
-			m_checkers = new List<PkixCertPathChecker>();
-
+            certPathCheckers = Platform.CreateArrayList();
 			if (checkers != null)
 			{
-				foreach (var checker in checkers)
+				foreach (PkixCertPathChecker obj in checkers)
 				{
-					m_checkers.Add((PkixCertPathChecker)checker.Clone());
+					certPathCheckers.Add(obj.Clone());
 				}
 			}
 		}
@@ -409,14 +374,14 @@ namespace Org.BouncyCastle.Pkix
 		 *
 		 * @see #setCertPathCheckers(java.util.List)
 		 */
-		public virtual IList<PkixCertPathChecker> GetCertPathCheckers()
+		public virtual IList GetCertPathCheckers()
 		{
-			var result = new List<PkixCertPathChecker>(m_checkers.Count);
-			foreach (var checker in m_checkers)
-            {
-				result.Add((PkixCertPathChecker)checker.Clone());
+			IList checkers = Platform.CreateArrayList();
+			foreach (PkixCertPathChecker obj in certPathCheckers)
+			{
+				checkers.Add(obj.Clone());
 			}
-			return result;
+			return checkers;
 		}
 
 		/**
@@ -430,11 +395,12 @@ namespace Org.BouncyCastle.Pkix
 		 * @param checker a <code>PKIXCertPathChecker</code> to add to the list of
 		 * checks. If <code>null</code>, the checker is ignored (not added to list).
 		 */
-		public virtual void AddCertPathChecker(PkixCertPathChecker checker)
+		public virtual void AddCertPathChecker(
+			PkixCertPathChecker checker)
 		{
 			if (checker != null)
 			{
-				m_checkers.Add((PkixCertPathChecker)checker.Clone());
+				certPathCheckers.Add(checker.Clone());
 			}
 		}
 
@@ -481,7 +447,8 @@ namespace Org.BouncyCastle.Pkix
 		* @param params Parameters to set. If this are
 		*            <code>ExtendedPkixParameters</code> they are copied to.
 		*/
-		protected virtual void SetParams(PkixParameters parameters)
+		protected virtual void SetParams(
+			PkixParameters parameters)
 		{
 			Date = parameters.Date;
 			SetCertPathCheckers(parameters.GetCertPathCheckers());
@@ -491,22 +458,20 @@ namespace Org.BouncyCastle.Pkix
 			IsRevocationEnabled = parameters.IsRevocationEnabled;
 			SetInitialPolicies(parameters.GetInitialPolicies());
 			IsPolicyQualifiersRejected = parameters.IsPolicyQualifiersRejected;
+			SetTargetCertConstraints(parameters.GetTargetCertConstraints());
 			SetTrustAnchors(parameters.GetTrustAnchors());
-
-			m_storesAttrCert = new List<IStore<X509V2AttributeCertificate>>(parameters.m_storesAttrCert);
-			m_storesCert = new List<IStore<X509Certificate>>(parameters.m_storesCert);
-			m_storesCrl = new List<IStore<X509Crl>>(parameters.m_storesCrl);
-
-			SetTargetConstraintsAttrCert(parameters.GetTargetConstraintsAttrCert());
-			SetTargetConstraintsCert(parameters.GetTargetConstraintsCert());
 
 			validityModel = parameters.validityModel;
 			useDeltas = parameters.useDeltas;
 			additionalLocationsEnabled = parameters.additionalLocationsEnabled;
-			trustedACIssuers = new HashSet<TrustAnchor>(parameters.trustedACIssuers);
-			prohibitedACAttributes = new HashSet<string>(parameters.prohibitedACAttributes);
-			necessaryACAttributes = new HashSet<string>(parameters.necessaryACAttributes);
-			attrCertCheckers = new HashSet<PkixAttrCertChecker>(parameters.attrCertCheckers);
+			selector = parameters.selector == null ? null
+				: (IX509Selector) parameters.selector.Clone();
+			stores = Platform.CreateArrayList(parameters.stores);
+            additionalStores = Platform.CreateArrayList(parameters.additionalStores);
+			trustedACIssuers = new HashSet(parameters.trustedACIssuers);
+			prohibitedACAttributes = new HashSet(parameters.prohibitedACAttributes);
+			necessaryACAttributes = new HashSet(parameters.necessaryACAttributes);
+			attrCertCheckers = new HashSet(parameters.attrCertCheckers);
 		}
 
 		/**
@@ -530,85 +495,115 @@ namespace Org.BouncyCastle.Pkix
 			set { validityModel = value; }
 		}
 
-		public virtual IList<IStore<X509V2AttributeCertificate>> GetStoresAttrCert()
+		/**
+		* Sets the Bouncy Castle Stores for finding CRLs, certificates, attribute
+		* certificates or cross certificates.
+		* <p>
+		* The <code>IList</code> is cloned.
+		* </p>
+		*
+		* @param stores A list of stores to use.
+		* @see #getStores
+		* @throws ClassCastException if an element of <code>stores</code> is not
+		*             a {@link Store}.
+		*/
+		public virtual void SetStores(
+			IList stores)
 		{
-			return new List<IStore<X509V2AttributeCertificate>>(m_storesAttrCert);
-		}
-
-		public virtual IList<IStore<X509Certificate>> GetStoresCert()
-		{
-			return new List<IStore<X509Certificate>>(m_storesCert);
-		}
-
-		public virtual IList<IStore<X509Crl>> GetStoresCrl()
-		{
-			return new List<IStore<X509Crl>>(m_storesCrl);
-		}
-
-		[Obsolete("Use 'SetStoresAttrCert' instead")]
-		public virtual void SetAttrStoresCert(IList<IStore<X509V2AttributeCertificate>> storesAttrCert)
-		{
-			SetStoresAttrCert(storesAttrCert);
-		}
-
-        public virtual void SetStoresAttrCert(IList<IStore<X509V2AttributeCertificate>> storesAttrCert)
-        {
-            if (storesAttrCert == null)
-            {
-                m_storesAttrCert = new List<IStore<X509V2AttributeCertificate>>();
-            }
-            else
-            {
-                m_storesAttrCert = new List<IStore<X509V2AttributeCertificate>>(storesAttrCert);
-            }
-        }
-
-        public virtual void SetStoresCert(IList<IStore<X509Certificate>> storesCert)
-		{
-			if (storesCert == null)
+			if (stores == null)
 			{
-				m_storesCert = new List<IStore<X509Certificate>>();
+                this.stores = Platform.CreateArrayList();
 			}
 			else
 			{
-				m_storesCert = new List<IStore<X509Certificate>>(storesCert);
+				foreach (object obj in stores)
+				{
+					if (!(obj is IX509Store))
+					{
+						throw new InvalidCastException(
+							"All elements of list must be of type " + typeof(IX509Store).FullName);
+					}
+				}
+                this.stores = Platform.CreateArrayList(stores);
 			}
 		}
 
-		public virtual void SetStoresCrl(IList<IStore<X509Crl>> storesCrl)
+		/**
+		* Adds a Bouncy Castle {@link Store} to find CRLs, certificates, attribute
+		* certificates or cross certificates.
+		* <p>
+		* This method should be used to add local stores, like collection based
+		* X.509 stores, if available. Local stores should be considered first,
+		* before trying to use additional (remote) locations, because they do not
+		* need possible additional network traffic.
+		* </p><p>
+		* If <code>store</code> is <code>null</code> it is ignored.
+		* </p>
+		*
+		* @param store The store to add.
+		* @see #getStores
+		*/
+		public virtual void AddStore(
+			IX509Store store)
 		{
-			if (storesCrl == null)
+			if (store != null)
 			{
-				m_storesCrl = new List<IStore<X509Crl>>();
-			}
-			else
-			{
-				m_storesCrl = new List<IStore<X509Crl>>(storesCrl);
+				stores.Add(store);
 			}
 		}
 
-		public virtual void AddStoreAttrCert(IStore<X509V2AttributeCertificate> storeAttrCert)
+		/**
+		* Adds an additional Bouncy Castle {@link Store} to find CRLs, certificates,
+		* attribute certificates or cross certificates.
+		* <p>
+		* You should not use this method. This method is used for adding additional
+		* X.509 stores, which are used to add (remote) locations, e.g. LDAP, found
+		* during X.509 object processing, e.g. in certificates or CRLs. This method
+		* is used in PKIX certification path processing.
+		* </p><p>
+		* If <code>store</code> is <code>null</code> it is ignored.
+		* </p>
+		*
+		* @param store The store to add.
+		* @see #getStores()
+		*/
+		public virtual void AddAdditionalStore(
+			IX509Store store)
 		{
-			if (storeAttrCert != null)
+			if (store != null)
 			{
-				m_storesAttrCert.Add(storeAttrCert);
+				additionalStores.Add(store);
 			}
 		}
 
-		public virtual void AddStoreCert(IStore<X509Certificate> storeCert)
+		/**
+		* Returns an <code>IList</code> of additional Bouncy Castle
+		* <code>Store</code>s used for finding CRLs, certificates, attribute
+		* certificates or cross certificates.
+		*
+		* @return an immutable <code>IList</code> of additional Bouncy Castle
+		*         <code>Store</code>s. Never <code>null</code>.
+		*
+		* @see #addAddionalStore(Store)
+		*/
+		public virtual IList GetAdditionalStores()
 		{
-			if (storeCert != null)
-			{
-				m_storesCert.Add(storeCert);
-			}
+            return Platform.CreateArrayList(additionalStores);
 		}
 
-		public virtual void AddStoreCrl(IStore<X509Crl> storeCrl)
+		/**
+		* Returns an <code>IList</code> of Bouncy Castle
+		* <code>Store</code>s used for finding CRLs, certificates, attribute
+		* certificates or cross certificates.
+		*
+		* @return an immutable <code>IList</code> of Bouncy Castle
+		*         <code>Store</code>s. Never <code>null</code>.
+		*
+		* @see #setStores(IList)
+		*/
+		public virtual IList GetStores()
 		{
-			if (storeCrl != null)
-			{
-				m_storesCrl.Add(storeCrl);
-			}
+            return Platform.CreateArrayList(stores);
 		}
 
 		/**
@@ -628,9 +623,73 @@ namespace Org.BouncyCastle.Pkix
 		*
 		* @param enabled <code>true</code> if additional stores are used.
 		*/
-		public virtual void SetAdditionalLocationsEnabled(bool enabled)
+		public virtual void SetAdditionalLocationsEnabled(
+			bool enabled)
 		{
 			additionalLocationsEnabled = enabled;
+		}
+
+		/**
+		* Returns the required constraints on the target certificate or attribute
+		* certificate. The constraints are returned as an instance of
+		* <code>IX509Selector</code>. If <code>null</code>, no constraints are
+		* defined.
+		*
+		* <p>
+		* The target certificate in a PKIX path may be a certificate or an
+		* attribute certificate.
+		* </p><p>
+		* Note that the <code>IX509Selector</code> returned is cloned to protect
+		* against subsequent modifications.
+		* </p>
+		* @return a <code>IX509Selector</code> specifying the constraints on the
+		*         target certificate or attribute certificate (or <code>null</code>)
+		* @see #setTargetConstraints
+		* @see X509CertStoreSelector
+		* @see X509AttributeCertStoreSelector
+		*/
+		public virtual IX509Selector GetTargetConstraints()
+		{
+			if (selector != null)
+			{
+				return (IX509Selector) selector.Clone();
+			}
+			else
+			{
+				return null;
+			}
+		}
+
+		/**
+		* Sets the required constraints on the target certificate or attribute
+		* certificate. The constraints are specified as an instance of
+		* <code>IX509Selector</code>. If <code>null</code>, no constraints are
+		* defined.
+		* <p>
+		* The target certificate in a PKIX path may be a certificate or an
+		* attribute certificate.
+		* </p><p>
+		* Note that the <code>IX509Selector</code> specified is cloned to protect
+		* against subsequent modifications.
+		* </p>
+		*
+		* @param selector a <code>IX509Selector</code> specifying the constraints on
+		*            the target certificate or attribute certificate (or
+		*            <code>null</code>)
+		* @see #getTargetConstraints
+		* @see X509CertStoreSelector
+		* @see X509AttributeCertStoreSelector
+		*/
+		public virtual void SetTargetConstraints(IX509Selector selector)
+		{
+			if (selector != null)
+			{
+				this.selector = (IX509Selector) selector.Clone();
+			}
+			else
+			{
+				this.selector = null;
+			}
 		}
 
 		/**
@@ -644,9 +703,9 @@ namespace Org.BouncyCastle.Pkix
 		*
 		* @return Returns an immutable set of the trusted AC issuers.
 		*/
-		public virtual ISet<TrustAnchor> GetTrustedACIssuers()
+		public virtual ISet GetTrustedACIssuers()
 		{
-			return new HashSet<TrustAnchor>(trustedACIssuers);
+			return new HashSet(trustedACIssuers);
 		}
 
 		/**
@@ -664,15 +723,24 @@ namespace Org.BouncyCastle.Pkix
 		* @throws ClassCastException if an element of <code>stores</code> is not
 		*             a <code>TrustAnchor</code>.
 		*/
-		public virtual void SetTrustedACIssuers(ISet<TrustAnchor> trustedACIssuers)
+		public virtual void SetTrustedACIssuers(
+			ISet trustedACIssuers)
 		{
 			if (trustedACIssuers == null)
 			{
-				this.trustedACIssuers = new HashSet<TrustAnchor>();
+				this.trustedACIssuers = new HashSet();
 			}
 			else
 			{
-				this.trustedACIssuers = new HashSet<TrustAnchor>(trustedACIssuers);
+				foreach (object obj in trustedACIssuers)
+				{
+					if (!(obj is TrustAnchor))
+					{
+						throw new InvalidCastException("All elements of set must be "
+							+ "of type " + typeof(TrustAnchor).FullName + ".");
+					}
+				}
+				this.trustedACIssuers = new HashSet(trustedACIssuers);
 			}
 		}
 
@@ -686,9 +754,9 @@ namespace Org.BouncyCastle.Pkix
 		*
 		* @return Returns the necessary AC attributes.
 		*/
-		public virtual ISet<string> GetNecessaryACAttributes()
+		public virtual ISet GetNecessaryACAttributes()
 		{
-			return new HashSet<string>(necessaryACAttributes);
+			return new HashSet(necessaryACAttributes);
 		}
 
 		/**
@@ -705,15 +773,24 @@ namespace Org.BouncyCastle.Pkix
 		*             <code>necessaryACAttributes</code> is not a
 		*             <code>String</code>.
 		*/
-		public virtual void SetNecessaryACAttributes(ISet<string> necessaryACAttributes)
+		public virtual void SetNecessaryACAttributes(
+			ISet necessaryACAttributes)
 		{
 			if (necessaryACAttributes == null)
 			{
-				this.necessaryACAttributes = new HashSet<string>();
+				this.necessaryACAttributes = new HashSet();
 			}
 			else
 			{
-				this.necessaryACAttributes = new HashSet<string>(necessaryACAttributes);
+				foreach (object obj in necessaryACAttributes)
+				{
+					if (!(obj is string))
+					{
+						throw new InvalidCastException("All elements of set must be "
+							+ "of type string.");
+					}
+				}
+				this.necessaryACAttributes = new HashSet(necessaryACAttributes);
 			}
 		}
 
@@ -726,9 +803,9 @@ namespace Org.BouncyCastle.Pkix
 		*
 		* @return Returns the prohibited AC attributes. Is never <code>null</code>.
 		*/
-		public virtual ISet<string> GetProhibitedACAttributes()
+		public virtual ISet GetProhibitedACAttributes()
 		{
-			return new HashSet<string>(prohibitedACAttributes);
+			return new HashSet(prohibitedACAttributes);
 		}
 
 		/**
@@ -745,15 +822,24 @@ namespace Org.BouncyCastle.Pkix
 		*             <code>prohibitedACAttributes</code> is not a
 		*             <code>String</code>.
 		*/
-		public virtual void SetProhibitedACAttributes(ISet<string> prohibitedACAttributes)
+		public virtual void SetProhibitedACAttributes(
+			ISet prohibitedACAttributes)
 		{
 			if (prohibitedACAttributes == null)
 			{
-				this.prohibitedACAttributes = new HashSet<string>();
+				this.prohibitedACAttributes = new HashSet();
 			}
 			else
 			{
-				this.prohibitedACAttributes = new HashSet<string>(prohibitedACAttributes);
+				foreach (object obj in prohibitedACAttributes)
+				{
+					if (!(obj is String))
+					{
+						throw new InvalidCastException("All elements of set must be "
+							+ "of type string.");
+					}
+				}
+				this.prohibitedACAttributes = new HashSet(prohibitedACAttributes);
 			}
 		}
 
@@ -764,9 +850,9 @@ namespace Org.BouncyCastle.Pkix
 		* @return Returns the attribute certificate checker. Is never
 		*         <code>null</code>.
 		*/
-		public virtual ISet<PkixAttrCertChecker> GetAttrCertCheckers()
+		public virtual ISet GetAttrCertCheckers()
 		{
-			return new HashSet<PkixAttrCertChecker>(attrCertCheckers);
+			return new HashSet(attrCertCheckers);
 		}
 
 		/**
@@ -783,15 +869,24 @@ namespace Org.BouncyCastle.Pkix
 		* @throws ClassCastException if an element of <code>attrCertCheckers</code>
 		*             is not a <code>PKIXAttrCertChecker</code>.
 		*/
-		public virtual void SetAttrCertCheckers(ISet<PkixAttrCertChecker> attrCertCheckers)
+		public virtual void SetAttrCertCheckers(
+			ISet attrCertCheckers)
 		{
 			if (attrCertCheckers == null)
 			{
-				this.attrCertCheckers = new HashSet<PkixAttrCertChecker>();
+				this.attrCertCheckers = new HashSet();
 			}
 			else
 			{
-				this.attrCertCheckers = new HashSet<PkixAttrCertChecker>(attrCertCheckers);
+				foreach (object obj in attrCertCheckers)
+				{
+					if (!(obj is PkixAttrCertChecker))
+					{
+						throw new InvalidCastException("All elements of set must be "
+							+ "of type " + typeof(PkixAttrCertChecker).FullName + ".");
+					}
+				}
+				this.attrCertCheckers = new HashSet(attrCertCheckers);
 			}
 		}
 	}

@@ -21,89 +21,47 @@ namespace Org.BouncyCastle.Asn1
 
         public static Asn1TaggedObject GetInstance(object obj)
 		{
-            if (obj == null)
-                return null;
-
-            if (obj is Asn1TaggedObject asn1TaggedObject)
-                return asn1TaggedObject;
-
-            if (obj is IAsn1Convertible asn1Convertible)
+            if (obj == null || obj is Asn1TaggedObject) 
             {
-                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is Asn1TaggedObject converted)
-                    return converted;
+                return (Asn1TaggedObject)obj;
             }
-            else if (obj is byte[] bytes)
+            //else if (obj is Asn1TaggedObjectParser)
+            else if (obj is IAsn1Convertible)
+            {
+                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
+                if (asn1Object is Asn1TaggedObject)
+                    return (Asn1TaggedObject)asn1Object;
+            }
+            else if (obj is byte[])
             {
                 try
                 {
-                    return CheckedCast(FromByteArray(bytes));
+                    return CheckedCast(FromByteArray((byte[])obj));
                 }
                 catch (IOException e)
                 {
-                    throw new ArgumentException("failed to construct tagged object from byte[]", nameof(obj), e);
+                    throw new ArgumentException("failed to construct tagged object from byte[]: " + e.Message);
                 }
             }
 
-            throw new ArgumentException("illegal object in GetInstance: " + Platform.GetTypeName(obj), nameof(obj));
+            throw new ArgumentException("illegal object in GetInstance: " + Platform.GetTypeName(obj), "obj");
 		}
-
-        public static Asn1TaggedObject GetInstance(object obj, int tagClass)
-        {
-            return Asn1Utilities.CheckTagClass(CheckInstance(obj), tagClass);
-        }
-
-        public static Asn1TaggedObject GetInstance(object obj, int tagClass, int tagNo)
-        {
-            return Asn1Utilities.CheckTag(CheckInstance(obj), tagClass, tagNo);
-        }
 
         public static Asn1TaggedObject GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
-            return Asn1Utilities.GetExplicitContextBaseTagged(CheckInstance(taggedObject, declaredExplicit));
+            if (Asn1Tags.ContextSpecific != taggedObject.TagClass)
+                throw new InvalidOperationException("this method only valid for CONTEXT_SPECIFIC tags");
+
+            if (declaredExplicit)
+                return taggedObject.GetExplicitBaseTagged();
+
+            throw new ArgumentException("this method not valid for implicitly tagged tagged objects");
         }
 
-        public static Asn1TaggedObject GetInstance(Asn1TaggedObject taggedObject, int tagClass, bool declaredExplicit)
-        {
-            return Asn1Utilities.GetExplicitBaseTagged(CheckInstance(taggedObject, declaredExplicit), tagClass);
-        }
-
-        public static Asn1TaggedObject GetInstance(Asn1TaggedObject taggedObject, int tagClass, int tagNo,
-            bool declaredExplicit)
-        {
-            return Asn1Utilities.GetExplicitBaseTagged(CheckInstance(taggedObject, declaredExplicit), tagClass, tagNo);
-        }
-
-        public static Asn1TaggedObject GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is Asn1TaggedObject existing)
-                return existing;
-
-            return null;
-        }
-
-        public static Asn1TaggedObject GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            CheckInstance(taggedObject, declaredExplicit).GetExplicitBaseTagged();
-
-        private static Asn1TaggedObject CheckInstance(object obj)
-        {
-            return GetInstance(obj ?? throw new ArgumentNullException(nameof(obj)));
-        }
-
-        private static Asn1TaggedObject CheckInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            if (!declaredExplicit)
-                throw new ArgumentException("this method not valid for implicitly tagged tagged objects");
-
-            return taggedObject ?? throw new ArgumentNullException(nameof(taggedObject));
-        }
-
-        internal readonly int m_explicitness;
-        internal readonly int m_tagClass;
-        internal readonly int m_tagNo;
-        internal readonly Asn1Encodable m_object;
+        internal readonly int explicitness;
+        internal readonly int tagClass;
+        internal readonly int tagNo;
+        internal readonly Asn1Encodable obj;
 
 		/**
          * @param explicitly true if the object is explicitly tagged.
@@ -123,23 +81,26 @@ namespace Org.BouncyCastle.Asn1
         internal Asn1TaggedObject(int explicitness, int tagClass, int tagNo, Asn1Encodable obj)
         {
             if (null == obj)
-                throw new ArgumentNullException(nameof(obj));
+                throw new ArgumentNullException("obj");
             if (Asn1Tags.Universal == tagClass || (tagClass & Asn1Tags.Private) != tagClass)
-                throw new ArgumentException("invalid tag class: " + tagClass, nameof(tagClass));
+                throw new ArgumentException("invalid tag class: " + tagClass, "tagClass");
 
-            m_explicitness = obj is IAsn1Choice ? DeclaredExplicit : explicitness;
-            m_tagClass = tagClass;
-            m_tagNo = tagNo;
-            m_object = obj;
+            this.explicitness = (obj is IAsn1Choice) ? DeclaredExplicit : explicitness;
+            this.tagClass = tagClass;
+            this.tagNo = tagNo;
+            this.obj = obj;
         }
 
         protected override bool Asn1Equals(Asn1Object asn1Object)
         {
+            if (asn1Object is DerApplicationSpecific)
+                return asn1Object.CallAsn1Equals(this);
+
             Asn1TaggedObject that = asn1Object as Asn1TaggedObject;
-            if (null == that || this.m_tagNo != that.m_tagNo || this.m_tagClass != that.m_tagClass)
+            if (null == that || this.tagNo != that.tagNo || this.tagClass != that.tagClass)
                 return false;
 
-            if (this.m_explicitness != that.m_explicitness)
+            if (this.explicitness != that.explicitness)
             {
                 /*
                  * TODO This seems incorrect for some cases of implicit tags e.g. if one is a
@@ -149,8 +110,8 @@ namespace Org.BouncyCastle.Asn1
                     return false;
             }
 
-            Asn1Object p1 = this.m_object.ToAsn1Object();
-            Asn1Object p2 = that.m_object.ToAsn1Object();
+            Asn1Object p1 = this.obj.ToAsn1Object();
+            Asn1Object p2 = that.obj.ToAsn1Object();
 
             if (p1 == p2)
                 return true;
@@ -175,31 +136,33 @@ namespace Org.BouncyCastle.Asn1
 
 		protected override int Asn1GetHashCode()
 		{
-            return (m_tagClass * 7919) ^ m_tagNo ^ (IsExplicit() ? 0x0F : 0xF0) ^ m_object.ToAsn1Object().CallAsn1GetHashCode();
+            return (tagClass * 7919) ^ tagNo ^ (IsExplicit() ? 0x0F : 0xF0) ^ obj.ToAsn1Object().CallAsn1GetHashCode();
         }
 
-        public int TagClass => m_tagClass;
-
-        public int TagNo => m_tagNo;
-
-        public bool HasContextTag()
+        public int TagClass
         {
-            return m_tagClass == Asn1Tags.ContextSpecific;
+            get { return tagClass; }
+        }
+
+		public int TagNo
+        {
+			get { return tagNo; }
         }
 
         public bool HasContextTag(int tagNo)
         {
-            return m_tagClass == Asn1Tags.ContextSpecific && m_tagNo == tagNo;
+            return this.tagClass == Asn1Tags.ContextSpecific && this.tagNo == tagNo;
         }
 
         public bool HasTag(int tagClass, int tagNo)
         {
-            return m_tagClass == tagClass && m_tagNo == tagNo;
+            return this.tagClass == tagClass && this.tagNo == tagNo;
         }
 
-        public bool HasTagClass(int tagClass)
+        [Obsolete("Will be removed. Replace with constant return value of 'false'")]
+        public bool IsEmpty()
         {
-            return m_tagClass == tagClass;
+            return false;
         }
 
         /**
@@ -214,7 +177,7 @@ namespace Org.BouncyCastle.Asn1
         public bool IsExplicit()
         {
             // TODO New methods like 'IsKnownExplicit' etc. to distinguish uncertain cases?
-            switch (m_explicitness)
+            switch (explicitness)
             {
             case DeclaredExplicit:
             case ParsedExplicit:
@@ -226,7 +189,7 @@ namespace Org.BouncyCastle.Asn1
 
         internal bool IsParsed()
         {
-            switch (m_explicitness)
+            switch (explicitness)
             {
             case ParsedExplicit:
             case ParsedImplicit:
@@ -236,42 +199,99 @@ namespace Org.BouncyCastle.Asn1
             }
         }
 
-        /// <summary>Return whatever was following the tag.</summary>
-        /// <remarks>
-        /// Tagged objects are generally context dependent. If you're trying to extract a tagged object you should be
-        /// going via the appropriate GetInstance method.
-        /// </remarks>
-        [Obsolete("Will be removed")]
+        /**
+         * Return the contents of this object as a byte[]
+         *
+         * @return the encoded contents of the object.
+         */
+        // TODO Need this public if/when DerApplicationSpecific extends Asn1TaggedObject
+        internal byte[] GetContents()
+        {
+            try
+            {
+                byte[] baseEncoding = obj.GetEncoded(Asn1Encoding);
+                if (IsExplicit())
+                    return baseEncoding;
+
+                MemoryStream input = new MemoryStream(baseEncoding, false);
+                int tag = input.ReadByte();
+                Asn1InputStream.ReadTagNumber(input, tag);
+                int length = Asn1InputStream.ReadLength(input, (int)(input.Length - input.Position), false);
+                int remaining = (int)(input.Length - input.Position);
+
+                // For indefinite form, account for end-of-contents octets
+                int contentsLength = length < 0 ? remaining - 2 : remaining;
+                if (contentsLength < 0)
+                    throw new InvalidOperationException("failed to get contents");
+
+                byte[] contents = new byte[contentsLength];
+                Array.Copy(baseEncoding, baseEncoding.Length - remaining, contents, 0, contentsLength);
+                return contents;
+            }
+            catch (IOException e)
+            {
+                throw new InvalidOperationException("failed to get contents", e);
+            }
+        }
+
+        internal bool IsConstructed()
+        {
+            switch (explicitness)
+            {
+            case DeclaredImplicit:
+            {
+                Asn1Object baseObject = obj.ToAsn1Object();
+                if (baseObject is Asn1Sequence || baseObject is Asn1Set)
+                    return true;
+
+                Asn1TaggedObject baseTagged = baseObject as Asn1TaggedObject;
+                return null != baseTagged && baseTagged.IsConstructed();
+            }
+            case ParsedImplicit:
+                return obj is Asn1Sequence;
+            default:
+                return true;
+            }
+        }
+
+        /**
+         * return whatever was following the tag.
+         * <p>
+         * Note: tagged objects are generally context dependent if you're
+         * trying to extract a tagged object you should be going via the
+         * appropriate GetInstance method.</p>
+         */
         public Asn1Object GetObject()
         {
-            Asn1Utilities.CheckContextTagClass(this);
+            if (Asn1Tags.ContextSpecific != TagClass)
+                throw new InvalidOperationException("this method only valid for CONTEXT_SPECIFIC tags");
 
-            return m_object.ToAsn1Object();
+            return obj.ToAsn1Object();
         }
 
-        /// <summary>Needed for open types, until we have better type-guided parsing support.</summary>
-        /// <remarks>
-        /// Use sparingly for other purposes, and prefer <see cref="GetExplicitBaseTagged"/>,
-        /// <see cref="GetImplicitBaseTagged(int, int)"/> or <see cref="GetBaseUniversal(bool, int)"/> where possible.
-        /// Before using, check for matching tag <see cref="TagClass">class</see> and <see cref="TagNo">number</see>.
-        /// </remarks>
+        /**
+         * Needed for open types, until we have better type-guided parsing support. Use sparingly for other
+         * purposes, and prefer {@link #getExplicitBaseTagged()}, {@link #getImplicitBaseTagged(int, int)} or
+         * {@link #getBaseUniversal(boolean, int)} where possible. Before using, check for matching tag
+         * {@link #getTagClass() class} and {@link #getTagNo() number}.
+         */
         public Asn1Encodable GetBaseObject()
         {
-            return m_object;
+            return obj;
         }
 
-        /// <summary>Needed for open types, until we have better type-guided parsing support.</summary>
-        /// <remarks>
-        /// Use sparingly for other purposes, and prefer <see cref="GetExplicitBaseTagged"/> or
-        /// <see cref="GetBaseUniversal(bool, int)"/> where possible. Before using, check for matching tag
-        /// <see cref="TagClass">class</see> and <see cref="TagNo">number</see>.
-        /// </remarks>
+        /**
+         * Needed for open types, until we have better type-guided parsing support. Use
+         * sparingly for other purposes, and prefer {@link #getExplicitBaseTagged()} or
+         * {@link #getBaseUniversal(boolean, int)} where possible. Before using, check
+         * for matching tag {@link #getTagClass() class} and {@link #getTagNo() number}.
+         */
         public Asn1Encodable GetExplicitBaseObject()
         {
             if (!IsExplicit())
                 throw new InvalidOperationException("object implicit - explicit expected.");
 
-            return m_object;
+            return obj;
         }
 
         public Asn1TaggedObject GetExplicitBaseTagged()
@@ -279,22 +299,22 @@ namespace Org.BouncyCastle.Asn1
             if (!IsExplicit())
                 throw new InvalidOperationException("object implicit - explicit expected.");
 
-            return CheckedCast(m_object.ToAsn1Object());
+            return CheckedCast(obj.ToAsn1Object());
         }
 
         public Asn1TaggedObject GetImplicitBaseTagged(int baseTagClass, int baseTagNo)
         {
             if (Asn1Tags.Universal == baseTagClass || (baseTagClass & Asn1Tags.Private) != baseTagClass)
-                throw new ArgumentException("invalid base tag class: " + baseTagClass, nameof(baseTagClass));
+                throw new ArgumentException("invalid base tag class: " + baseTagClass, "baseTagClass");
 
-            switch (m_explicitness)
+            switch (explicitness)
             {
             case DeclaredExplicit:
                 throw new InvalidOperationException("object explicit - implicit expected.");
 
             case DeclaredImplicit:
             {
-                Asn1TaggedObject declared = CheckedCast(m_object.ToAsn1Object());
+                Asn1TaggedObject declared = CheckedCast(obj.ToAsn1Object());
                 return Asn1Utilities.CheckTag(declared, baseTagClass, baseTagNo);
             }
 
@@ -306,8 +326,9 @@ namespace Org.BouncyCastle.Asn1
 
         public Asn1Object GetBaseUniversal(bool declaredExplicit, int tagNo)
         {
-            Asn1UniversalType universalType = Asn1UniversalTypes.Get(tagNo)
-                ?? throw new ArgumentException("unsupported UNIVERSAL tag number: " + tagNo, nameof(tagNo));
+            Asn1UniversalType universalType = Asn1UniversalTypes.Get(tagNo);
+            if (null == universalType)
+                throw new ArgumentException("unsupported UNIVERSAL tag number: " + tagNo, "tagNo");
 
             return GetBaseUniversal(declaredExplicit, universalType);
         }
@@ -319,21 +340,21 @@ namespace Org.BouncyCastle.Asn1
                 if (!IsExplicit())
                     throw new InvalidOperationException("object explicit - implicit expected.");
 
-                return universalType.CheckedCast(m_object.ToAsn1Object());
+                return universalType.CheckedCast(obj.ToAsn1Object());
             }
 
-            if (DeclaredExplicit == m_explicitness)
+            if (DeclaredExplicit == explicitness)
                 throw new InvalidOperationException("object explicit - implicit expected.");
 
-            Asn1Object baseObject = m_object.ToAsn1Object();
-            switch (m_explicitness)
+            Asn1Object baseObject = obj.ToAsn1Object();
+            switch (explicitness)
             {
             case ParsedExplicit:
                 return universalType.FromImplicitConstructed(RebuildConstructed(baseObject));
             case ParsedImplicit:
             {
-                if (baseObject is Asn1Sequence asn1Sequence)
-                    return universalType.FromImplicitConstructed(asn1Sequence);
+                if (baseObject is Asn1Sequence)
+                    return universalType.FromImplicitConstructed((Asn1Sequence)baseObject);
 
                 return universalType.FromImplicitPrimitive((DerOctetString)baseObject);
             }
@@ -341,6 +362,20 @@ namespace Org.BouncyCastle.Asn1
                 return universalType.CheckedCast(baseObject);
             }
         }
+
+        /**
+		* Return the object held in this tagged object as a parser assuming it has
+		* the type of the passed in tag. If the object doesn't have a parser
+		* associated with it, the base object is returned.
+		*/
+        [Obsolete("Use 'Parse...' methods instead, after checking this parser's TagClass and TagNo")]
+        public IAsn1Convertible GetObjectParser(int tag, bool isExplicit)
+		{
+            if (Asn1Tags.ContextSpecific != TagClass)
+                throw new InvalidOperationException("this method only valid for CONTEXT_SPECIFIC tags");
+
+            return ParseBaseUniversal(isExplicit, tag);
+		}
 
         public IAsn1Convertible ParseBaseUniversal(bool declaredExplicit, int baseTagNo)
         {
@@ -378,8 +413,10 @@ namespace Org.BouncyCastle.Asn1
 
 		public override string ToString()
 		{
-            return Asn1Utilities.GetTagText(m_tagClass, m_tagNo) + m_object;
+            return Asn1Utilities.GetTagText(tagClass, tagNo) + obj;
 		}
+
+        internal abstract string Asn1Encoding { get; }
 
         internal abstract Asn1Sequence RebuildConstructed(Asn1Object asn1Object);
 
@@ -389,24 +426,49 @@ namespace Org.BouncyCastle.Asn1
         {
             bool maybeExplicit = (contentsElements.Count == 1);
 
-            return maybeExplicit
+            Asn1TaggedObject taggedObject = maybeExplicit
                 ? new DLTaggedObject(ParsedExplicit, tagClass, tagNo, contentsElements[0])
                 : new DLTaggedObject(ParsedImplicit, tagClass, tagNo, DLSequence.FromVector(contentsElements));
+
+            switch (tagClass)
+            {
+            case Asn1Tags.Application:
+                return new DLApplicationSpecific(taggedObject);
+            default:
+                return taggedObject;
+            }
         }
 
         internal static Asn1Object CreateConstructedIL(int tagClass, int tagNo, Asn1EncodableVector contentsElements)
         {
             bool maybeExplicit = (contentsElements.Count == 1);
 
-            return maybeExplicit
+            Asn1TaggedObject taggedObject = maybeExplicit
                 ? new BerTaggedObject(ParsedExplicit, tagClass, tagNo, contentsElements[0])
                 : new BerTaggedObject(ParsedImplicit, tagClass, tagNo, BerSequence.FromVector(contentsElements));
+
+            switch (tagClass)
+            {
+            case Asn1Tags.Application:
+                return new BerApplicationSpecific(taggedObject);
+            default:
+                return taggedObject;
+            }
         }
 
         internal static Asn1Object CreatePrimitive(int tagClass, int tagNo, byte[] contentsOctets)
         {
             // Note: !CONSTRUCTED => IMPLICIT
-            return new DLTaggedObject(ParsedImplicit, tagClass, tagNo, new DerOctetString(contentsOctets));
+            Asn1TaggedObject taggedObject = new DLTaggedObject(ParsedImplicit, tagClass, tagNo,
+                new DerOctetString(contentsOctets));
+
+            switch (tagClass)
+            {
+            case Asn1Tags.Application:
+                return new DLApplicationSpecific(taggedObject);
+            default:
+                return taggedObject;
+            }
         }
 
         private static Asn1TaggedObject CheckedCast(Asn1Object asn1Object)

@@ -1,63 +1,77 @@
 using System;
 using System.IO;
-#if NETCOREAPP1_0_OR_GREATER || NET45_OR_GREATER || NETSTANDARD1_0_OR_GREATER
-using System.Threading;
-using System.Threading.Tasks;
-#endif
 
-using Org.BouncyCastle.Utilities.IO;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.IO
 {
-    public sealed class SignerStream
+    public class SignerStream
         : Stream
     {
-        private readonly Stream m_stream;
-        private readonly ISigner m_readSigner;
-        private readonly ISigner m_writeSigner;
+        protected readonly Stream stream;
+        protected readonly ISigner inSigner;
+        protected readonly ISigner outSigner;
 
         public SignerStream(Stream stream, ISigner readSigner, ISigner writeSigner)
         {
-            m_stream = stream;
-            m_readSigner = readSigner;
-            m_writeSigner = writeSigner;
+            this.stream = stream;
+            this.inSigner = readSigner;
+            this.outSigner = writeSigner;
         }
 
-        public ISigner ReadSigner => m_readSigner;
-
-        public ISigner WriteSigner => m_writeSigner;
-
-        public override bool CanRead => m_stream.CanRead;
-
-        public override bool CanSeek => false;
-
-        public override bool CanWrite => m_stream.CanWrite;
-
-#if NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override void CopyTo(Stream destination, int bufferSize)
+        public virtual ISigner ReadSigner()
         {
-            Streams.CopyTo(ReadSource, destination, bufferSize);
+            return inSigner;
         }
-#endif
 
-#if NETCOREAPP1_0_OR_GREATER || NET45_OR_GREATER || NETSTANDARD1_0_OR_GREATER
-        public override Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+        public virtual ISigner WriteSigner()
         {
-            return Streams.CopyToAsync(ReadSource, destination, bufferSize, cancellationToken);
+            return outSigner;
+        }
+
+        public override bool CanRead
+        {
+            get { return stream.CanRead; }
+        }
+
+        public sealed override bool CanSeek
+        {
+            get { return false; }
+        }
+
+        public override bool CanWrite
+        {
+            get { return stream.CanWrite; }
+        }
+
+#if PORTABLE
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                Platform.Dispose(stream);
+            }
+            base.Dispose(disposing);
+        }
+#else
+        public override void Close()
+        {
+            Platform.Dispose(stream);
+            base.Close();
         }
 #endif
 
         public override void Flush()
         {
-            m_stream.Flush();
+            stream.Flush();
         }
 
-        public override long Length
+        public sealed override long Length
         {
             get { throw new NotSupportedException(); }
         }
 
-        public override long Position
+        public sealed override long Position
         {
             get { throw new NotSupportedException(); }
             set { throw new NotSupportedException(); }
@@ -65,136 +79,57 @@ namespace Org.BouncyCastle.Crypto.IO
 
         public override int Read(byte[] buffer, int offset, int count)
         {
-            int n = m_stream.Read(buffer, offset, count);
+            int n = stream.Read(buffer, offset, count);
 
-            if (m_readSigner != null && n > 0)
+            if (inSigner != null && n > 0)
             {
-                m_readSigner.BlockUpdate(buffer, offset, n);
+                inSigner.BlockUpdate(buffer, offset, n);
             }
 
             return n;
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int Read(Span<byte> buffer)
-        {
-            int n = m_stream.Read(buffer);
-
-            if (m_readSigner != null && n > 0)
-            {
-                m_readSigner.BlockUpdate(buffer[..n]);
-            }
-
-            return n;
-        }
-
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            return Streams.ReadAsync(ReadSource, buffer, cancellationToken);
-        }
-#endif
 
         public override int ReadByte()
         {
-            int b = m_stream.ReadByte();
+            int b = stream.ReadByte();
 
-            if (m_readSigner != null && b >= 0)
+            if (inSigner != null && b >= 0)
             {
-                m_readSigner.Update((byte)b);
+                inSigner.Update((byte)b);
             }
 
             return b;
         }
 
-        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public sealed override long Seek(long offset, SeekOrigin origin)
+        {
+            throw new NotSupportedException();
+        }
 
-        public override void SetLength(long length) => throw new NotSupportedException();
+        public sealed override void SetLength(long length)
+        {
+            throw new NotSupportedException();
+        }
 
         public override void Write(byte[] buffer, int offset, int count)
         {
-            if (m_writeSigner != null)
+            stream.Write(buffer, offset, count);
+
+            if (outSigner != null && count > 0)
             {
-                Streams.ValidateBufferArguments(buffer, offset, count);
-
-                if (count > 0)
-                {
-                    m_writeSigner.BlockUpdate(buffer, offset, count);
-                }
+                outSigner.BlockUpdate(buffer, offset, count);
             }
-
-            m_stream.Write(buffer, offset, count);
         }
-
-#if NETCOREAPP1_0_OR_GREATER || NET45_OR_GREATER || NETSTANDARD1_0_OR_GREATER
-        public override Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
-        {
-            if (m_writeSigner != null)
-            {
-                Streams.ValidateBufferArguments(buffer, offset, count);
-
-                if (count > 0)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                        return Task.FromCanceled(cancellationToken);
-
-                    m_writeSigner.BlockUpdate(buffer, offset, count);
-                }
-            }
-
-            return m_stream.WriteAsync(buffer, offset, count, cancellationToken);
-        }
-#endif
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override void Write(ReadOnlySpan<byte> buffer)
-        {
-            if (m_writeSigner != null)
-            {
-                if (!buffer.IsEmpty)
-                {
-                    m_writeSigner.BlockUpdate(buffer);
-                }
-            }
-
-            m_stream.Write(buffer);
-        }
-
-        public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            if (m_writeSigner != null)
-            {
-                if (!buffer.IsEmpty)
-                {
-                    if (cancellationToken.IsCancellationRequested)
-                        return ValueTask.FromCanceled(cancellationToken);
-
-                    m_writeSigner.BlockUpdate(buffer.Span);
-                }
-            }
-
-            return m_stream.WriteAsync(buffer, cancellationToken);
-        }
-#endif
 
         public override void WriteByte(byte value)
         {
-            if (m_writeSigner != null)
+            stream.WriteByte(value);
+
+            if (outSigner != null)
             {
-                m_writeSigner.Update(value);
+                outSigner.Update(value);
             }
-
-            m_stream.WriteByte(value);
         }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                m_stream.Dispose();
-            }
-            base.Dispose(disposing);
-        }
-
-        private Stream ReadSource => m_readSigner == null ? m_stream : this;
     }
 }
+

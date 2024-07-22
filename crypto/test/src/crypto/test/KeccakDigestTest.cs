@@ -273,8 +273,6 @@ namespace Org.BouncyCastle.Crypto.Tests
             //    Fail("Keccak mismatch on " + digest.AlgorithmName + " extreme data test");
             //}
             //Console.WriteLine("Done");
-
-            DigestTest.SpanConsistencyTests(this, digest);
         }
 
         private void TestDigestDoFinal(IDigest digest)
@@ -297,7 +295,7 @@ namespace Org.BouncyCastle.Crypto.Tests
             }
         }
 
-        private void TestMac(IDigest digest, byte[][] keys, string[] data, string[] expected, byte[] truncExpected)
+        private void TestMac(IDigest digest, byte[][] keys, String[] data, String[] expected, byte[] truncExpected)
         {
             IMac mac = new HMac(digest);
 
@@ -357,6 +355,12 @@ namespace Org.BouncyCastle.Crypto.Tests
         protected virtual IDigest CloneDigest(IDigest digest)
         {
             return new KeccakDigest((KeccakDigest)digest);
+        }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new KeccakDigestTest());
         }
 
         [Test]

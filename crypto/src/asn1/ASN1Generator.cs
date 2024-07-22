@@ -1,23 +1,21 @@
-using System;
+using System.Collections;
 using System.IO;
 
 namespace Org.BouncyCastle.Asn1
 {
     public abstract class Asn1Generator
-        : IDisposable
     {
-		private Stream m_outStream;
+		private Stream _out;
 
-		protected Asn1Generator(Stream outStream)
+		protected Asn1Generator(
+			Stream outStream)
         {
-            m_outStream = outStream ?? throw new ArgumentNullException(nameof(outStream));
+            _out = outStream;
         }
 
-        protected abstract void Finish();
-
-		protected Stream OutStream
+		protected Stream Out
 		{
-			get { return m_outStream ?? throw new InvalidOperationException(); }
+			get { return _out; }
 		}
 
 		public abstract void AddObject(Asn1Encodable obj);
@@ -26,26 +24,6 @@ namespace Org.BouncyCastle.Asn1
 
         public abstract Stream GetRawOutputStream();
 
-        #region IDisposable
-
-        public void Dispose()
-        {
-            Dispose(disposing: true);
-            GC.SuppressFinalize(this);
-        }
-
-        protected virtual void Dispose(bool disposing)
-        {
-            if (disposing)
-            {
-                if (m_outStream != null) 
-                {
-                    Finish();
-                    m_outStream = null;
-                }
-            }
-        }
-
-        #endregion
+		public abstract void Close();
     }
 }

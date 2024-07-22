@@ -1,38 +1,72 @@
+using System;
 using System.IO;
 
 using Org.BouncyCastle.Asn1.Pkcs;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.IO;
 
 namespace Org.BouncyCastle.Cms
 {
-    public class CmsTypedStream
+	public class CmsTypedStream
 	{
-		private readonly string	m_oid;
-		private readonly Stream	m_in;
+		private const int BufferSize = 32 * 1024;
 
-		public CmsTypedStream(Stream inStream)
-			: this(PkcsObjectIdentifiers.Data.Id, inStream)
+		private readonly string	_oid;
+		private readonly Stream	_in;
+
+		public CmsTypedStream(
+			Stream inStream)
+			: this(PkcsObjectIdentifiers.Data.Id, inStream, BufferSize)
 		{
 		}
 
-		public CmsTypedStream(string oid, Stream inStream)
-			: this(oid, inStream, Streams.DefaultBufferSize)
+		public CmsTypedStream(
+			string oid,
+			Stream inStream)
+			: this(oid, inStream, BufferSize)
 		{
 		}
 
-		public CmsTypedStream(string oid, Stream inStream, int bufSize)
+		public CmsTypedStream(
+			string	oid,
+			Stream	inStream,
+			int		bufSize)
 		{
-			m_oid = oid;
-            m_in = new BufferedFilterStream(inStream, bufSize);
-        }
+			_oid = oid;
+#if NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE
+			_in = new FullReaderStream(inStream);
+#else
+			_in = new FullReaderStream(new BufferedStream(inStream, bufSize));
+#endif
+		}
 
-		public string ContentType => m_oid;
+		public string ContentType
+		{
+			get { return _oid; }
+		}
 
-		public Stream ContentStream => m_in;
+		public Stream ContentStream
+		{
+			get { return _in; }
+		}
 
 		public void Drain()
 		{
-			using (m_in) Streams.Drain(m_in);
+			Streams.Drain(_in);
+            Platform.Dispose(_in);
+		}
+
+		private class FullReaderStream : FilterStream
+		{
+			internal FullReaderStream(Stream input)
+				: base(input)
+			{
+			}
+
+			public override int Read(byte[]	buf, int off, int len)
+			{
+				return Streams.ReadFully(base.s, buf, off, len);
+			}
 		}
 	}
 }

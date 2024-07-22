@@ -106,13 +106,13 @@ namespace Org.BouncyCastle.OpenSsl.Tests
 			DoWriteReadTest(ecPriv);
 			DoWriteReadTests(ecPriv, algorithms);
 
-            // override test
-            object o = new PemObject("FRED", new byte[100]);
+			// override test
+			PemWriter pWrt = new PemWriter(new StringWriter());
 
-			using (var pWrt = new PemWriter(new StringWriter()))
-			{
-                pWrt.WriteObject(o);
-            }
+			object o = new PemObject("FRED", new byte[100]);
+			pWrt.WriteObject(o);
+
+			pWrt.Writer.Close();
 		}
 
 		private void DoWriteReadTests(
@@ -129,46 +129,50 @@ namespace Org.BouncyCastle.OpenSsl.Tests
 			AsymmetricKeyParameter	akp)
 		{
 			StringWriter sw = new StringWriter();
-			using (var pw = new PemWriter(sw))
-			{
-                pw.WriteObject(akp);
-            }
+			PemWriter pw = new PemWriter(sw);
+
+			pw.WriteObject(akp);
+			pw.Writer.Close();
 
 			string data = sw.ToString();
 
-			using (var pr = new PemReader(new StringReader(data)))
-			{
-                AsymmetricCipherKeyPair kp = pr.ReadObject() as AsymmetricCipherKeyPair;
+			PemReader pr = new PemReader(new StringReader(data));
 
-                if (kp == null || !kp.Private.Equals(akp))
-                {
-                    Fail("Failed to read back test key");
-                }
-            }
-        }
+			AsymmetricCipherKeyPair kp = pr.ReadObject() as AsymmetricCipherKeyPair;
+
+			if (kp == null || !kp.Private.Equals(akp))
+			{
+				Fail("Failed to read back test key");
+			}
+		}
 
 		private void DoWriteReadTest(
 			AsymmetricKeyParameter	akp,
 			string					algorithm)
 		{
 			StringWriter sw = new StringWriter();
-			using (var pw = new PemWriter(sw))
-			{
-                pw.WriteObject(akp, algorithm, testPassword, random);
-            }
+			PemWriter pw = new PemWriter(sw);
+
+			pw.WriteObject(akp, algorithm, testPassword, random);
+			pw.Writer.Close();
 
 			string data = sw.ToString();
 
-			using (var pr = new PemReader(new StringReader(data), new Password(testPassword)))
-			{
-                AsymmetricCipherKeyPair kp = pr.ReadObject() as AsymmetricCipherKeyPair;
+			PemReader pr = new PemReader(new StringReader(data), new Password(testPassword));
 
-                if (kp == null || !kp.Private.Equals(akp))
-                {
-                    Fail("Failed to read back test key encoded with: " + algorithm);
-                }
-            }
-        }
+			AsymmetricCipherKeyPair kp = pr.ReadObject() as AsymmetricCipherKeyPair;
+
+			if (kp == null || !kp.Private.Equals(akp))
+			{
+				Fail("Failed to read back test key encoded with: " + algorithm);
+			}
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new WriterTest());
+		}
 
 		[Test]
 		public void TestFunction()

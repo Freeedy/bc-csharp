@@ -88,7 +88,7 @@ namespace Org.BouncyCastle.Crypto.Tests
             }
         }
 
-        private void CheckTestVector_RFC5794(string[] tv)
+        private void CheckTestVector_RFC5794(String[] tv)
         {
             string name = "'" + tv[0] + "'";
 
@@ -124,6 +124,11 @@ namespace Org.BouncyCastle.Crypto.Tests
             {
                 CheckTestVector_RFC5794(TEST_VECTORS_RFC5794[i]);
             }
+        }
+
+        public static void Main(string[] args)
+        {
+            RunTest(new AriaTest());
         }
 
         [Test]

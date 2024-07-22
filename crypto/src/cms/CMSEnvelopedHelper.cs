@@ -1,8 +1,5 @@
 using System;
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-using System.Buffers;
-#endif
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
@@ -12,40 +9,102 @@ using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.IO;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.IO;
 
 namespace Org.BouncyCastle.Cms
 {
-    internal class CmsEnvelopedHelper
+	class CmsEnvelopedHelper
 	{
-		private static readonly Dictionary<string, int> KeySizes = new Dictionary<string, int>();
-		private static readonly Dictionary<string, string> Rfc3211WrapperNames = new Dictionary<string, string>();
+		internal static readonly CmsEnvelopedHelper Instance = new CmsEnvelopedHelper();
+
+		private static readonly IDictionary KeySizes = Platform.CreateHashtable();
+		private static readonly IDictionary BaseCipherNames = Platform.CreateHashtable();
 
 		static CmsEnvelopedHelper()
 		{
+			KeySizes.Add(CmsEnvelopedGenerator.DesEde3Cbc, 192);
 			KeySizes.Add(CmsEnvelopedGenerator.Aes128Cbc, 128);
 			KeySizes.Add(CmsEnvelopedGenerator.Aes192Cbc, 192);
 			KeySizes.Add(CmsEnvelopedGenerator.Aes256Cbc, 256);
-            KeySizes.Add(CmsEnvelopedGenerator.Camellia128Cbc, 128);
-            KeySizes.Add(CmsEnvelopedGenerator.Camellia192Cbc, 192);
-            KeySizes.Add(CmsEnvelopedGenerator.Camellia256Cbc, 256);
-            KeySizes.Add(CmsEnvelopedGenerator.DesCbc, 64);
-            KeySizes.Add(CmsEnvelopedGenerator.DesEde3Cbc, 192);
 
-            Rfc3211WrapperNames.Add(CmsEnvelopedGenerator.Aes128Cbc, "AESRFC3211WRAP");
-            Rfc3211WrapperNames.Add(CmsEnvelopedGenerator.Aes192Cbc, "AESRFC3211WRAP");
-            Rfc3211WrapperNames.Add(CmsEnvelopedGenerator.Aes256Cbc, "AESRFC3211WRAP");
-            Rfc3211WrapperNames.Add(CmsEnvelopedGenerator.Camellia128Cbc, "CAMELLIARFC3211WRAP");
-            Rfc3211WrapperNames.Add(CmsEnvelopedGenerator.Camellia192Cbc, "CAMELLIARFC3211WRAP");
-            Rfc3211WrapperNames.Add(CmsEnvelopedGenerator.Camellia256Cbc, "CAMELLIARFC3211WRAP");
-            Rfc3211WrapperNames.Add(CmsEnvelopedGenerator.DesCbc, "DESRFC3211WRAP");
-            Rfc3211WrapperNames.Add(CmsEnvelopedGenerator.DesEde3Cbc, "DESEDERFC3211WRAP");
-        }
+			BaseCipherNames.Add(CmsEnvelopedGenerator.DesEde3Cbc,  "DESEDE");
+			BaseCipherNames.Add(CmsEnvelopedGenerator.Aes128Cbc,  "AES");
+			BaseCipherNames.Add(CmsEnvelopedGenerator.Aes192Cbc,  "AES");
+			BaseCipherNames.Add(CmsEnvelopedGenerator.Aes256Cbc,  "AES");
+		}
 
-        internal static RecipientInformationStore BuildRecipientInformationStore(
+		private string GetAsymmetricEncryptionAlgName(
+			string encryptionAlgOid)
+		{
+			if (Asn1.Pkcs.PkcsObjectIdentifiers.RsaEncryption.Id.Equals(encryptionAlgOid))
+			{
+				return "RSA/ECB/PKCS1Padding";
+			}
+
+			return encryptionAlgOid;
+		}
+
+		internal IBufferedCipher CreateAsymmetricCipher(
+			string encryptionOid)
+		{
+			string asymName = GetAsymmetricEncryptionAlgName(encryptionOid);
+			if (!asymName.Equals(encryptionOid))
+			{
+				try
+				{
+					return CipherUtilities.GetCipher(asymName);
+				}
+				catch (SecurityUtilityException)
+				{
+					// Ignore
+				}
+			}
+			return CipherUtilities.GetCipher(encryptionOid);
+		}
+
+		internal IWrapper CreateWrapper(
+			string encryptionOid)
+		{
+			try
+			{
+				return WrapperUtilities.GetWrapper(encryptionOid);
+			}
+			catch (SecurityUtilityException)
+			{
+				return WrapperUtilities.GetWrapper(GetAsymmetricEncryptionAlgName(encryptionOid));
+			}
+		}
+
+		internal string GetRfc3211WrapperName(
+			string oid)
+		{
+			if (oid == null)
+				throw new ArgumentNullException("oid");
+
+			string alg = (string) BaseCipherNames[oid];
+
+			if (alg == null)
+				throw new ArgumentException("no name for " + oid, "oid");
+
+			return alg + "RFC3211Wrap";
+		}
+
+		internal int GetKeySize(
+			string oid)
+		{
+			if (!KeySizes.Contains(oid))
+			{
+				throw new ArgumentException("no keysize for " + oid, "oid");
+			}
+
+			return (int) KeySizes[oid];
+		}
+
+		internal static RecipientInformationStore BuildRecipientInformationStore(
 			Asn1Set recipientInfos, CmsSecureReadable secureReadable)
 		{
-			var infos = new List<RecipientInformation>();
+			IList infos = Platform.CreateArrayList();
 			for (int i = 0; i != recipientInfos.Count; i++)
 			{
 				RecipientInfo info = RecipientInfo.GetInstance(recipientInfos[i]);
@@ -55,47 +114,25 @@ namespace Org.BouncyCastle.Cms
 			return new RecipientInformationStore(infos);
 		}
 
-        internal static int GetKeySize(string oid)
-        {
-            if (oid == null)
-                throw new ArgumentNullException(nameof(oid));
-
-            if (!KeySizes.TryGetValue(oid, out var keySize))
-                throw new ArgumentException("no key size for " + oid, nameof(oid));
-
-            return keySize;
-        }
-
-        internal static string GetRfc3211WrapperName(string oid)
-        {
-            if (oid == null)
-                throw new ArgumentNullException(nameof(oid));
-
-            if (!Rfc3211WrapperNames.TryGetValue(oid, out var name))
-                throw new ArgumentException("no name for " + oid, nameof(oid));
-
-            return name;
-        }
-
-        private static void ReadRecipientInfo(IList<RecipientInformation> infos, RecipientInfo info,
-			CmsSecureReadable secureReadable)
+		private static void ReadRecipientInfo(
+			IList infos, RecipientInfo info, CmsSecureReadable secureReadable)
 		{
 			Asn1Encodable recipInfo = info.Info;
-			if (recipInfo is KeyTransRecipientInfo keyTransRecipientInfo)
+			if (recipInfo is KeyTransRecipientInfo)
 			{
-				infos.Add(new KeyTransRecipientInformation(keyTransRecipientInfo, secureReadable));
+				infos.Add(new KeyTransRecipientInformation((KeyTransRecipientInfo)recipInfo, secureReadable));
 			}
-			else if (recipInfo is KekRecipientInfo kekRecipientInfo)
+			else if (recipInfo is KekRecipientInfo)
 			{
-				infos.Add(new KekRecipientInformation(kekRecipientInfo, secureReadable));
+				infos.Add(new KekRecipientInformation((KekRecipientInfo)recipInfo, secureReadable));
 			}
-			else if (recipInfo is KeyAgreeRecipientInfo keyAgreeRecipientInfo)
+			else if (recipInfo is KeyAgreeRecipientInfo)
 			{
-				KeyAgreeRecipientInformation.ReadRecipientInfo(infos, keyAgreeRecipientInfo, secureReadable);
+				KeyAgreeRecipientInformation.ReadRecipientInfo(infos, (KeyAgreeRecipientInfo)recipInfo, secureReadable);
 			}
-			else if (recipInfo is PasswordRecipientInfo passwordRecipientInfo)
+			else if (recipInfo is PasswordRecipientInfo)
 			{
-				infos.Add(new PasswordRecipientInformation(passwordRecipientInfo, secureReadable));
+				infos.Add(new PasswordRecipientInformation((PasswordRecipientInfo)recipInfo, secureReadable));
 			}
 		}
 
@@ -158,9 +195,9 @@ namespace Org.BouncyCastle.Cms
 //						else
 //						{
 //							string alg = macAlg.Algorithm.Id;
-//							if (alg.Equals(CmsEnvelopedGenerator.DesEde3Cbc)
-//								|| alg.Equals(CmsEnvelopedGenerator.IdeaCbc)
-//								|| alg.Equals(CmsEnvelopedGenerator.Cast5Cbc))
+//							if (alg.Equals(CmsEnvelopedDataGenerator.DesEde3Cbc)
+//								|| alg.Equals(CmsEnvelopedDataGenerator.IdeaCbc)
+//								|| alg.Equals(CmsEnvelopedDataGenerator.Cast5Cbc))
 //							{
 //								cipherParameters = new ParametersWithIV(cipherParameters, new byte[8]);
 //							}
@@ -236,16 +273,11 @@ namespace Org.BouncyCastle.Cms
 					else
 					{
                         string alg = this.algorithm.Algorithm.Id;
-						if (alg.Equals(CmsEnvelopedGenerator.DesEde3Cbc)
-							|| alg.Equals(CmsEnvelopedGenerator.IdeaCbc)
-							|| alg.Equals(CmsEnvelopedGenerator.Cast5Cbc))
+						if (alg.Equals(CmsEnvelopedDataGenerator.DesEde3Cbc)
+							|| alg.Equals(CmsEnvelopedDataGenerator.IdeaCbc)
+							|| alg.Equals(CmsEnvelopedDataGenerator.Cast5Cbc))
 						{
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-							cipherParameters = ParametersWithIV.Create<byte>(cipherParameters, 8, 0,
-								(bytes, state) => bytes.Fill(state));
-#else
 							cipherParameters = new ParametersWithIV(cipherParameters, new byte[8]);
-#endif
 						}
 					}
 

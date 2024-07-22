@@ -1,9 +1,5 @@
 using System;
 using System.IO;
-#if NETCOREAPP1_0_OR_GREATER || NET45_OR_GREATER || NETSTANDARD1_0_OR_GREATER
-using System.Threading;
-using System.Threading.Tasks;
-#endif
 
 namespace Org.BouncyCastle.Utilities.IO
 {
@@ -17,34 +13,7 @@ namespace Org.BouncyCastle.Utilities.IO
 		{
 		}
 
-#if NETCOREAPP2_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override void CopyTo(Stream destination, int bufferSize)
-        {
-			if (m_buf != -1)
-			{
-				destination.WriteByte((byte)m_buf);
-                m_buf = -1;
-            }
-
-			Streams.CopyTo(s, destination, bufferSize);
-        }
-#endif
-
-#if NETCOREAPP1_0_OR_GREATER || NET45_OR_GREATER || NETSTANDARD1_0_OR_GREATER
-        public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
-        {
-            if (m_buf != -1)
-            {
-				byte[] buffer = new byte[1]{ (byte)m_buf };
-                await destination.WriteAsync(buffer, 0, 1, cancellationToken).ConfigureAwait(false);
-                m_buf = -1;
-            }
-
-            await Streams.CopyToAsync(s, destination, bufferSize, cancellationToken);
-        }
-#endif
-
-        public override int Read(byte[] buffer, int offset, int count)
+		public override int Read(byte[] buffer, int offset, int count)
 		{
 			Streams.ValidateBufferArguments(buffer, offset, count);
 
@@ -58,42 +27,10 @@ namespace Org.BouncyCastle.Utilities.IO
 				return 1;
 			}
 
-			return s.Read(buffer, offset, count);
+			return base.Read(buffer, offset, count);
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int Read(Span<byte> buffer)
-        {
-			if (m_buf != -1)
-			{
-                if (buffer.IsEmpty)
-                    return 0;
-
-                buffer[0] = (byte)m_buf;
-                m_buf = -1;
-                return 1;
-            }
-
-            return s.Read(buffer);
-        }
-
-        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
-        {
-            if (m_buf != -1)
-            {
-                if (buffer.IsEmpty)
-                    return new ValueTask<int>(0);
-
-                buffer.Span[0] = (byte)m_buf;
-                m_buf = -1;
-                return new ValueTask<int>(1);
-            }
-
-            return Streams.ReadAsync(s, buffer, cancellationToken);
-        }
-#endif
-
-        public override int ReadByte()
+		public override int ReadByte()
 		{
 			if (m_buf != -1)
 			{
@@ -102,7 +39,7 @@ namespace Org.BouncyCastle.Utilities.IO
 				return tmp;
 			}
 
-			return s.ReadByte();
+			return base.ReadByte();
 		}
 
 		public virtual void Unread(int b)

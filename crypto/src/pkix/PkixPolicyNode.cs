@@ -1,8 +1,7 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Text;
 
-using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 
@@ -14,11 +13,11 @@ namespace Org.BouncyCastle.Pkix
 	public class PkixPolicyNode
 //		: IPolicyNode
 	{
-		protected IList<PkixPolicyNode> mChildren;
+		protected IList				mChildren;
 		protected int				mDepth;
-		protected ISet<string>		mExpectedPolicies;
+		protected ISet				mExpectedPolicies;
 		protected PkixPolicyNode	mParent;
-		protected ISet<PolicyQualifierInfo> mPolicyQualifiers;
+		protected ISet				mPolicyQualifiers;
 		protected string			mValidPolicy;
 		protected bool				mCritical;
 
@@ -27,9 +26,9 @@ namespace Org.BouncyCastle.Pkix
 			get { return this.mDepth; }
 		}
 
-		public virtual IEnumerable<PkixPolicyNode> Children
+		public virtual IEnumerable Children
 		{
-			get { return CollectionUtilities.Proxy(mChildren); }
+			get { return new EnumerableProxy(mChildren); }
 		}
 
 		public virtual bool IsCritical
@@ -38,9 +37,9 @@ namespace Org.BouncyCastle.Pkix
 			set { this.mCritical = value; }
 		}
 
-		public virtual ISet<PolicyQualifierInfo> PolicyQualifiers
+		public virtual ISet PolicyQualifiers
 		{
-			get { return new HashSet<PolicyQualifierInfo>(this.mPolicyQualifiers); }
+			get { return new HashSet(this.mPolicyQualifiers); }
 		}
 
 		public virtual string ValidPolicy
@@ -53,10 +52,10 @@ namespace Org.BouncyCastle.Pkix
 			get { return mChildren.Count != 0; }
 		}
 
-		public virtual ISet<string> ExpectedPolicies
+		public virtual ISet ExpectedPolicies
 		{
-			get { return new HashSet<string>(this.mExpectedPolicies); }
-			set { this.mExpectedPolicies = new HashSet<string>(value); }
+			get { return new HashSet(this.mExpectedPolicies); }
+			set { this.mExpectedPolicies = new HashSet(value); }
 		}
 
 		public virtual PkixPolicyNode Parent
@@ -67,21 +66,21 @@ namespace Org.BouncyCastle.Pkix
 
 		/// Constructors
 		public PkixPolicyNode(
-			IEnumerable<PkixPolicyNode> children,
+			IList			children,
 			int				depth,
-			ISet<string>	expectedPolicies,
+			ISet			expectedPolicies,
 			PkixPolicyNode	parent,
-			ISet<PolicyQualifierInfo> policyQualifiers,
+			ISet			policyQualifiers,
 			string			validPolicy,
 			bool			critical)
 		{
             if (children == null)
             {
-				this.mChildren = new List<PkixPolicyNode>();
+                this.mChildren = Platform.CreateArrayList();
             }
             else
             {
-				this.mChildren = new List<PkixPolicyNode>(children);
+                this.mChildren = Platform.CreateArrayList(children);
             }
 
             this.mDepth = depth;
@@ -110,12 +109,14 @@ namespace Org.BouncyCastle.Pkix
 			return ToString("");
 		}
 
-		public virtual string ToString(string indent)
+		public virtual string ToString(
+			string indent)
 		{
 			StringBuilder buf = new StringBuilder();
 			buf.Append(indent);
 			buf.Append(mValidPolicy);
-			buf.AppendLine(" {");
+			buf.Append(" {");
+			buf.Append(Platform.NewLine);
 
 			foreach (PkixPolicyNode child in mChildren)
 			{
@@ -123,7 +124,8 @@ namespace Org.BouncyCastle.Pkix
 			}
 
 			buf.Append(indent);
-			buf.AppendLine("}");
+			buf.Append("}");
+			buf.Append(Platform.NewLine);
 			return buf.ToString();
 		}
 
@@ -135,11 +137,11 @@ namespace Org.BouncyCastle.Pkix
 		public virtual PkixPolicyNode Copy()
 		{
 			PkixPolicyNode node = new PkixPolicyNode(
-				new List<PkixPolicyNode>(),
+                Platform.CreateArrayList(),
 				mDepth,
-				new HashSet<string>(mExpectedPolicies),
+				new HashSet(mExpectedPolicies),
 				null,
-				new HashSet<PolicyQualifierInfo>(mPolicyQualifiers),
+				new HashSet(mPolicyQualifiers),
 				mValidPolicy,
 				mCritical);
 

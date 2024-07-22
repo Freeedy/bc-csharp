@@ -1,72 +1,113 @@
 using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cms
 {
     public class KeyAgreeRecipientInfo
         : Asn1Encodable
     {
-        public static KeyAgreeRecipientInfo GetInstance(object obj)
+        private DerInteger                  version;
+        private OriginatorIdentifierOrKey   originator;
+        private Asn1OctetString             ukm;
+        private AlgorithmIdentifier         keyEncryptionAlgorithm;
+        private Asn1Sequence                recipientEncryptedKeys;
+
+		public KeyAgreeRecipientInfo(
+            OriginatorIdentifierOrKey   originator,
+            Asn1OctetString             ukm,
+            AlgorithmIdentifier         keyEncryptionAlgorithm,
+            Asn1Sequence                recipientEncryptedKeys)
         {
-            if (obj == null)
-                return null;
-            if (obj is KeyAgreeRecipientInfo keyAgreeRecipientInfo)
-                return keyAgreeRecipientInfo;
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new KeyAgreeRecipientInfo(Asn1Sequence.GetInstance(obj));
-#pragma warning restore CS0618 // Type or member is obsolete
+            this.version = new DerInteger(3);
+            this.originator = originator;
+            this.ukm = ukm;
+            this.keyEncryptionAlgorithm = keyEncryptionAlgorithm;
+            this.recipientEncryptedKeys = recipientEncryptedKeys;
         }
 
-        public static KeyAgreeRecipientInfo GetInstance(Asn1TaggedObject obj, bool explicitly)
+		public KeyAgreeRecipientInfo(
+            Asn1Sequence seq)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new KeyAgreeRecipientInfo(Asn1Sequence.GetInstance(obj, explicitly));
-#pragma warning restore CS0618 // Type or member is obsolete
+            int index = 0;
+
+            version = (DerInteger) seq[index++];
+            originator = OriginatorIdentifierOrKey.GetInstance(
+				(Asn1TaggedObject) seq[index++], true);
+
+			if (seq[index] is Asn1TaggedObject)
+            {
+                ukm = Asn1OctetString.GetInstance(
+					(Asn1TaggedObject) seq[index++], true);
+            }
+
+			keyEncryptionAlgorithm = AlgorithmIdentifier.GetInstance(
+				seq[index++]);
+
+			recipientEncryptedKeys = (Asn1Sequence) seq[index++];
         }
 
-        private readonly DerInteger m_version;
-        private readonly OriginatorIdentifierOrKey m_originator;
-        private readonly Asn1OctetString m_ukm;
-        private readonly AlgorithmIdentifier m_keyEncryptionAlgorithm;
-        private readonly Asn1Sequence m_recipientEncryptedKeys;
-
-        public KeyAgreeRecipientInfo(OriginatorIdentifierOrKey originator, Asn1OctetString ukm,
-            AlgorithmIdentifier keyEncryptionAlgorithm, Asn1Sequence recipientEncryptedKeys)
+		/**
+         * return a KeyAgreeRecipientInfo object from a tagged object.
+         *
+         * @param obj the tagged object holding the object we want.
+         * @param explicitly true if the object is meant to be explicitly
+         *              tagged false otherwise.
+         * @exception ArgumentException if the object held by the
+         *          tagged object cannot be converted.
+         */
+        public static KeyAgreeRecipientInfo GetInstance(
+            Asn1TaggedObject	obj,
+            bool				explicitly)
         {
-            m_version = DerInteger.Three;
-            m_originator = originator ?? throw new ArgumentNullException(nameof(originator));
-            m_ukm = ukm;
-            m_keyEncryptionAlgorithm = keyEncryptionAlgorithm ?? throw new ArgumentNullException(nameof(keyEncryptionAlgorithm));
-            m_recipientEncryptedKeys = recipientEncryptedKeys ?? throw new ArgumentNullException(nameof(recipientEncryptedKeys));
+            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
         }
 
-        [Obsolete("Use 'GetInstance' instead")]
-        public KeyAgreeRecipientInfo(Asn1Sequence seq)
+		/**
+         * return a KeyAgreeRecipientInfo object from the given object.
+         *
+         * @param obj the object we want converted.
+         * @exception ArgumentException if the object cannot be converted.
+         */
+        public static KeyAgreeRecipientInfo GetInstance(
+            object obj)
         {
-            int count = seq.Count, pos = 0;
-            if (count < 4 || count > 5)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+            if (obj == null || obj is KeyAgreeRecipientInfo)
+                return (KeyAgreeRecipientInfo)obj;
 
-            m_version = DerInteger.GetInstance(seq[pos++]);
-            m_originator = Asn1Utilities.ReadContextTagged(seq, ref pos, 0, true, OriginatorIdentifierOrKey.GetTagged);
-            m_ukm = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, Asn1OctetString.GetTagged);
-            m_keyEncryptionAlgorithm = AlgorithmIdentifier.GetInstance(seq[pos++]);
-            m_recipientEncryptedKeys = Asn1Sequence.GetInstance(seq[pos++]);
+			if (obj is Asn1Sequence)
+                return new KeyAgreeRecipientInfo((Asn1Sequence)obj);
 
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			throw new ArgumentException(
+                "Illegal object in KeyAgreeRecipientInfo: " + Platform.GetTypeName(obj));
+
         }
 
-        public DerInteger Version => m_version;
+		public DerInteger Version
+		{
+			get { return version; }
+		}
 
-        public OriginatorIdentifierOrKey Originator => m_originator;
+		public OriginatorIdentifierOrKey Originator
+		{
+			get { return originator; }
+		}
 
-        public Asn1OctetString UserKeyingMaterial => m_ukm;
+		public Asn1OctetString UserKeyingMaterial
+		{
+			get { return ukm; }
+		}
 
-		public AlgorithmIdentifier KeyEncryptionAlgorithm => m_keyEncryptionAlgorithm;
+		public AlgorithmIdentifier KeyEncryptionAlgorithm
+		{
+			get { return keyEncryptionAlgorithm; }
+		}
 
-        public Asn1Sequence RecipientEncryptedKeys => m_recipientEncryptedKeys;
+		public Asn1Sequence RecipientEncryptedKeys
+		{
+			get { return recipientEncryptedKeys; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -84,10 +125,9 @@ namespace Org.BouncyCastle.Asn1.Cms
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(5);
-            v.Add(m_version, new DerTaggedObject(true, 0, m_originator));
-            v.AddOptionalTagged(true, 1, m_ukm);
-			v.Add(m_keyEncryptionAlgorithm, m_recipientEncryptedKeys);
+            Asn1EncodableVector v = new Asn1EncodableVector(version, new DerTaggedObject(true, 0, originator));
+            v.AddOptionalTagged(true, 1, ukm);
+			v.Add(keyEncryptionAlgorithm, recipientEncryptedKeys);
 			return new DerSequence(v);
         }
     }

@@ -1,10 +1,11 @@
 using System;
 using System.IO;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Asn1
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
+#endif
     public class Asn1Exception
 		: IOException
 	{
@@ -13,18 +14,16 @@ namespace Org.BouncyCastle.Asn1
 		{
 		}
 
-		public Asn1Exception(string message)
+		public Asn1Exception(
+			string message)
 			: base(message)
 		{
 		}
 
-		public Asn1Exception(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected Asn1Exception(SerializationInfo info, StreamingContext context)
-			: base(info, context)
+		public Asn1Exception(
+			string		message,
+			Exception	exception)
+			: base(message, exception)
 		{
 		}
 	}

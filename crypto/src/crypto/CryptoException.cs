@@ -1,30 +1,28 @@
 using System;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Crypto
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
+#endif
     public class CryptoException
 		: Exception
     {
-		public CryptoException()
-			: base()
-		{
-		}
+        public CryptoException()
+        {
+        }
 
-		public CryptoException(string message)
+		public CryptoException(
+            string message)
 			: base(message)
-		{
-		}
+        {
+        }
 
-		public CryptoException(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected CryptoException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
-		{
-		}
-	}
+		public CryptoException(
+            string		message,
+            Exception	exception)
+			: base(message, exception)
+        {
+        }
+    }
 }

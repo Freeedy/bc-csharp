@@ -2,17 +2,18 @@ using System;
 
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.Date;
 
 namespace Org.BouncyCastle.Bcpg.OpenPgp
 {
 	/// <remarks>Generator for old style PGP V3 Signatures.</remarks>
+	// TODO Should be able to implement ISigner?
 	public class PgpV3SignatureGenerator
     {
-        private readonly PublicKeyAlgorithmTag keyAlgorithm;
-        private readonly HashAlgorithmTag hashAlgorithm;
-
+        private PublicKeyAlgorithmTag keyAlgorithm;
+        private HashAlgorithmTag hashAlgorithm;
         private PgpPrivateKey privKey;
         private ISigner sig;
         private IDigest    dig;
@@ -24,36 +25,39 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             PublicKeyAlgorithmTag	keyAlgorithm,
             HashAlgorithmTag		hashAlgorithm)
         {
-            if (keyAlgorithm == PublicKeyAlgorithmTag.EdDsa_Legacy)
-                throw new ArgumentException("Invalid algorithm for V3 signature", nameof(keyAlgorithm));
-
             this.keyAlgorithm = keyAlgorithm;
             this.hashAlgorithm = hashAlgorithm;
 
-            dig = PgpUtilities.CreateDigest(hashAlgorithm);
+            dig = DigestUtilities.GetDigest(PgpUtilities.GetDigestName(hashAlgorithm));
+            sig = SignerUtilities.GetSigner(PgpUtilities.GetSignatureName(keyAlgorithm, hashAlgorithm));
         }
 
 		/// <summary>Initialise the generator for signing.</summary>
-		public void InitSign(int sigType, PgpPrivateKey privKey)
+		public void InitSign(
+			int				sigType,
+			PgpPrivateKey	key)
 		{
-			InitSign(sigType, privKey, null);
+			InitSign(sigType, key, null);
 		}
 
 		/// <summary>Initialise the generator for signing.</summary>
-        public void InitSign(int sigType, PgpPrivateKey privKey, SecureRandom random)
+        public void InitSign(
+            int				sigType,
+            PgpPrivateKey	key,
+			SecureRandom	random)
         {
-            this.privKey = privKey;
+            this.privKey = key;
             this.signatureType = sigType;
 
-            AsymmetricKeyParameter key = privKey.Key;
-
-            this.sig = PgpUtilities.CreateSigner(keyAlgorithm, hashAlgorithm, key);
-
-            try
+			try
             {
-                ICipherParameters cp = key;
-                cp = ParameterUtilities.WithRandom(cp, random);
-                sig.Init(true, cp);
+				ICipherParameters cp = key.Key;
+				if (random != null)
+				{
+					cp = new ParametersWithRandom(key.Key, random);
+				}
+
+				sig.Init(true, cp);
             }
             catch (InvalidKeyException e)
             {
@@ -64,69 +68,83 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             lastb = 0;
         }
 
-		public void Update(byte b)
+		public void Update(
+            byte b)
         {
             if (signatureType == PgpSignature.CanonicalTextDocument)
             {
-				DoCanonicalUpdateByte(b);
+				doCanonicalUpdateByte(b);
             }
             else
             {
-				DoUpdateByte(b);
+				doUpdateByte(b);
             }
         }
 
-		private void DoCanonicalUpdateByte(byte b)
+		private void doCanonicalUpdateByte(
+			byte b)
 		{
 			if (b == '\r')
 			{
-				DoUpdateCRLF();
+				doUpdateCRLF();
 			}
 			else if (b == '\n')
 			{
 				if (lastb != '\r')
 				{
-					DoUpdateCRLF();
+					doUpdateCRLF();
 				}
 			}
 			else
 			{
-				DoUpdateByte(b);
+				doUpdateByte(b);
 			}
 
 			lastb = b;
 		}
 
-		private void DoUpdateCRLF()
+		private void doUpdateCRLF()
 		{
-			DoUpdateByte((byte)'\r');
-			DoUpdateByte((byte)'\n');
+			doUpdateByte((byte)'\r');
+			doUpdateByte((byte)'\n');
 		}
 
-		private void DoUpdateByte(
+		private void doUpdateByte(
 			byte b)
 		{
 			sig.Update(b);
 			dig.Update(b);
 		}
 
-		public void Update(params byte[] b)
+		public void Update(
+            byte[] b)
         {
-            Update(b, 0, b.Length);
+            if (signatureType == PgpSignature.CanonicalTextDocument)
+            {
+                for (int i = 0; i != b.Length; i++)
+                {
+                    doCanonicalUpdateByte(b[i]);
+                }
+            }
+            else
+            {
+                sig.BlockUpdate(b, 0, b.Length);
+                dig.BlockUpdate(b, 0, b.Length);
+            }
         }
 
-		public void Update(byte[] b, int off, int len)
+		public void Update(
+            byte[]	b,
+            int		off,
+            int		len)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Update(b.AsSpan(off, len));
-#else
             if (signatureType == PgpSignature.CanonicalTextDocument)
             {
                 int finish = off + len;
 
 				for (int i = off; i != finish; i++)
                 {
-                    DoCanonicalUpdateByte(b[i]);
+                    doCanonicalUpdateByte(b[i]);
                 }
             }
             else
@@ -134,28 +152,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                 sig.BlockUpdate(b, off, len);
                 dig.BlockUpdate(b, off, len);
             }
-#endif
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public void Update(ReadOnlySpan<byte> input)
-        {
-            if (signatureType == PgpSignature.CanonicalTextDocument)
-            {
-                for (int i = 0; i < input.Length; ++i)
-                {
-                    DoCanonicalUpdateByte(input[i]);
-                }
-            }
-            else
-            {
-                sig.BlockUpdate(input);
-                dig.BlockUpdate(input);
-            }
-        }
-#endif
-
-        /// <summary>Return the one pass header associated with the current signature.</summary>
+		/// <summary>Return the one pass header associated with the current signature.</summary>
         public PgpOnePassSignature GenerateOnePassVersion(
             bool isNested)
         {

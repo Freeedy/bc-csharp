@@ -1,8 +1,16 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections;
+using System.IO;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.Ntt;
+using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Cms;
+using Org.BouncyCastle.Crypto.IO;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Operators;
 
@@ -10,8 +18,7 @@ namespace Org.BouncyCastle.Operators
 {
     public class CmsContentEncryptorBuilder
     {
-        private static readonly IDictionary<DerObjectIdentifier, int> KeySizes =
-            new Dictionary<DerObjectIdentifier, int>();
+        private static readonly IDictionary KeySizes = Platform.CreateHashtable();
 
         static CmsContentEncryptorBuilder()
         {
@@ -26,12 +33,18 @@ namespace Org.BouncyCastle.Operators
 
         private static int GetKeySize(DerObjectIdentifier oid)
         {
-            return KeySizes.TryGetValue(oid, out var keySize) ? keySize : -1;
+            if (KeySizes.Contains(oid))
+            {
+                return (int)KeySizes[oid];
+            }
+
+            return -1;
         }
 
         private readonly DerObjectIdentifier encryptionOID;
         private readonly int keySize;
 
+        private readonly EnvelopedDataHelper helper = new EnvelopedDataHelper();
         //private SecureRandom random;
 
         public CmsContentEncryptorBuilder(DerObjectIdentifier encryptionOID)

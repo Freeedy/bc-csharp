@@ -77,7 +77,7 @@ namespace Org.BouncyCastle.Tests
             get { return "DH"; }
         }
 
-        private void ImplTestGP(
+        private void doTestGP(
             string		algName,
             int         size,
             int         privateValueSize,
@@ -279,7 +279,7 @@ namespace Org.BouncyCastle.Tests
             }
         }
 
-        private void ImplTestExplicitWrapping(
+        private void doTestExplicitWrapping(
             int			size,
             int			privateValueSize,
             BigInteger	g,
@@ -348,7 +348,8 @@ namespace Org.BouncyCastle.Tests
         }
 
 // TODO Put back in
-//    private void ImplTestRandom(int size)
+//    private void doTestRandom(
+//        int         size)
 //    {
 //        AlgorithmParameterGenerator a = AlgorithmParameterGenerator.getInstance("DH");
 //        a.init(size, new SecureRandom());
@@ -369,22 +370,22 @@ namespace Org.BouncyCastle.Tests
 //
 //        DHParameterSpec dhP = (DHParameterSpec)parameters.getParameterSpec(DHParameterSpec.class);
 //
-//        ImplTestGP("DH", size, 0, dhP.G, dhP.P);
+//        doTestGP("DH", size, 0, dhP.G, dhP.P);
 //    }
 
         [Test]
         public void TestECDH()
         {
-            ImplTestECDH("ECDH");
+            DoTestECDH("ECDH");
         }
 
         [Test]
         public void TestECDHC()
         {
-            ImplTestECDH("ECDHC");
+            DoTestECDH("ECDHC");
         }
 
-        private void ImplTestECDH(string algorithm)
+        private void DoTestECDH(string algorithm)
         {
             IAsymmetricCipherKeyPairGenerator g = GeneratorUtilities.GetKeyPairGenerator(algorithm);
 
@@ -501,7 +502,7 @@ namespace Org.BouncyCastle.Tests
             }
         }
 
-        private void ImplTestDesAndDesEde(
+        private void doTestDesAndDesEde(
             BigInteger	g,
             BigInteger	p)
         {
@@ -558,17 +559,17 @@ namespace Org.BouncyCastle.Tests
         [Test]
         public void TestFunction()
         {
-            ImplTestGP("DH", 512, 0, g512, p512);
-            ImplTestGP("DiffieHellman", 768, 0, g768, p768);
-            ImplTestGP("DIFFIEHELLMAN", 1024, 0, g1024, p1024);
-            ImplTestGP("DH", 512, 64, g512, p512);
-            ImplTestGP("DiffieHellman", 768, 128, g768, p768);
-            ImplTestGP("DIFFIEHELLMAN", 1024, 256, g1024, p1024);
-            ImplTestExplicitWrapping(512, 0, g512, p512);
-            // TODO Put back in
-            //ImplTestRandom(256);
+            doTestGP("DH", 512, 0, g512, p512);
+            doTestGP("DiffieHellman", 768, 0, g768, p768);
+            doTestGP("DIFFIEHELLMAN", 1024, 0, g1024, p1024);
+            doTestGP("DH", 512, 64, g512, p512);
+            doTestGP("DiffieHellman", 768, 128, g768, p768);
+            doTestGP("DIFFIEHELLMAN", 1024, 256, g1024, p1024);
+            doTestExplicitWrapping(512, 0, g512, p512);
+            doTestDesAndDesEde(g768, p768);
 
-            ImplTestDesAndDesEde(g768, p768);
+            // TODO Put back in
+            //doTestRandom(256);
         }
 
         [Test]
@@ -713,6 +714,12 @@ namespace Org.BouncyCastle.Tests
             TestECDHC();
             TestExceptions();
             TestSubgroupConfinement();
+        }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new DHTest());
         }
     }
 }

@@ -1,7 +1,6 @@
 ﻿using System;
 
 using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
 
 namespace Org.BouncyCastle.Bcpg
@@ -15,18 +14,15 @@ namespace Org.BouncyCastle.Bcpg
         private SymmetricKeyAlgorithmTag symAlgorithmId;
 
         /// <param name="bcpgIn">The stream to read the packet from.</param>
-        public ECDHPublicBcpgKey(BcpgInputStream bcpgIn)
+        public ECDHPublicBcpgKey(
+            BcpgInputStream bcpgIn)
             : base(bcpgIn)
         {
             int length = bcpgIn.ReadByte();
-            if (length != 3)
-                throw new InvalidOperationException("KDF parameters size of 3 expected.");
+            byte[] kdfParameters =  new byte[length];
+            if (kdfParameters.Length != 3)
+                throw new InvalidOperationException("kdf parameters size of 3 expected.");
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> kdfParameters = stackalloc byte[3];
-#else
-            byte[] kdfParameters = new byte[3];
-#endif
             bcpgIn.ReadFully(kdfParameters);
 
             reserved = kdfParameters[0];
@@ -40,21 +36,6 @@ namespace Org.BouncyCastle.Bcpg
         public ECDHPublicBcpgKey(
             DerObjectIdentifier oid,
             ECPoint point,
-            HashAlgorithmTag hashAlgorithm,
-            SymmetricKeyAlgorithmTag symmetricKeyAlgorithm)
-            : base(oid, point)
-        {
-            reserved = 1;
-            hashFunctionId = hashAlgorithm;
-            symAlgorithmId = symmetricKeyAlgorithm;
-
-            VerifyHashAlgorithm();
-            VerifySymmetricKeyAlgorithm();
-        }
-
-        public ECDHPublicBcpgKey(
-            DerObjectIdentifier oid,
-            BigInteger point,
             HashAlgorithmTag hashAlgorithm,
             SymmetricKeyAlgorithmTag symmetricKeyAlgorithm)
             : base(oid, point)
@@ -94,7 +75,7 @@ namespace Org.BouncyCastle.Bcpg
 
         private void VerifyHashAlgorithm()
         {
-            switch (hashFunctionId)
+            switch ((HashAlgorithmTag)hashFunctionId)
             {
             case HashAlgorithmTag.Sha256:
             case HashAlgorithmTag.Sha384:
@@ -107,7 +88,7 @@ namespace Org.BouncyCastle.Bcpg
 
         private void VerifySymmetricKeyAlgorithm()
         {
-            switch (symAlgorithmId)
+            switch ((SymmetricKeyAlgorithmTag)symAlgorithmId)
             {
             case SymmetricKeyAlgorithmTag.Aes128:
             case SymmetricKeyAlgorithmTag.Aes192:

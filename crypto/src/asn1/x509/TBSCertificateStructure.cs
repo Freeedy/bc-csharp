@@ -39,37 +39,43 @@ namespace Org.BouncyCastle.Asn1.X509
 		internal DerBitString            subjectUniqueID;
 		internal X509Extensions          extensions;
 
-        public static TbsCertificateStructure GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is TbsCertificateStructure tbsCertificateStructure)
-                return tbsCertificateStructure;
-            return new TbsCertificateStructure(Asn1Sequence.GetInstance(obj));
-        }
+		public static TbsCertificateStructure GetInstance(
+			Asn1TaggedObject	obj,
+			bool				explicitly)
+		{
+			return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
+		}
 
-        public static TbsCertificateStructure GetInstance(Asn1TaggedObject obj, bool explicitly)
-        {
-            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
-        }
+		public static TbsCertificateStructure GetInstance(
+			object obj)
+		{
+			if (obj is TbsCertificateStructure)
+				return (TbsCertificateStructure) obj;
 
-        private TbsCertificateStructure(Asn1Sequence seq)
+			if (obj != null)
+				return new TbsCertificateStructure(Asn1Sequence.GetInstance(obj));
+
+			return null;
+		}
+
+		internal TbsCertificateStructure(
+			Asn1Sequence seq)
 		{
 			int seqStart = 0;
 
 			this.seq = seq;
 
 			//
-			// some certificates don't include a version number - we assume v1
+			// some certficates don't include a version number - we assume v1
 			//
-			if (seq[0] is Asn1TaggedObject taggedObject)
+			if (seq[0] is Asn1TaggedObject)
 			{
-				version = DerInteger.GetInstance(taggedObject, true);
+				version = DerInteger.GetInstance((Asn1TaggedObject)seq[0], true);
 			}
 			else
 			{
 				seqStart = -1;          // field 0 is missing!
-				version = DerInteger.Zero;
+				version = new DerInteger(0);
 			}
 
             bool isV1 = false;
@@ -210,7 +216,7 @@ namespace Org.BouncyCastle.Asn1.X509
             if (null == property || Platform.EqualsIgnoreCase("true", property))
                 return seq;
 
-            Asn1EncodableVector v = new Asn1EncodableVector(8);
+            Asn1EncodableVector v = new Asn1EncodableVector();
 
             // DEFAULT Zero
             if (!version.HasValue(0))

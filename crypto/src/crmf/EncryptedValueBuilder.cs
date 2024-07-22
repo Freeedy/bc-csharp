@@ -1,11 +1,15 @@
 ﻿using System;
+using System.Collections;
 using System.IO;
+using System.Text;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Crmf;
+using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Pkcs;
 using Org.BouncyCastle.Utilities;
@@ -111,15 +115,13 @@ namespace Org.BouncyCastle.Crmf
 
         private EncryptedValue EncryptData(byte[] data)
         {
-            MemoryStream bOut = new MemoryStream();
-            var cipher = encryptor.BuildCipher(bOut);
+            MemoryOutputStream bOut = new MemoryOutputStream();
+            Stream eOut = encryptor.BuildCipher(bOut).Stream;
 
             try
             {
-                using (var eOut = cipher.Stream)
-                {
-                    eOut.Write(data, 0, data.Length);
-                }
+                eOut.Write(data, 0, data.Length);
+                Platform.Dispose(eOut);
             }
             catch (IOException e)
             {
@@ -146,6 +148,14 @@ namespace Org.BouncyCastle.Crmf
             return new EncryptedValue(intendedAlg, symmAlg, encSymmKey, keyAlg, valueHint, encValue);
         }
 
-        private byte[] PadData(byte[] data) => padder?.GetPaddedData(data) ?? data;
+        private byte[] PadData(byte[] data)
+        {
+            if (padder != null)
+            {
+                return padder.GetPaddedData(data);
+            }
+
+            return data;
+        }
     }
 }

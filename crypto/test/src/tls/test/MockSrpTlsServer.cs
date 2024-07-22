@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Crypto.Agreement.Srp;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 using Org.BouncyCastle.Utilities;
@@ -24,13 +25,13 @@ namespace Org.BouncyCastle.Tls.Tests
         internal static readonly byte[] TEST_SEED_KEY = Strings.ToUtf8ByteArray("seed_key");
 
         internal MockSrpTlsServer()
-            : base(new BcTlsCrypto(), new MyIdentityManager(new BcTlsCrypto()))
+            : base(new BcTlsCrypto(new SecureRandom()), new MyIdentityManager(new BcTlsCrypto(new SecureRandom())))
         {
         }
 
-        protected override IList<ProtocolName> GetProtocolNames()
+        protected override IList GetProtocolNames()
         {
-            var protocolNames = new List<ProtocolName>();
+            IList protocolNames = new ArrayList();
             protocolNames.Add(ProtocolName.Http_2_Tls);
             protocolNames.Add(ProtocolName.Http_1_1);
             return protocolNames;
@@ -92,7 +93,7 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
-        public override void ProcessClientExtensions(IDictionary<int, byte[]> clientExtensions)
+        public override void ProcessClientExtensions(IDictionary clientExtensions)
         {
             if (m_context.SecurityParameters.ClientRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -100,7 +101,7 @@ namespace Org.BouncyCastle.Tls.Tests
             base.ProcessClientExtensions(clientExtensions);
         }
 
-        public override IDictionary<int, byte[]> GetServerExtensions()
+        public override IDictionary GetServerExtensions()
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -108,7 +109,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return base.GetServerExtensions();
         }
 
-        public override void GetServerExtensionsForConnection(IDictionary<int, byte[]> serverExtensions)
+        public override void GetServerExtensionsForConnection(IDictionary serverExtensions)
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -118,13 +119,13 @@ namespace Org.BouncyCastle.Tls.Tests
 
         protected override TlsCredentialedSigner GetDsaSignerCredentials()
         {
-            var clientSigAlgs = m_context.SecurityParameters.ClientSigAlgs;
+            IList clientSigAlgs = m_context.SecurityParameters.ClientSigAlgs;
             return TlsTestUtilities.LoadSignerCredentialsServer(m_context, clientSigAlgs, SignatureAlgorithm.dsa);
         }
 
         protected override TlsCredentialedSigner GetRsaSignerCredentials()
         {
-            var clientSigAlgs = m_context.SecurityParameters.ClientSigAlgs;
+            IList clientSigAlgs = m_context.SecurityParameters.ClientSigAlgs;
             return TlsTestUtilities.LoadSignerCredentialsServer(m_context, clientSigAlgs, SignatureAlgorithm.rsa);
         }
 
@@ -146,7 +147,7 @@ namespace Org.BouncyCastle.Tls.Tests
 
             public TlsSrpLoginParameters GetLoginParameters(byte[] identity)
             {
-                if (Arrays.FixedTimeEquals(TEST_IDENTITY, identity))
+                if (Arrays.ConstantTimeAreEqual(TEST_IDENTITY, identity))
                 {
                     Srp6VerifierGenerator verifierGenerator = new Srp6VerifierGenerator();
                     verifierGenerator.Init(TEST_GROUP.N, TEST_GROUP.G, new Sha1Digest());

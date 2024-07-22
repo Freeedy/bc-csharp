@@ -1,5 +1,10 @@
 using System;
+using System.Collections;
+using System.IO;
+using System.Text;
 
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Crypto.Signers;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
@@ -15,7 +20,11 @@ namespace Org.BouncyCastle.Crypto.Signers
         private int halfSize;
         private bool forSigning;
 
-        public Gost3410DigestSigner(IDsa signer, IDigest digest)
+
+
+        public Gost3410DigestSigner(
+            IDsa signer,
+            IDigest digest)
         {
             this.dsaSigner = signer;
             this.digest = digest;
@@ -30,14 +39,16 @@ namespace Org.BouncyCastle.Crypto.Signers
             get { return digest.AlgorithmName + "with" + dsaSigner.AlgorithmName; }
         }
 
-        public virtual void Init(bool forSigning, ICipherParameters parameters)
+        public virtual void Init(
+            bool forSigning,
+            ICipherParameters parameters)
         {
             this.forSigning = forSigning;
 
             AsymmetricKeyParameter k;
-            if (parameters is ParametersWithRandom withRandom)
+            if (parameters is ParametersWithRandom)
             {
-                k = (AsymmetricKeyParameter)withRandom.Parameters;
+                k = (AsymmetricKeyParameter)((ParametersWithRandom)parameters).Parameters;
             }
             else
             {
@@ -45,35 +56,45 @@ namespace Org.BouncyCastle.Crypto.Signers
             }
 
             if (forSigning && !k.IsPrivate)
+            {
                 throw new InvalidKeyException("Signing Requires Private Key.");
+            }
 
             if (!forSigning && k.IsPrivate)
+            {
                 throw new InvalidKeyException("Verification Requires Public Key.");
+            }
+
 
             Reset();
 
             dsaSigner.Init(forSigning, parameters);
         }
 
-        public virtual void Update(byte input)
+        /**
+		 * update the internal digest with the byte b
+		 */
+        public virtual void Update(
+            byte input)
         {
             digest.Update(input);
         }
 
-        public virtual void BlockUpdate(byte[] input, int inOff, int inLen)
+        /**
+		 * update the internal digest with the byte array in
+		 */
+        public virtual void BlockUpdate(
+            byte[] input,
+            int inOff,
+            int length)
         {
-            digest.BlockUpdate(input, inOff, inLen);
+            digest.BlockUpdate(input, inOff, length);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void BlockUpdate(ReadOnlySpan<byte> input)
-        {
-            digest.BlockUpdate(input);
-        }
-#endif
-
-        public virtual int GetMaxSignatureSize() => size;
-
+        /**
+		 * Generate a signature for the message we've been loaded with using
+		 * the key we were initialised with.
+		 */
         public virtual byte[] GenerateSignature()
         {
             if (!forSigning)
@@ -100,7 +121,9 @@ namespace Org.BouncyCastle.Crypto.Signers
             }
         }
 
-        public virtual bool VerifySignature(byte[] signature)
+        /// <returns>true if the internal state represents the signature described in the passed in array.</returns>
+        public virtual bool VerifySignature(
+            byte[] signature)
         {
             if (forSigning)
                 throw new InvalidOperationException("DSADigestSigner not initialised for verification");
@@ -122,6 +145,7 @@ namespace Org.BouncyCastle.Crypto.Signers
             return dsaSigner.VerifySignature(hash, R, S);
         }
 
+        /// <summary>Reset the internal state</summary>
         public virtual void Reset()
         {
             digest.Reset();

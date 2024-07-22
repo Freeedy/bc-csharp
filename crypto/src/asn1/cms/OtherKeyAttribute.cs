@@ -1,68 +1,57 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Cms
 {
     public class OtherKeyAttribute
         : Asn1Encodable
     {
-        public static OtherKeyAttribute GetInstance(object obj)
+        private DerObjectIdentifier	keyAttrId;
+        private Asn1Encodable		keyAttr;
+
+		/**
+         * return an OtherKeyAttribute object from the given object.
+         *
+         * @param o the object we want converted.
+         * @exception ArgumentException if the object cannot be converted.
+         */
+        public static OtherKeyAttribute GetInstance(
+            object obj)
         {
-            if (obj == null)
-                return null;
-            if (obj is OtherKeyAttribute otherKeyAttribute)
-                return otherKeyAttribute;
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new OtherKeyAttribute(Asn1Sequence.GetInstance(obj));
-#pragma warning restore CS0618 // Type or member is obsolete
+            if (obj == null || obj is OtherKeyAttribute)
+                return (OtherKeyAttribute) obj;
+
+			if (obj is Asn1Sequence)
+                return new OtherKeyAttribute((Asn1Sequence) obj);
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
         }
 
-        public static OtherKeyAttribute GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+		public OtherKeyAttribute(
+            Asn1Sequence seq)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new OtherKeyAttribute(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-#pragma warning restore CS0618 // Type or member is obsolete
+            keyAttrId = (DerObjectIdentifier) seq[0];
+            keyAttr = seq[1];
         }
 
-        public static OtherKeyAttribute GetOptional(Asn1Encodable element)
+		public OtherKeyAttribute(
+            DerObjectIdentifier	keyAttrId,
+            Asn1Encodable		keyAttr)
         {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is OtherKeyAttribute otherKeyAttribute)
-                return otherKeyAttribute;
-
-            Asn1Sequence asn1Sequence = Asn1Sequence.GetOptional(element);
-            if (asn1Sequence != null)
-#pragma warning disable CS0618 // Type or member is obsolete
-                return new OtherKeyAttribute(asn1Sequence);
-#pragma warning restore CS0618 // Type or member is obsolete
-
-            return null;
+            this.keyAttrId = keyAttrId;
+            this.keyAttr = keyAttr;
         }
 
-        private readonly DerObjectIdentifier m_keyAttrId;
-        private readonly Asn1Encodable m_keyAttr;
+		public DerObjectIdentifier KeyAttrId
+		{
+			get { return keyAttrId; }
+		}
 
-        [Obsolete("Use 'GetInstance' instead")]
-        public OtherKeyAttribute(Asn1Sequence seq)
-        {
-            int count = seq.Count;
-            if (count < 1 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_keyAttrId = DerObjectIdentifier.GetInstance(seq[0]);
-            m_keyAttr = count == 1 ? null : seq[1];
-        }
-
-        public OtherKeyAttribute(DerObjectIdentifier keyAttrId, Asn1Encodable keyAttr)
-        {
-            m_keyAttrId = keyAttrId ?? throw new ArgumentNullException(nameof(keyAttrId));
-            m_keyAttr = keyAttr;
-        }
-
-        public DerObjectIdentifier KeyAttrId => m_keyAttrId;
-
-        public Asn1Encodable KeyAttr => m_keyAttr;
+		public Asn1Encodable KeyAttr
+		{
+			get { return keyAttr; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -75,9 +64,7 @@ namespace Org.BouncyCastle.Asn1.Cms
          */
         public override Asn1Object ToAsn1Object()
         {
-            return m_keyAttr == null
-                ?  new DerSequence(m_keyAttrId)
-                :  new DerSequence(m_keyAttrId, m_keyAttr);
+			return new DerSequence(keyAttrId, keyAttr);
         }
     }
 }

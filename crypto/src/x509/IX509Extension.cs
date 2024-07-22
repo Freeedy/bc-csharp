@@ -1,7 +1,7 @@
 using System;
-using System.Collections.Generic;
 
 using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Utilities.Collections;
 
 namespace Org.BouncyCastle.X509
 {
@@ -11,13 +11,16 @@ namespace Org.BouncyCastle.X509
 		/// Get all critical extension values, by oid
 		/// </summary>
 		/// <returns>IDictionary with string (OID) keys and Asn1OctetString values</returns>
-		ISet<string> GetCriticalExtensionOids();
+		ISet GetCriticalExtensionOids();
 
 		/// <summary>
 		/// Get all non-critical extension values, by oid
 		/// </summary>
 		/// <returns>IDictionary with string (OID) keys and Asn1OctetString values</returns>
-		ISet<string> GetNonCriticalExtensionOids();
+		ISet GetNonCriticalExtensionOids();
+
+		[Obsolete("Use version taking a DerObjectIdentifier instead")]
+		Asn1OctetString GetExtensionValue(string oid);
 
 		Asn1OctetString GetExtensionValue(DerObjectIdentifier oid);
 	}

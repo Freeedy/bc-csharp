@@ -58,14 +58,14 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec
             return new SecT283FieldElement(x);
         }
 
-        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y)
+        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, bool withCompression)
         {
-            return new SecT283R1Point(this, x, y);
+            return new SecT283R1Point(this, x, y, withCompression);
         }
 
-        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs)
+        protected internal override ECPoint CreateRawPoint(ECFieldElement x, ECFieldElement y, ECFieldElement[] zs, bool withCompression)
         {
-            return new SecT283R1Point(this, x, y, zs);
+            return new SecT283R1Point(this, x, y, zs, withCompression);
         }
 
         public override bool IsKoblitz
@@ -170,7 +170,7 @@ namespace Org.BouncyCastle.Math.EC.Custom.Sec
 
             private ECPoint CreatePoint(ulong[] x, ulong[] y)
             {
-                return m_outer.CreateRawPoint(new SecT283FieldElement(x), new SecT283FieldElement(y), SECT283R1_AFFINE_ZS);
+                return m_outer.CreateRawPoint(new SecT283FieldElement(x), new SecT283FieldElement(y), SECT283R1_AFFINE_ZS, false);
             }
         }
     }

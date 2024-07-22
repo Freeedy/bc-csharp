@@ -8,76 +8,141 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class OriginatorIdentifierOrKey
         : Asn1Encodable, IAsn1Choice
     {
-        public static OriginatorIdentifierOrKey GetInstance(object o)
+        private Asn1Encodable id;
+
+        public OriginatorIdentifierOrKey(
+            IssuerAndSerialNumber id)
         {
-            if (o == null)
-                return null;
+            this.id = id;
+        }
 
-            if (o is OriginatorIdentifierOrKey originatorIdentifierOrKey)
-                return originatorIdentifierOrKey;
+		[Obsolete("Use version taking a 'SubjectKeyIdentifier'")]
+        public OriginatorIdentifierOrKey(
+            Asn1OctetString id)
+			: this(new SubjectKeyIdentifier(id))
+        {
+        }
 
-            if (o is IssuerAndSerialNumber issuerAndSerialNumber)
-                return new OriginatorIdentifierOrKey(issuerAndSerialNumber);
+        public OriginatorIdentifierOrKey(
+            SubjectKeyIdentifier id)
+        {
+            this.id = new DerTaggedObject(false, 0, id);
+        }
 
-            if (o is Asn1Sequence sequence)
-                return new OriginatorIdentifierOrKey(IssuerAndSerialNumber.GetInstance(sequence));
+        public OriginatorIdentifierOrKey(
+            OriginatorPublicKey id)
+        {
+            this.id = new DerTaggedObject(false, 1, id);
+        }
 
-            if (o is Asn1TaggedObject taggedObject)
+		[Obsolete("Use more specific version")]
+        public OriginatorIdentifierOrKey(
+            Asn1Object id)
+        {
+            this.id = id;
+        }
+
+		private OriginatorIdentifierOrKey(
+			Asn1TaggedObject id)
+		{
+			// TODO Add validation
+			this.id = id;
+		}
+
+		/**
+         * return an OriginatorIdentifierOrKey object from a tagged object.
+         *
+         * @param o the tagged object holding the object we want.
+         * @param explicitly true if the object is meant to be explicitly
+         *              tagged false otherwise.
+         * @exception ArgumentException if the object held by the
+         *          tagged object cannot be converted.
+         */
+        public static OriginatorIdentifierOrKey GetInstance(
+            Asn1TaggedObject	o,
+            bool				explicitly)
+        {
+            if (!explicitly)
             {
-                if (taggedObject.HasContextTag(0))
-                    return new OriginatorIdentifierOrKey(SubjectKeyIdentifier.GetInstance(taggedObject, false));
-
-                if (taggedObject.HasContextTag(1))
-                    return new OriginatorIdentifierOrKey(OriginatorPublicKey.GetInstance(taggedObject, false));
+                throw new ArgumentException(
+                        "Can't implicitly tag OriginatorIdentifierOrKey");
             }
 
-            throw new ArgumentException("Invalid OriginatorIdentifierOrKey: " + Platform.GetTypeName(o), nameof(o));
+			return GetInstance(o.GetObject());
         }
 
-        public static OriginatorIdentifierOrKey GetInstance(Asn1TaggedObject o, bool explicitly) =>
-            Asn1Utilities.GetInstanceChoice(o, explicitly, GetInstance);
-
-        public static OriginatorIdentifierOrKey GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        private readonly Asn1Encodable m_id;
-
-        public OriginatorIdentifierOrKey(IssuerAndSerialNumber id)
+        /**
+         * return an OriginatorIdentifierOrKey object from the given object.
+         *
+         * @param o the object we want converted.
+         * @exception ArgumentException if the object cannot be converted.
+         */
+        public static OriginatorIdentifierOrKey GetInstance(
+            object o)
         {
-            m_id = id ?? throw new ArgumentNullException(nameof(id));
+            if (o == null || o is OriginatorIdentifierOrKey)
+                return (OriginatorIdentifierOrKey)o;
+
+			if (o is IssuerAndSerialNumber)
+				return new OriginatorIdentifierOrKey((IssuerAndSerialNumber)o);
+
+			if (o is SubjectKeyIdentifier)
+				return new OriginatorIdentifierOrKey((SubjectKeyIdentifier)o);
+
+			if (o is OriginatorPublicKey)
+				return new OriginatorIdentifierOrKey((OriginatorPublicKey)o);
+
+			if (o is Asn1TaggedObject)
+				return new OriginatorIdentifierOrKey((Asn1TaggedObject)o);
+
+            throw new ArgumentException("Invalid OriginatorIdentifierOrKey: " + Platform.GetTypeName(o));
         }
 
-        public OriginatorIdentifierOrKey(SubjectKeyIdentifier id)
-        {
-            m_id = new DerTaggedObject(false, 0, id);
-        }
+		public Asn1Encodable ID
+		{
+			get { return id; }
+		}
 
-        public OriginatorIdentifierOrKey(OriginatorPublicKey id)
-        {
-            m_id = new DerTaggedObject(false, 1, id);
-        }
+		public IssuerAndSerialNumber IssuerAndSerialNumber
+		{
+			get
+			{
+				if (id is IssuerAndSerialNumber)
+				{
+					return (IssuerAndSerialNumber)id;
+				}
 
-        public Asn1Encodable ID => m_id;
-
-        public IssuerAndSerialNumber IssuerAndSerialNumber => m_id as IssuerAndSerialNumber;
+				return null;
+			}
+		}
 
 		public SubjectKeyIdentifier SubjectKeyIdentifier
 		{
 			get
 			{
-                if (m_id is Asn1TaggedObject taggedObject && taggedObject.HasContextTag(0))
-                    return SubjectKeyIdentifier.GetInstance(taggedObject, false);
+				if (id is Asn1TaggedObject && ((Asn1TaggedObject)id).TagNo == 0)
+				{
+					return SubjectKeyIdentifier.GetInstance((Asn1TaggedObject)id, false);
+				}
 
 				return null;
 			}
+		}
+
+		[Obsolete("Use 'OriginatorPublicKey' property")]
+		public OriginatorPublicKey OriginatorKey
+		{
+			get { return OriginatorPublicKey; }
 		}
 
 		public OriginatorPublicKey OriginatorPublicKey
 		{
 			get
 			{
-                if (m_id is Asn1TaggedObject taggedObject && taggedObject.HasContextTag(1))
-					return OriginatorPublicKey.GetInstance(taggedObject, false);
+				if (id is Asn1TaggedObject && ((Asn1TaggedObject)id).TagNo == 1)
+				{
+					return OriginatorPublicKey.GetInstance((Asn1TaggedObject)id, false);
+				}
 
 				return null;
 			}
@@ -95,6 +160,9 @@ namespace Org.BouncyCastle.Asn1.Cms
          * SubjectKeyIdentifier ::= OCTET STRING
          * </pre>
          */
-        public override Asn1Object ToAsn1Object() => m_id.ToAsn1Object();
+        public override Asn1Object ToAsn1Object()
+        {
+            return id.ToAsn1Object();
+        }
     }
 }

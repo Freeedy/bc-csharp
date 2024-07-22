@@ -1,10 +1,19 @@
+using System;
+
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
+using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Cms
 {
+    internal interface ISignerInfoGenerator
+    {
+        SignerInfo Generate(DerObjectIdentifier contentType, AlgorithmIdentifier digestAlgorithm,
+            byte[] calculatedDigest);
+    }
+
     public class SignerInfoGenerator
     {
         internal X509Certificate certificate;
@@ -14,8 +23,7 @@ namespace Org.BouncyCastle.Cms
         internal CmsAttributeTableGenerator unsignedGen;
         private bool isDirectSignature;
 
-        internal SignerInfoGenerator(SignerIdentifier sigId, ISignatureFactory signerFactory)
-            : this(sigId, signerFactory, false)
+        internal SignerInfoGenerator(SignerIdentifier sigId, ISignatureFactory signerFactory): this(sigId, signerFactory, false)
         {
 
         }
@@ -37,8 +45,7 @@ namespace Org.BouncyCastle.Cms
             }
         }
 
-        internal SignerInfoGenerator(SignerIdentifier sigId, ISignatureFactory contentSigner,
-            CmsAttributeTableGenerator signedGen, CmsAttributeTableGenerator unsignedGen)
+        internal SignerInfoGenerator(SignerIdentifier sigId, ISignatureFactory contentSigner, CmsAttributeTableGenerator signedGen, CmsAttributeTableGenerator unsignedGen)
         {
             this.sigId = sigId;
             this.contentSigner = contentSigner;
@@ -47,7 +54,7 @@ namespace Org.BouncyCastle.Cms
             this.isDirectSignature = false;
         }
 
-        internal void SetAssociatedCertificate(X509Certificate certificate)
+        internal void setAssociatedCertificate(X509Certificate certificate)
         {
             this.certificate = certificate;
         }
@@ -123,11 +130,11 @@ namespace Org.BouncyCastle.Cms
          */
         public SignerInfoGenerator Build(ISignatureFactory contentSigner, X509Certificate certificate)
         {
-            SignerIdentifier sigId = new SignerIdentifier(new IssuerAndSerialNumber(certificate.CertificateStructure));
+            SignerIdentifier sigId = new SignerIdentifier(new IssuerAndSerialNumber(certificate.IssuerDN, new DerInteger(certificate.SerialNumber)));
 
             SignerInfoGenerator sigInfoGen = CreateGenerator(contentSigner, sigId);
 
-            sigInfoGen.SetAssociatedCertificate(certificate);
+            sigInfoGen.setAssociatedCertificate(certificate);
 
             return sigInfoGen;
         }

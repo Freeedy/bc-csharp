@@ -1,8 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tls
 {
@@ -15,7 +16,7 @@ namespace Org.BouncyCastle.Tls
         private readonly TlsContext m_context;
 
         private DigestInputBuffer m_buf;
-        private IDictionary<int, TlsHash> m_hashes;
+        private IDictionary m_hashes;
         private bool m_forceBuffering;
         private bool m_sealed;
 
@@ -23,7 +24,7 @@ namespace Org.BouncyCastle.Tls
         {
             this.m_context = context;
             this.m_buf = new DigestInputBuffer();
-            this.m_hashes = new Dictionary<int, TlsHash>();
+            this.m_hashes = Platform.CreateHashtable();
             this.m_forceBuffering = false;
             this.m_sealed = false;
         }
@@ -90,7 +91,7 @@ namespace Org.BouncyCastle.Tls
         {
             SecurityParameters securityParameters = m_context.SecurityParameters;
 
-            IDictionary<int, TlsHash> newHashes = new Dictionary<int, TlsHash>();
+            IDictionary newHashes = Platform.CreateHashtable();
             switch (securityParameters.PrfAlgorithm)
             {
             case PrfAlgorithm.ssl_prf_legacy:
@@ -147,7 +148,8 @@ namespace Org.BouncyCastle.Tls
 
         public byte[] GetFinalHash(int cryptoHashAlgorithm)
         {
-            if (!m_hashes.TryGetValue(cryptoHashAlgorithm, out var hash))
+            TlsHash hash = (TlsHash)m_hashes[cryptoHashAlgorithm];
+            if (hash == null)
                 throw new InvalidOperationException("CryptoHashAlgorithm." + cryptoHashAlgorithm
                     + " is not being tracked");
 
@@ -175,22 +177,6 @@ namespace Org.BouncyCastle.Tls
                 hash.Update(input, inOff, len);
             }
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public void Update(ReadOnlySpan<byte> input)
-        {
-            if (m_buf != null)
-            {
-                m_buf.Write(input);
-                return;
-            }
-
-            foreach (TlsHash hash in m_hashes.Values)
-            {
-                hash.Update(input);
-            }
-        }
-#endif
 
         public byte[] CalculateHash()
         {
@@ -231,7 +217,7 @@ namespace Org.BouncyCastle.Tls
 
         private void CheckTrackingHash(int cryptoHashAlgorithm)
         {
-            if (!m_hashes.ContainsKey(cryptoHashAlgorithm))
+            if (!m_hashes.Contains(cryptoHashAlgorithm))
             {
                 TlsHash hash = m_context.Crypto.CreateHash(cryptoHashAlgorithm);
                 m_hashes[cryptoHashAlgorithm] = hash;
@@ -240,10 +226,10 @@ namespace Org.BouncyCastle.Tls
 
         private TlsHash CloneHash(int cryptoHashAlgorithm)
         {
-            return m_hashes[cryptoHashAlgorithm].CloneHash();
+            return ((TlsHash)m_hashes[cryptoHashAlgorithm]).CloneHash();
         }
 
-        private void CloneHash(IDictionary<int, TlsHash> newHashes, int cryptoHashAlgorithm)
+        private void CloneHash(IDictionary newHashes, int cryptoHashAlgorithm)
         {
             TlsHash hash = CloneHash(cryptoHashAlgorithm);
             if (m_buf != null)

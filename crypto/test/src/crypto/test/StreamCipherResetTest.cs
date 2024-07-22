@@ -118,6 +118,11 @@ namespace Org.BouncyCastle.Crypto.Tests
             }
         }
 
+        public static void Main(string[] args)
+        {
+            RunTest(new StreamCipherResetTest());
+        }
+
         [Test]
         public void TestFunction()
         {

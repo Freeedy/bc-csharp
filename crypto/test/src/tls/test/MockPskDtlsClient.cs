@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Encoders;
 
@@ -21,7 +22,7 @@ namespace Org.BouncyCastle.Tls.Tests
         }
 
         internal MockPskDtlsClient(TlsSession session, TlsPskIdentity pskIdentity)
-            : base(new BcTlsCrypto(), pskIdentity)
+            : base(new BcTlsCrypto(new SecureRandom()), pskIdentity)
         {
             this.m_session = session;
         }
@@ -107,7 +108,7 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
-        public override IDictionary<int, byte[]> GetClientExtensions()
+        public override IDictionary GetClientExtensions()
         {
             if (m_context.SecurityParameters.ClientRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -115,7 +116,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return base.GetClientExtensions();
         }
 
-        public override void ProcessServerExtensions(IDictionary<int, byte[]> serverExtensions)
+        public override void ProcessServerExtensions(IDictionary serverExtensions)
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);

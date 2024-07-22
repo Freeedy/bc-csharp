@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
@@ -37,8 +37,8 @@ namespace Org.BouncyCastle.Tls
     public sealed class CertificateRequest
     {
         /// <exception cref="IOException"/>
-        private static IList<SignatureAndHashAlgorithm> CheckSupportedSignatureAlgorithms(
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms, short alertDescription)
+        private static IList CheckSupportedSignatureAlgorithms(IList supportedSignatureAlgorithms,
+            short alertDescription)
         {
             if (null == supportedSignatureAlgorithms)
                 throw new TlsFatalAlert(alertDescription, "'signature_algorithms' is required");
@@ -48,26 +48,25 @@ namespace Org.BouncyCastle.Tls
 
         private readonly byte[] m_certificateRequestContext;
         private readonly short[] m_certificateTypes;
-        private readonly IList<SignatureAndHashAlgorithm> m_supportedSignatureAlgorithms;
-        private readonly IList<SignatureAndHashAlgorithm> m_supportedSignatureAlgorithmsCert;
-        private readonly IList<X509Name> m_certificateAuthorities;
+        private readonly IList m_supportedSignatureAlgorithms;
+        private readonly IList m_supportedSignatureAlgorithmsCert;
+        private readonly IList m_certificateAuthorities;
 
         /// <param name="certificateTypes">see <see cref="ClientCertificateType"/> for valid constants.</param>
         /// <param name="supportedSignatureAlgorithms"></param>
-        /// <param name="certificateAuthorities">an <see cref="IList{T}"/> of <see cref="X509Name"/>.</param>
-        public CertificateRequest(short[] certificateTypes,
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms, IList<X509Name> certificateAuthorities)
+        /// <param name="certificateAuthorities">an <see cref="IList"/> of <see cref="X509Name"/>.</param>
+        public CertificateRequest(short[] certificateTypes, IList supportedSignatureAlgorithms,
+            IList certificateAuthorities)
             : this(null, certificateTypes, supportedSignatureAlgorithms, null, certificateAuthorities)
         {
         }
 
         // TODO[tls13] Prefer to manage the certificateRequestContext internally only? 
         /// <exception cref="IOException"/>
-        public CertificateRequest(byte[] certificateRequestContext,
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms,
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithmsCert, IList<X509Name> certificateAuthorities)
+        public CertificateRequest(byte[] certificateRequestContext, IList supportedSignatureAlgorithms,
+            IList supportedSignatureAlgorithmsCert, IList certificateAuthorities)
             : this(certificateRequestContext, null,
-                CheckSupportedSignatureAlgorithms(supportedSignatureAlgorithms, AlertDescription.internal_error),
+                 CheckSupportedSignatureAlgorithms(supportedSignatureAlgorithms, AlertDescription.internal_error),
                 supportedSignatureAlgorithmsCert, certificateAuthorities)
         {
             /*
@@ -78,8 +77,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         private CertificateRequest(byte[] certificateRequestContext, short[] certificateTypes,
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms,
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithmsCert, IList<X509Name> certificateAuthorities)
+            IList supportedSignatureAlgorithms, IList supportedSignatureAlgorithmsCert, IList certificateAuthorities)
         {
             if (null != certificateRequestContext && !TlsUtilities.IsValidUint8(certificateRequestContext.Length))
                 throw new ArgumentException("cannot be longer than 255", "certificateRequestContext");
@@ -108,22 +106,22 @@ namespace Org.BouncyCastle.Tls
             get { return m_certificateTypes; }
         }
 
-        /// <returns>an <see cref="IList{T}"/> of <see cref="SignatureAndHashAlgorithm"/> (or null before TLS 1.2).
+        /// <returns>an <see cref="IList"/> of <see cref="SignatureAndHashAlgorithm"/> (or null before TLS 1.2).
         /// </returns>
-        public IList<SignatureAndHashAlgorithm> SupportedSignatureAlgorithms
+        public IList SupportedSignatureAlgorithms
         {
             get { return m_supportedSignatureAlgorithms; }
         }
 
-        /// <returns>an optional <see cref="IList{T}"/> of <see cref="SignatureAndHashAlgorithm"/>. May be non-null from
+        /// <returns>an optional <see cref="IList"/> of <see cref="SignatureAndHashAlgorithm"/>. May be non-null from
         /// TLS 1.3 onwards.</returns>
-        public IList<SignatureAndHashAlgorithm> SupportedSignatureAlgorithmsCert
+        public IList SupportedSignatureAlgorithmsCert
         {
             get { return m_supportedSignatureAlgorithmsCert; }
         }
 
-        /// <returns>an <see cref="IList{T}"/> of <see cref="X509Name"/>.</returns>
-        public IList<X509Name> CertificateAuthorities
+        /// <returns>an <see cref="IList"/> of <see cref="X509Name"/>.</returns>
+        public IList CertificateAuthorities
         {
             get { return m_certificateAuthorities; }
         }
@@ -155,7 +153,7 @@ namespace Org.BouncyCastle.Tls
             {
                 TlsUtilities.WriteOpaque8(m_certificateRequestContext, output);
 
-                var extensions = new Dictionary<int, byte[]>();
+                IDictionary extensions = Platform.CreateHashtable();
                 TlsExtensionsUtilities.AddSignatureAlgorithmsExtension(extensions, m_supportedSignatureAlgorithms);
 
                 if (null != m_supportedSignatureAlgorithmsCert)
@@ -189,7 +187,7 @@ namespace Org.BouncyCastle.Tls
             }
             else
             {
-                var derEncodings = new List<byte[]>(m_certificateAuthorities.Count);
+                IList derEncodings = Platform.CreateArrayList(m_certificateAuthorities.Count);
 
                 int totalLength = 0;
                 foreach (X509Name certificateAuthority in m_certificateAuthorities)
@@ -231,14 +229,15 @@ namespace Org.BouncyCastle.Tls
 
                 byte[] extEncoding = TlsUtilities.ReadOpaque16(input);
 
-                var extensions = TlsProtocol.ReadExtensionsData13(HandshakeType.certificate_request, extEncoding);
+                IDictionary extensions = TlsProtocol.ReadExtensionsData13(HandshakeType.certificate_request,
+                    extEncoding);
 
-                var supportedSignatureAlgorithms13 = CheckSupportedSignatureAlgorithms(
+                IList supportedSignatureAlgorithms13 = CheckSupportedSignatureAlgorithms(
                     TlsExtensionsUtilities.GetSignatureAlgorithmsExtension(extensions),
                     AlertDescription.missing_extension);
-                var supportedSignatureAlgorithmsCert13 = TlsExtensionsUtilities
+                IList supportedSignatureAlgorithmsCert13 = TlsExtensionsUtilities
                     .GetSignatureAlgorithmsCertExtension(extensions);
-                var certificateAuthorities13 = TlsExtensionsUtilities.GetCertificateAuthoritiesExtension(extensions);
+                IList certificateAuthorities13 = TlsExtensionsUtilities.GetCertificateAuthoritiesExtension(extensions);
 
                 return new CertificateRequest(certificateRequestContext, supportedSignatureAlgorithms13,
                     supportedSignatureAlgorithmsCert13, certificateAuthorities13);
@@ -248,18 +247,18 @@ namespace Org.BouncyCastle.Tls
 
             short[] certificateTypes = TlsUtilities.ReadUint8ArrayWithUint8Length(input, 1);
 
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms = null;
+            IList supportedSignatureAlgorithms = null;
             if (isTLSv12)
             {
                 supportedSignatureAlgorithms = TlsUtilities.ParseSupportedSignatureAlgorithms(input);
             }
 
-            IList<X509Name> certificateAuthorities = null;
+            IList certificateAuthorities = null;
             {
                 byte[] certAuthData = TlsUtilities.ReadOpaque16(input);
                 if (certAuthData.Length > 0)
                 {
-                    certificateAuthorities = new List<X509Name>();
+                    certificateAuthorities = Platform.CreateArrayList();
                     MemoryStream bis = new MemoryStream(certAuthData, false);
                     do
                     {

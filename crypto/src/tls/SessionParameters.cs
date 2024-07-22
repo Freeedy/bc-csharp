@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
@@ -82,7 +82,7 @@ namespace Org.BouncyCastle.Tls
             }
 
             /// <exception cref="IOException"/>
-            public Builder SetServerExtensions(IDictionary<int, byte[]> serverExtensions)
+            public Builder SetServerExtensions(IDictionary serverExtensions)
             {
                 if (serverExtensions == null || serverExtensions.Count < 1)
                 {
@@ -179,7 +179,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public IDictionary<int, byte[]> ReadServerExtensions()
+        public IDictionary ReadServerExtensions()
         {
             if (m_encodedServerExtensions == null)
                 return null;

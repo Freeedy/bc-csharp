@@ -34,7 +34,7 @@ namespace Org.BouncyCastle.Math.EC.Multiplier
 
             public PreCompInfo Precompute(PreCompInfo existing)
             {
-                FixedPointPreCompInfo existingFP = existing as FixedPointPreCompInfo;
+                FixedPointPreCompInfo existingFP = (existing is FixedPointPreCompInfo) ? (FixedPointPreCompInfo)existing : null;
 
                 ECCurve c = m_p.Curve;
                 int bits = FixedPointUtilities.GetCombSize(c);

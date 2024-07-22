@@ -41,31 +41,40 @@ namespace Org.BouncyCastle.Tls
         internal void Send(TlsProtocol protocol)
         {
             // Patch actual length back in
-            int bodyLength = Convert.ToInt32(Length) - 4;
+            int bodyLength = (int)Length - 4;
             TlsUtilities.CheckUint24(bodyLength);
 
             Seek(1L, SeekOrigin.Begin);
             TlsUtilities.WriteUint24(bodyLength, this);
 
+#if PORTABLE
+            byte[] buf = ToArray();
+            int count = buf.Length;
+#else
             byte[] buf = GetBuffer();
-            int count = Convert.ToInt32(Length);
-
+            int count = (int)Length;
+#endif
             protocol.WriteHandshakeMessage(buf, 0, count);
 
-            Dispose();
+            Platform.Dispose(this);
         }
 
         internal void PrepareClientHello(TlsHandshakeHash handshakeHash, int bindersSize)
         {
             // Patch actual length back in
-            int bodyLength = Convert.ToInt32(Length) - 4 + bindersSize;
+            int bodyLength = (int)Length - 4 + bindersSize;
             TlsUtilities.CheckUint24(bodyLength);
 
             Seek(1L, SeekOrigin.Begin);
             TlsUtilities.WriteUint24(bodyLength, this);
 
+#if PORTABLE
+            byte[] buf = ToArray();
+            int count = buf.Length;
+#else
             byte[] buf = GetBuffer();
-            int count = Convert.ToInt32(Length);
+            int count = (int)Length;
+#endif
 
             handshakeHash.Update(buf, 0, count);
 
@@ -74,8 +83,13 @@ namespace Org.BouncyCastle.Tls
 
         internal void SendClientHello(TlsClientProtocol clientProtocol, TlsHandshakeHash handshakeHash, int bindersSize)
         {
+#if PORTABLE
+            byte[] buf = ToArray();
+            int count = buf.Length;
+#else
             byte[] buf = GetBuffer();
-            int count = Convert.ToInt32(Length);
+            int count = (int)Length;
+#endif
 
             if (bindersSize > 0)
             {
@@ -84,7 +98,7 @@ namespace Org.BouncyCastle.Tls
 
             clientProtocol.WriteHandshakeMessage(buf, 0, count);
 
-            Dispose();
+            Platform.Dispose(this);
         }
     }
 }

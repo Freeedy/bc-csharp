@@ -1,8 +1,9 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 
 namespace Org.BouncyCastle.Bcpg.OpenPgp
@@ -17,18 +18,18 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
     public class PgpSecretKeyRing
         : PgpKeyRing
     {
-        private readonly IList<PgpSecretKey> keys;
-        private readonly IList<PgpPublicKey> extraPubKeys;
+        private readonly IList keys;
+        private readonly IList extraPubKeys;
 
         internal PgpSecretKeyRing(
-            IList<PgpSecretKey> keys)
-            : this(keys, new List<PgpPublicKey>())
+            IList keys)
+            : this(keys, Platform.CreateArrayList())
         {
         }
 
         private PgpSecretKeyRing(
-            IList<PgpSecretKey> keys,
-            IList<PgpPublicKey> extraPubKeys)
+            IList	keys,
+            IList	extraPubKeys)
         {
             this.keys = keys;
             this.extraPubKeys = extraPubKeys;
@@ -43,8 +44,8 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
         public PgpSecretKeyRing(
             Stream inputStream)
         {
-            this.keys = new List<PgpSecretKey>();
-            this.extraPubKeys = new List<PgpPublicKey>();
+            this.keys = Platform.CreateArrayList();
+            this.extraPubKeys = Platform.CreateArrayList();
 
             BcpgInputStream bcpgInput = BcpgInputStream.Wrap(inputStream);
 
@@ -68,12 +69,13 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             TrustPacket trust = ReadOptionalTrustPacket(bcpgInput);
 
             // revocation and direct signatures
-            var keySigs = ReadSignaturesAndTrust(bcpgInput);
+            IList keySigs = ReadSignaturesAndTrust(bcpgInput);
 
-            ReadUserIDs(bcpgInput, out var ids, out var idTrusts, out var idSigs);
+            IList ids, idTrusts, idSigs;
+            ReadUserIDs(bcpgInput, out ids, out idTrusts, out idSigs);
 
-            keys.Add(new PgpSecretKey(secret,
-                new PgpPublicKey(secret.PublicKeyPacket, trust, keySigs, ids, idTrusts, idSigs)));
+            keys.Add(new PgpSecretKey(secret, new PgpPublicKey(secret.PublicKeyPacket, trust, keySigs, ids, idTrusts, idSigs)));
+
 
             // Read subkeys
             while (bcpgInput.NextPacketTag() == PacketTag.SecretSubkey
@@ -92,7 +94,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                     }
 
                     TrustPacket subTrust = ReadOptionalTrustPacket(bcpgInput);
-                    var sigList = ReadSignaturesAndTrust(bcpgInput);
+                    IList sigList = ReadSignaturesAndTrust(bcpgInput);
 
                     keys.Add(new PgpSecretKey(sub, new PgpPublicKey(sub.PublicKeyPacket, subTrust, sigList)));
                 }
@@ -101,7 +103,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                     PublicSubkeyPacket sub = (PublicSubkeyPacket) bcpgInput.ReadPacket();
 
                     TrustPacket subTrust = ReadOptionalTrustPacket(bcpgInput);
-                    var sigList = ReadSignaturesAndTrust(bcpgInput);
+                    IList sigList = ReadSignaturesAndTrust(bcpgInput);
 
                     extraPubKeys.Add(new PgpPublicKey(sub, subTrust, sigList));
                 }
@@ -111,110 +113,31 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
         /// <summary>Return the public key for the master key.</summary>
         public PgpPublicKey GetPublicKey()
         {
-            return keys[0].PublicKey;
-        }
-
-        /// <summary>Return the public key referred to by the passed in keyID if it is present.</summary>
-        public PgpPublicKey GetPublicKey(long keyID)
-        {
-            PgpSecretKey key = GetSecretKey(keyID);
-            if (key != null)
-                return key.PublicKey;
-
-            foreach (PgpPublicKey k in extraPubKeys)
-            {
-                if (keyID == k.KeyId)
-                    return k;
-            }
-
-            return null;
-        }
-
-        /// <summary>Return the public key with the passed in fingerprint if it is present.</summary>
-        public PgpPublicKey GetPublicKey(byte[] fingerprint)
-        {
-            PgpSecretKey key = GetSecretKey(fingerprint);
-            if (key != null)
-                return key.PublicKey;
-
-            foreach (PgpPublicKey k in extraPubKeys)
-            {
-                if (k.HasFingerprint(fingerprint))
-                    return k;
-            }
-
-            return null;
-        }
-
-        /**
-         * Return any keys carrying a signature issued by the key represented by keyID.
-         *
-         * @param keyID the key id to be matched against.
-         * @return an iterator (possibly empty) of PGPPublicKey objects carrying signatures from keyID.
-         */
-        public IEnumerable<PgpPublicKey> GetKeysWithSignaturesBy(long keyID)
-        {
-            var keysWithSigs = new List<PgpPublicKey>();
-
-            foreach (var k in GetPublicKeys())
-            {
-                var sigIt = k.GetSignaturesForKeyID(keyID).GetEnumerator();
-
-                if (sigIt.MoveNext())
-                {
-                    keysWithSigs.Add(k);
-                }
-            }
-
-            return CollectionUtilities.Proxy(keysWithSigs);
-        }
-
-        public IEnumerable<PgpPublicKey> GetPublicKeys()
-        {
-            var pubKeys = new List<PgpPublicKey>();
-
-            foreach (var secretKey in keys)
-            {
-                pubKeys.Add(secretKey.PublicKey);
-            }
-
-            pubKeys.AddRange(extraPubKeys);
-
-            return CollectionUtilities.Proxy(pubKeys);
+            return ((PgpSecretKey) keys[0]).PublicKey;
         }
 
         /// <summary>Return the master private key.</summary>
         public PgpSecretKey GetSecretKey()
         {
-            return keys[0];
+            return (PgpSecretKey) keys[0];
         }
 
         /// <summary>Allows enumeration of the secret keys.</summary>
         /// <returns>An <c>IEnumerable</c> of <c>PgpSecretKey</c> objects.</returns>
-        public IEnumerable<PgpSecretKey> GetSecretKeys()
+        public IEnumerable GetSecretKeys()
         {
-            return CollectionUtilities.Proxy(keys);
+            return new EnumerableProxy(keys);
         }
 
-        /// <summary>Return the secret key referred to by the passed in keyID if it is present.</summary>
-        public PgpSecretKey GetSecretKey(long keyId)
+        public PgpSecretKey GetSecretKey(
+            long keyId)
         {
             foreach (PgpSecretKey k in keys)
             {
                 if (keyId == k.KeyId)
+                {
                     return k;
-            }
-
-            return null;
-        }
-
-        /// <summary>Return the secret key associated with the passed in fingerprint if it is present.</summary>
-        public PgpSecretKey GetSecretKey(byte[] fingerprint)
-        {
-            foreach (PgpSecretKey k in keys)
-            {
-                if (k.PublicKey.HasFingerprint(fingerprint))
-                    return k;
+                }
             }
 
             return null;
@@ -226,15 +149,17 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
         /// appears in this fashion.
         /// </summary>
         /// <returns>An <c>IEnumerable</c> of unattached, or extra, public keys.</returns>
-        public IEnumerable<PgpPublicKey> GetExtraPublicKeys()
+        public IEnumerable GetExtraPublicKeys()
         {
-            return CollectionUtilities.Proxy(extraPubKeys);
+            return new EnumerableProxy(extraPubKeys);
         }
 
         public byte[] GetEncoded()
         {
-            var bOut = new MemoryStream();
+            MemoryStream bOut = new MemoryStream();
+
             Encode(bOut);
+
             return bOut.ToArray();
         }
 
@@ -242,7 +167,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             Stream outStr)
         {
             if (outStr == null)
-                throw new ArgumentNullException(nameof(outStr));
+                throw new ArgumentNullException("outStr");
 
             foreach (PgpSecretKey key in keys)
             {
@@ -259,9 +184,11 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
         /// </summary>
         /// <param name="secretRing">Secret ring to be changed.</param>
         /// <param name="publicRing">Public ring containing the new public key set.</param>
-        public static PgpSecretKeyRing ReplacePublicKeys(PgpSecretKeyRing secretRing, PgpPublicKeyRing publicRing)
+        public static PgpSecretKeyRing ReplacePublicKeys(
+            PgpSecretKeyRing	secretRing,
+            PgpPublicKeyRing	publicRing)
         {
-            var newList = new List<PgpSecretKey>(secretRing.keys.Count);
+            IList newList = Platform.CreateArrayList(secretRing.keys.Count);
 
             foreach (PgpSecretKey sk in secretRing.keys)
             {
@@ -289,9 +216,8 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             SymmetricKeyAlgorithmTag	newEncAlgorithm,
             SecureRandom				rand)
         {
-            var newKeys = new List<PgpSecretKey>(ring.keys.Count);
-
-            foreach (PgpSecretKey secretKey in ring.keys)
+            IList newKeys = Platform.CreateArrayList(ring.keys.Count);
+            foreach (PgpSecretKey secretKey in ring.GetSecretKeys())
             {
                 if (secretKey.IsPrivateKeyEmpty)
                 {
@@ -299,8 +225,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                 }
                 else
                 {
-                    newKeys.Add(PgpSecretKey.CopyWithNewPassword(secretKey, oldPassPhrase, newPassPhrase,
-                        newEncAlgorithm, rand));
+                    newKeys.Add(PgpSecretKey.CopyWithNewPassword(secretKey, oldPassPhrase, newPassPhrase, newEncAlgorithm, rand));
                 }
             }
 
@@ -318,7 +243,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             PgpSecretKeyRing  secRing,
             PgpSecretKey      secKey)
         {
-            var keys = new List<PgpSecretKey>(secRing.keys);
+            IList keys = Platform.CreateArrayList(secRing.keys);
             bool found = false;
             bool masterFound = false;
 
@@ -363,7 +288,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             PgpSecretKeyRing  secRing,
             PgpSecretKey      secKey)
         {
-            var keys = new List<PgpSecretKey>(secRing.keys);
+            IList keys = Platform.CreateArrayList(secRing.keys);
             bool found = false;
 
             for (int i = 0; i < keys.Count; i++)

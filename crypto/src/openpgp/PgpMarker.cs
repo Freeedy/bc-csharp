@@ -12,13 +12,14 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
     {
         private readonly MarkerPacket data;
 
-		public PgpMarker(BcpgInputStream bcpgInput)
+		public PgpMarker(
+            BcpgInputStream bcpgInput)
         {
             Packet packet = bcpgInput.ReadPacket();
-            if (!(packet is MarkerPacket markerPacket))
+            if (!(packet is MarkerPacket))
                 throw new IOException("unexpected packet in stream: " + packet);
 
-            this.data = markerPacket;
+            this.data = (MarkerPacket)packet;
         }
 	}
 }

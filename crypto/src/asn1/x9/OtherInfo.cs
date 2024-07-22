@@ -1,3 +1,5 @@
+using System.Collections;
+
 namespace Org.BouncyCastle.Asn1.X9
 {
     /**
@@ -21,24 +23,25 @@ namespace Org.BouncyCastle.Asn1.X9
             this.suppPubInfo = suppPubInfo;
         }
 
-		public OtherInfo(Asn1Sequence seq)
+		public OtherInfo(
+            Asn1Sequence seq)
         {
-            var e = seq.GetEnumerator();
+            IEnumerator e = seq.GetEnumerator();
 
 			e.MoveNext();
-            keyInfo = new KeySpecificInfo((Asn1Sequence)e.Current);
+            keyInfo = new KeySpecificInfo((Asn1Sequence) e.Current);
 
 			while (e.MoveNext())
             {
-                Asn1TaggedObject o = (Asn1TaggedObject)e.Current;
+                DerTaggedObject o = (DerTaggedObject) e.Current;
 
-				if (o.HasContextTag(0))
+				if (o.TagNo == 0)
                 {
-                    partyAInfo = (Asn1OctetString)o.GetExplicitBaseObject();
+                    partyAInfo = (Asn1OctetString) o.GetObject();
                 }
-                else if (o.HasContextTag(2))
+                else if ((int) o.TagNo == 2)
                 {
-                    suppPubInfo = (Asn1OctetString)o.GetExplicitBaseObject();
+                    suppPubInfo = (Asn1OctetString) o.GetObject();
                 }
             }
         }

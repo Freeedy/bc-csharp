@@ -1,35 +1,32 @@
-using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.CryptoPro;
 using Org.BouncyCastle.Asn1.EdEC;
 using Org.BouncyCastle.Asn1.Iana;
 using Org.BouncyCastle.Asn1.Kisa;
-using Org.BouncyCastle.Asn1.Misc;
 using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.Nsri;
 using Org.BouncyCastle.Asn1.Ntt;
 using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.Rosstandart;
-using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Utilities.Collections;
 
 namespace Org.BouncyCastle.Security
 {
-    public static class GeneratorUtilities
+    public sealed class GeneratorUtilities
     {
-        private static readonly IDictionary<string, string> KgAlgorithms =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static readonly IDictionary<string, string> KpgAlgorithms =
-            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        private static readonly IDictionary<string, int> DefaultKeySizes =
-            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        private GeneratorUtilities()
+        {
+        }
+
+        private static readonly IDictionary kgAlgorithms = Platform.CreateHashtable();
+        private static readonly IDictionary kpgAlgorithms = Platform.CreateHashtable();
+        private static readonly IDictionary defaultKeySizes = Platform.CreateHashtable();
 
         static GeneratorUtilities()
         {
@@ -39,42 +36,34 @@ namespace Org.BouncyCastle.Security
             AddKgAlgorithm("AES",
                 "AESWRAP");
             AddKgAlgorithm("AES128",
-                SecurityUtilities.WrongAes128,
+                "2.16.840.1.101.3.4.2",
                 NistObjectIdentifiers.IdAes128Cbc,
                 NistObjectIdentifiers.IdAes128Ccm,
                 NistObjectIdentifiers.IdAes128Cfb,
                 NistObjectIdentifiers.IdAes128Ecb,
                 NistObjectIdentifiers.IdAes128Gcm,
                 NistObjectIdentifiers.IdAes128Ofb,
-                NistObjectIdentifiers.IdAes128Wrap,
-                NistObjectIdentifiers.IdAes128WrapPad);
+                NistObjectIdentifiers.IdAes128Wrap);
             AddKgAlgorithm("AES192",
-                SecurityUtilities.WrongAes192,
+                "2.16.840.1.101.3.4.22",
                 NistObjectIdentifiers.IdAes192Cbc,
                 NistObjectIdentifiers.IdAes192Ccm,
                 NistObjectIdentifiers.IdAes192Cfb,
                 NistObjectIdentifiers.IdAes192Ecb,
                 NistObjectIdentifiers.IdAes192Gcm,
                 NistObjectIdentifiers.IdAes192Ofb,
-                NistObjectIdentifiers.IdAes192Wrap,
-                NistObjectIdentifiers.IdAes192WrapPad);
+                NistObjectIdentifiers.IdAes192Wrap);
             AddKgAlgorithm("AES256",
-                SecurityUtilities.WrongAes256,
+                "2.16.840.1.101.3.4.42",
                 NistObjectIdentifiers.IdAes256Cbc,
                 NistObjectIdentifiers.IdAes256Ccm,
                 NistObjectIdentifiers.IdAes256Cfb,
                 NistObjectIdentifiers.IdAes256Ecb,
                 NistObjectIdentifiers.IdAes256Gcm,
                 NistObjectIdentifiers.IdAes256Ofb,
-                NistObjectIdentifiers.IdAes256Wrap,
-                NistObjectIdentifiers.IdAes256WrapPad);
+                NistObjectIdentifiers.IdAes256Wrap);
             AddKgAlgorithm("BLOWFISH",
-                /*
-                 * TODO[api] Incorrect version of cryptlib_algorithm_blowfish_CBC
-                 * Remove at major version update and delete bad test data "pbes2.bf-cbc.key"
-                 */
-                "1.3.6.1.4.1.3029.1.2",
-                MiscObjectIdentifiers.cryptlib_algorithm_blowfish_CBC);
+                "1.3.6.1.4.1.3029.1.2");
             AddKgAlgorithm("CAMELLIA",
                 "CAMELLIAWRAP");
             AddKgAlgorithm("ARIA");
@@ -85,8 +74,6 @@ namespace Org.BouncyCastle.Security
                 NsriObjectIdentifiers.id_aria128_ctr,
                 NsriObjectIdentifiers.id_aria128_ecb,
                 NsriObjectIdentifiers.id_aria128_gcm,
-                NsriObjectIdentifiers.id_aria128_kw,
-                NsriObjectIdentifiers.id_aria128_kwp,
                 NsriObjectIdentifiers.id_aria128_ocb2,
                 NsriObjectIdentifiers.id_aria128_ofb);
             AddKgAlgorithm("ARIA192",
@@ -96,8 +83,6 @@ namespace Org.BouncyCastle.Security
                 NsriObjectIdentifiers.id_aria192_ctr,
                 NsriObjectIdentifiers.id_aria192_ecb,
                 NsriObjectIdentifiers.id_aria192_gcm,
-                NsriObjectIdentifiers.id_aria192_kw,
-                NsriObjectIdentifiers.id_aria192_kwp,
                 NsriObjectIdentifiers.id_aria192_ocb2,
                 NsriObjectIdentifiers.id_aria192_ofb);
             AddKgAlgorithm("ARIA256",
@@ -107,8 +92,6 @@ namespace Org.BouncyCastle.Security
                 NsriObjectIdentifiers.id_aria256_ctr,
                 NsriObjectIdentifiers.id_aria256_ecb,
                 NsriObjectIdentifiers.id_aria256_gcm,
-                NsriObjectIdentifiers.id_aria256_kw,
-                NsriObjectIdentifiers.id_aria256_kwp,
                 NsriObjectIdentifiers.id_aria256_ocb2,
                 NsriObjectIdentifiers.id_aria256_ofb);
             AddKgAlgorithm("CAMELLIA128",
@@ -121,7 +104,7 @@ namespace Org.BouncyCastle.Security
                 NttObjectIdentifiers.IdCamellia256Cbc,
                 NttObjectIdentifiers.IdCamellia256Wrap);
             AddKgAlgorithm("CAST5",
-                MiscObjectIdentifiers.cast5CBC);
+                "1.2.840.113533.7.66.10");
             AddKgAlgorithm("CAST6");
             AddKgAlgorithm("CHACHA");
             AddKgAlgorithm("CHACHA7539",
@@ -143,18 +126,18 @@ namespace Org.BouncyCastle.Security
             AddKgAlgorithm("GOST28147",
                 "GOST",
                 "GOST-28147",
-                CryptoProObjectIdentifiers.GostR28147Gcfb);
+                CryptoProObjectIdentifiers.GostR28147Cbc);
             AddKgAlgorithm("HC128");
             AddKgAlgorithm("HC256");
             AddKgAlgorithm("IDEA",
-                MiscObjectIdentifiers.as_sys_sec_alg_ideaCBC);
+                "1.3.6.1.4.1.188.7.1.1.2");
             AddKgAlgorithm("NOEKEON");
             AddKgAlgorithm("RC2",
                 PkcsObjectIdentifiers.RC2Cbc,
                 PkcsObjectIdentifiers.IdAlgCmsRC2Wrap);
             AddKgAlgorithm("RC4",
                 "ARC4",
-                PkcsObjectIdentifiers.rc4);
+                "1.2.840.113549.3.4");
             AddKgAlgorithm("RC5",
                 "RC5-32");
             AddKgAlgorithm("RC5-64");
@@ -227,31 +210,17 @@ namespace Org.BouncyCastle.Security
                 "DIFFIEHELLMAN");
             AddKpgAlgorithm("DSA");
             AddKpgAlgorithm("EC",
-                X9ObjectIdentifiers.DHSinglePassStdDHSha1KdfScheme,
-                SecObjectIdentifiers.dhSinglePass_stdDH_sha224kdf_scheme,
-                SecObjectIdentifiers.dhSinglePass_stdDH_sha256kdf_scheme,
-                SecObjectIdentifiers.dhSinglePass_stdDH_sha384kdf_scheme,
-                SecObjectIdentifiers.dhSinglePass_stdDH_sha512kdf_scheme,
-                X9ObjectIdentifiers.DHSinglePassCofactorDHSha1KdfScheme,
-                SecObjectIdentifiers.dhSinglePass_cofactorDH_sha224kdf_scheme,
-                SecObjectIdentifiers.dhSinglePass_cofactorDH_sha256kdf_scheme,
-                SecObjectIdentifiers.dhSinglePass_cofactorDH_sha384kdf_scheme,
-                SecObjectIdentifiers.dhSinglePass_cofactorDH_sha512kdf_scheme);
+                // TODO Should this be an alias for ECDH?
+                X9ObjectIdentifiers.DHSinglePassStdDHSha1KdfScheme);
             AddKpgAlgorithm("ECDH",
                 "ECIES");
             AddKpgAlgorithm("ECDHC");
             AddKpgAlgorithm("ECMQV",
-                X9ObjectIdentifiers.MqvSinglePassSha1KdfScheme,
-                SecObjectIdentifiers.mqvSinglePass_sha224kdf_scheme,
-                SecObjectIdentifiers.mqvSinglePass_sha256kdf_scheme,
-                SecObjectIdentifiers.mqvSinglePass_sha384kdf_scheme,
-                SecObjectIdentifiers.mqvSinglePass_sha512kdf_scheme);
+                X9ObjectIdentifiers.MqvSinglePassSha1KdfScheme);
             AddKpgAlgorithm("ECDSA");
             AddKpgAlgorithm("ECGOST3410",
                 "ECGOST-3410",
                 "GOST-3410-2001");
-            AddKpgAlgorithm("ECGOST3410-2012",
-                "GOST-3410-2012");
             AddKpgAlgorithm("Ed25519",
                 "Ed25519ctx",
                 "Ed25519ph",
@@ -264,7 +233,7 @@ namespace Org.BouncyCastle.Security
                 "GOST-3410",
                 "GOST-3410-94");
             AddKpgAlgorithm("RSA",
-                PkcsObjectIdentifiers.RsaEncryption);
+                "1.2.840.113549.1.1.1");
             AddKpgAlgorithm("RSASSA-PSS");
             AddKpgAlgorithm("X25519",
                 EdECObjectIdentifiers.id_X25519);
@@ -294,62 +263,72 @@ namespace Org.BouncyCastle.Security
         {
             foreach (string algorithm in algorithms)
             {
-                DefaultKeySizes.Add(algorithm, size);
+                defaultKeySizes.Add(algorithm, size);
             }
         }
 
-        private static void AddKgAlgorithm(string canonicalName, params object[] aliases)
+        private static void AddKgAlgorithm(
+            string			canonicalName,
+            params object[] aliases)
         {
-            KgAlgorithms[canonicalName] = canonicalName;
+            kgAlgorithms[Platform.ToUpperInvariant(canonicalName)] = canonicalName;
 
             foreach (object alias in aliases)
             {
-                KgAlgorithms[alias.ToString()] = canonicalName;
+                kgAlgorithms[Platform.ToUpperInvariant(alias.ToString())] = canonicalName;
             }
         }
 
-        private static void AddKpgAlgorithm(string canonicalName, params object[] aliases)
+        private static void AddKpgAlgorithm(
+            string			canonicalName,
+            params object[] aliases)
         {
-            KpgAlgorithms[canonicalName] = canonicalName;
+            kpgAlgorithms[Platform.ToUpperInvariant(canonicalName)] = canonicalName;
 
             foreach (object alias in aliases)
             {
-                KpgAlgorithms[alias.ToString()] = canonicalName;
+                kpgAlgorithms[Platform.ToUpperInvariant(alias.ToString())] = canonicalName;
             }
         }
 
-        private static void AddHMacKeyGenerator(string algorithm, params object[] aliases)
+        private static void AddHMacKeyGenerator(
+            string			algorithm,
+            params object[]	aliases)
         {
             string mainName = "HMAC" + algorithm;
 
-            KgAlgorithms[mainName] = mainName;
-            KgAlgorithms["HMAC-" + algorithm] = mainName;
-            KgAlgorithms["HMAC/" + algorithm] = mainName;
+            kgAlgorithms[mainName] = mainName;
+            kgAlgorithms["HMAC-" + algorithm] = mainName;
+            kgAlgorithms["HMAC/" + algorithm] = mainName;
 
             foreach (object alias in aliases)
             {
-                KgAlgorithms[alias.ToString()] = mainName;
+                kgAlgorithms[Platform.ToUpperInvariant(alias.ToString())] = mainName;
             }
         }
 
         // TODO Consider making this public
-        internal static string GetCanonicalKeyGeneratorAlgorithm(string algorithm)
+        internal static string GetCanonicalKeyGeneratorAlgorithm(
+            string algorithm)
         {
-            return CollectionUtilities.GetValueOrNull(KgAlgorithms, algorithm);
+            return (string) kgAlgorithms[Platform.ToUpperInvariant(algorithm)];
         }
 
         // TODO Consider making this public
-        internal static string GetCanonicalKeyPairGeneratorAlgorithm(string algorithm)
+        internal static string GetCanonicalKeyPairGeneratorAlgorithm(
+            string algorithm)
         {
-            return CollectionUtilities.GetValueOrNull(KpgAlgorithms, algorithm);
+            return (string)kpgAlgorithms[Platform.ToUpperInvariant(algorithm)];
         }
 
-        public static CipherKeyGenerator GetKeyGenerator(DerObjectIdentifier oid)
+        public static CipherKeyGenerator GetKeyGenerator(
+            DerObjectIdentifier oid)
         {
             return GetKeyGenerator(oid.Id);
         }
 
-        public static CipherKeyGenerator GetKeyGenerator(string algorithm)
+        public static CipherKeyGenerator GetKeyGenerator(
+            string algorithm)
         {
             string canonicalName = GetCanonicalKeyGeneratorAlgorithm(algorithm);
 
@@ -370,12 +349,14 @@ namespace Org.BouncyCastle.Security
             return new CipherKeyGenerator(defaultKeySize);
         }
 
-        public static IAsymmetricCipherKeyPairGenerator GetKeyPairGenerator(DerObjectIdentifier oid)
+        public static IAsymmetricCipherKeyPairGenerator GetKeyPairGenerator(
+            DerObjectIdentifier oid)
         {
             return GetKeyPairGenerator(oid.Id);
         }
 
-        public static IAsymmetricCipherKeyPairGenerator GetKeyPairGenerator(string algorithm)
+        public static IAsymmetricCipherKeyPairGenerator GetKeyPairGenerator(
+            string algorithm)
         {
             string canonicalName = GetCanonicalKeyPairGeneratorAlgorithm(algorithm);
 
@@ -388,7 +369,7 @@ namespace Org.BouncyCastle.Security
             if (canonicalName == "DSA")
                 return new DsaKeyPairGenerator();
 
-            // "EC", "ECDH", "ECDHC", "ECDSA", "ECGOST3410", "ECGOST3410-2012", "ECMQV"
+            // "EC", "ECDH", "ECDHC", "ECDSA", "ECGOST3410", "ECMQV"
             if (Platform.StartsWith(canonicalName, "EC"))
                 return new ECKeyPairGenerator(canonicalName);
 
@@ -417,12 +398,14 @@ namespace Org.BouncyCastle.Security
                 + " (" + canonicalName + ") not supported.");
         }
 
-        internal static int GetDefaultKeySize(DerObjectIdentifier oid)
+        internal static int GetDefaultKeySize(
+            DerObjectIdentifier oid)
         {
             return GetDefaultKeySize(oid.Id);
         }
 
-        internal static int GetDefaultKeySize(string algorithm)
+        internal static int GetDefaultKeySize(
+            string algorithm)
         {
             string canonicalName = GetCanonicalKeyGeneratorAlgorithm(algorithm);
 
@@ -437,9 +420,13 @@ namespace Org.BouncyCastle.Security
             return defaultKeySize;
         }
 
-        private static int FindDefaultKeySize(string canonicalName)
+        private static int FindDefaultKeySize(
+            string canonicalName)
         {
-            return DefaultKeySizes.TryGetValue(canonicalName, out int keySize) ? keySize : -1;
+            if (!defaultKeySizes.Contains(canonicalName))
+                return -1;
+
+            return (int)defaultKeySizes[canonicalName];
         }
     }
 }

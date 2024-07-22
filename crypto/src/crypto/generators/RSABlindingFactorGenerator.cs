@@ -3,7 +3,6 @@ using System;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Generators
 {
@@ -22,17 +21,20 @@ namespace Org.BouncyCastle.Crypto.Generators
 		*
 		* @param param the necessary RSA key parameters.
 		*/
-		public void Init(ICipherParameters param)
+		public void Init(
+			ICipherParameters param)
 		{
-			if (param is ParametersWithRandom rParam)
+			if (param is ParametersWithRandom)
 			{
+				ParametersWithRandom rParam = (ParametersWithRandom)param;
+
 				key = (RsaKeyParameters)rParam.Parameters;
 				random = rParam.Random;
 			}
 			else
 			{
 				key = (RsaKeyParameters)param;
-				random = CryptoServicesRegistrar.GetSecureRandom();
+				random = new SecureRandom();
 			}
 
 			if (key.IsPrivate)
@@ -51,13 +53,15 @@ namespace Org.BouncyCastle.Crypto.Generators
 
 			BigInteger m = key.Modulus;
 			int length = m.BitLength - 1; // must be less than m.BitLength
-
 			BigInteger factor;
+			BigInteger gcd;
+
 			do
 			{
-				factor = BigIntegers.CreateRandomBigInteger(length, random);
+				factor = new BigInteger(length, random);
+				gcd = factor.Gcd(m);
 			}
-			while (factor.CompareTo(BigInteger.Two) < 0 || !BigIntegers.ModOddIsCoprime(m, factor));
+			while (factor.SignValue == 0 || factor.Equals(BigInteger.One) || !gcd.Equals(BigInteger.One));
 
 			return factor;
 		}

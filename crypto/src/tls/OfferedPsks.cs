@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
@@ -42,16 +42,16 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        private readonly IList<PskIdentity> m_identities;
-        private readonly IList<byte[]> m_binders;
+        private readonly IList m_identities;
+        private readonly IList m_binders;
         private readonly int m_bindersSize;
 
-        public OfferedPsks(IList<PskIdentity> identities)
+        public OfferedPsks(IList identities)
             : this(identities, null, -1)
         {
         }
 
-        private OfferedPsks(IList<PskIdentity> identities, IList<byte[]> binders, int bindersSize)
+        private OfferedPsks(IList identities, IList binders, int bindersSize)
         {
             if (null == identities || identities.Count < 1)
                 throw new ArgumentException("cannot be null or empty", "identities");
@@ -65,7 +65,7 @@ namespace Org.BouncyCastle.Tls
             this.m_bindersSize = bindersSize;
         }
 
-        public IList<byte[]> Binders
+        public IList Binders
         {
             get { return m_binders; }
         }
@@ -75,7 +75,7 @@ namespace Org.BouncyCastle.Tls
             get { return m_bindersSize; }
         }
 
-        public IList<PskIdentity> Identities
+        public IList Identities
         {
             get { return m_identities; }
         }
@@ -186,7 +186,7 @@ namespace Org.BouncyCastle.Tls
         /// <exception cref="IOException"/>
         public static OfferedPsks Parse(Stream input)
         {
-            var identities = new List<PskIdentity>();
+            IList identities = Platform.CreateArrayList();
             {
                 int totalLengthIdentities = TlsUtilities.ReadUint16(input);
                 if (totalLengthIdentities < 7)
@@ -202,7 +202,7 @@ namespace Org.BouncyCastle.Tls
                 while (buf.Position < buf.Length);
             }
 
-            var binders = new List<byte[]>();
+            IList binders = Platform.CreateArrayList();
             int totalLengthBinders = TlsUtilities.ReadUint16(input);
             {
                 if (totalLengthBinders < 33)

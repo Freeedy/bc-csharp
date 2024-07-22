@@ -1,7 +1,5 @@
 using System;
 
-using Org.BouncyCastle.Utilities.Collections;
-
 namespace Org.BouncyCastle.X509.Store
 {
 	/// <remarks>
@@ -11,7 +9,7 @@ namespace Org.BouncyCastle.X509.Store
 	/// each of which, if present, must match the respective component of a pair.
 	/// </remarks>
 	public class X509CertPairStoreSelector
-		: ISelector<X509CertificatePair>
+		: IX509Selector
 	{
 		private static X509CertStoreSelector CloneSelector(
 			X509CertStoreSelector s)
@@ -61,10 +59,16 @@ namespace Org.BouncyCastle.X509.Store
 		/// <c>obj</c> is not a <code>X509CertificatePair</code>, this method
 		/// returns <code>false</code>.
 		/// </summary>
-		/// <param name="pair">The <code>X509CertificatePair</code> to be tested.</param>
+		/// <param name="obj">The <code>X509CertificatePair</code> to be tested.</param>
 		/// <returns><code>true</code> if the object matches this selector.</returns>
-		public bool Match(X509CertificatePair pair)
+		public bool Match(
+			object obj)
 		{
+			if (obj == null)
+				throw new ArgumentNullException("obj");
+
+			X509CertificatePair pair = obj as X509CertificatePair;
+
 			if (pair == null)
 				return false;
 

@@ -11,10 +11,10 @@ namespace Org.BouncyCastle.Crypto.Agreement.Kdf
     /**
     * X9.63 based key derivation function for ECDH CMS.
     */
-    public sealed class ECDHKekGenerator
+    public class ECDHKekGenerator
         : IDerivationFunction
     {
-        private readonly IDerivationFunction m_kdf;
+        private readonly IDerivationFunction kdf;
 
         private DerObjectIdentifier	algorithm;
         private int					keySize;
@@ -22,10 +22,10 @@ namespace Org.BouncyCastle.Crypto.Agreement.Kdf
 
         public ECDHKekGenerator(IDigest digest)
         {
-            m_kdf = new Kdf2BytesGenerator(digest);
+            this.kdf = new Kdf2BytesGenerator(digest);
         }
 
-        public void Init(IDerivationParameters param)
+        public virtual void Init(IDerivationParameters param)
         {
             DHKdfParameters parameters = (DHKdfParameters)param;
 
@@ -34,29 +34,12 @@ namespace Org.BouncyCastle.Crypto.Agreement.Kdf
             this.z = parameters.GetZ(); // TODO Clone?
         }
 
-        public IDigest Digest => m_kdf.Digest;
-
-        public int GenerateBytes(byte[]	outBytes, int outOff, int length)
+        public virtual IDigest Digest
         {
-            Check.OutputLength(outBytes, outOff, length, "output buffer too short");
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return GenerateBytes(outBytes.AsSpan(outOff, length));
-#else
-            // TODO Create an ASN.1 class for this (RFC3278)
-            // ECC-CMS-SharedInfo
-            DerSequence s = new DerSequence(
-                new AlgorithmIdentifier(algorithm, DerNull.Instance),
-                new DerTaggedObject(true, 2, new DerOctetString(Pack.UInt32_To_BE((uint)keySize))));
-
-            m_kdf.Init(new KdfParameters(z, s.GetDerEncoded()));
-
-            return m_kdf.GenerateBytes(outBytes, outOff, length);
-#endif
+            get { return kdf.Digest; }
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int GenerateBytes(Span<byte> output)
+        public virtual int GenerateBytes(byte[]	outBytes, int outOff, int len)
         {
             // TODO Create an ASN.1 class for this (RFC3278)
             // ECC-CMS-SharedInfo
@@ -64,10 +47,9 @@ namespace Org.BouncyCastle.Crypto.Agreement.Kdf
                 new AlgorithmIdentifier(algorithm, DerNull.Instance),
                 new DerTaggedObject(true, 2, new DerOctetString(Pack.UInt32_To_BE((uint)keySize))));
 
-            m_kdf.Init(new KdfParameters(z, s.GetDerEncoded()));
+            kdf.Init(new KdfParameters(z, s.GetDerEncoded()));
 
-            return m_kdf.GenerateBytes(output);
+            return kdf.GenerateBytes(outBytes, outOff, len);
         }
-#endif
     }
 }

@@ -1,58 +1,25 @@
 ﻿using System;
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-using System.Diagnostics.CodeAnalysis;
-#endif
 
 namespace Org.BouncyCastle.Crypto
 {
-    internal static class Check
+    internal class Check
     {
-        internal static void DataLength(bool condition, string message)
+        internal static void DataLength(bool condition, string msg)
         {
             if (condition)
-                ThrowDataLengthException(message);
+                throw new DataLengthException(msg);
         }
 
-        internal static void DataLength(byte[] buf, int off, int len, string message)
+        internal static void DataLength(byte[] buf, int off, int len, string msg)
         {
             if (off > (buf.Length - len))
-                ThrowDataLengthException(message);
+                throw new DataLengthException(msg);
         }
 
-        internal static void OutputLength(bool condition, string message)
-        {
-            if (condition)
-                ThrowOutputLengthException(message);
-        }
-
-        internal static void OutputLength(byte[] buf, int off, int len, string message)
+        internal static void OutputLength(byte[] buf, int off, int len, string msg)
         {
             if (off > (buf.Length - len))
-                ThrowOutputLengthException(message);
+                throw new OutputLengthException(msg);
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        internal static void DataLength<T>(ReadOnlySpan<T> input, int len, string message)
-        {
-            if (input.Length < len)
-                ThrowDataLengthException(message);
-        }
-
-        internal static void OutputLength<T>(Span<T> output, int len, string message)
-        {
-            if (output.Length < len)
-                ThrowOutputLengthException(message);
-        }
-#endif
-
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        [DoesNotReturn]
-#endif
-        internal static void ThrowDataLengthException(string message) => throw new DataLengthException(message);
-
-#if NETCOREAPP3_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        [DoesNotReturn]
-#endif
-        internal static void ThrowOutputLengthException(string message) => throw new OutputLengthException(message);
     }
 }

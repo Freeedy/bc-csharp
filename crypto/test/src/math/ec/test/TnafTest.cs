@@ -91,7 +91,7 @@
 //			ImplTestMultiplyTnaf("sect571k1");
 //		}
 //
-//		private void ImplTestMultiplyWnaf(string curveName) 
+//		private void ImplTestMultiplyWnaf(String curveName) 
 //		{
 //			X9ECParameters x9ECParameters = SecNamedCurves.GetByName(curveName);
 //

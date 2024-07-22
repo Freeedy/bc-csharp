@@ -49,14 +49,11 @@ namespace Org.BouncyCastle.Asn1.Cms
 				nextObject = seq.ReadObject();
 			}
 
-			if (nextObject is Asn1TaggedObjectParser o)
+			if (nextObject is Asn1TaggedObjectParser && ((Asn1TaggedObjectParser)nextObject).TagNo == 0)
 			{
-				if (o.HasContextTag(0))
-				{
-					Asn1SequenceParser originatorInfo = (Asn1SequenceParser)o.ParseBaseUniversal(false, Asn1Tags.Sequence);
-					nextObject = null;
-					return OriginatorInfo.GetInstance(originatorInfo.ToAsn1Object());
-				}
+				Asn1SequenceParser originatorInfo = (Asn1SequenceParser) ((Asn1TaggedObjectParser)nextObject).GetObjectParser(Asn1Tags.Sequence, false);
+				nextObject = null;
+				return OriginatorInfo.GetInstance(originatorInfo.ToAsn1Object());
 			}
 
 			return null;
@@ -105,13 +102,15 @@ namespace Org.BouncyCastle.Asn1.Cms
 				nextObject = seq.ReadObject();
 			}
 
-			if (nextObject is Asn1TaggedObjectParser o)
+			if (nextObject is Asn1TaggedObjectParser)
 			{
+				IAsn1Convertible o = nextObject;
 				nextObject = null;
-				return (Asn1SetParser)Asn1Utilities.ParseContextBaseUniversal(o, 1, false, Asn1Tags.SetOf);
+				return (Asn1SetParser)((Asn1TaggedObjectParser)o).GetObjectParser(Asn1Tags.Set, false);
 			}
 
-			// "The authAttrs MUST be present if the content type carried in EncryptedContentInfo is not id-data."
+			// "The authAttrs MUST be present if the content type carried in
+			// EncryptedContentInfo is not id-data."
 			if (!isData)
 				throw new Asn1ParsingException("authAttrs must be present with non-data content");
 
@@ -140,9 +139,9 @@ namespace Org.BouncyCastle.Asn1.Cms
 
 			if (nextObject != null)
 			{
-				Asn1TaggedObjectParser o = (Asn1TaggedObjectParser)nextObject;
+				IAsn1Convertible o = nextObject;
 				nextObject = null;
-				return (Asn1SetParser)Asn1Utilities.ParseContextBaseUniversal(o, 2, false, Asn1Tags.SetOf);
+				return (Asn1SetParser)((Asn1TaggedObjectParser)o).GetObjectParser(Asn1Tags.Set, false);
 			}
 
 			return null;

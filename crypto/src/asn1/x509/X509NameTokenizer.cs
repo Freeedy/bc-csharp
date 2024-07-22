@@ -1,4 +1,4 @@
-using System;
+using System.Text;
 
 namespace Org.BouncyCastle.Asn1.X509
 {
@@ -10,71 +10,95 @@ namespace Org.BouncyCastle.Asn1.X509
      */
     public class X509NameTokenizer
     {
-        private readonly string m_value;
-        private readonly char m_separator;
+        private string			value;
+        private int				index;
+        private char			separator;
+        private StringBuilder	buffer = new StringBuilder();
 
-        private int m_index;
-
-        public X509NameTokenizer(string oid)
+		public X509NameTokenizer(
+            string oid)
             : this(oid, ',')
         {
         }
 
-		public X509NameTokenizer(string	oid, char separator)
+		public X509NameTokenizer(
+            string	oid,
+            char	separator)
         {
-            if (oid == null)
-                throw new ArgumentNullException(nameof(oid));
-
-            if (separator == '"' || separator == '\\')
-                throw new ArgumentException("reserved separator character", nameof(separator));
-
-            m_value = oid;
-            m_separator = separator;
-            m_index = oid.Length < 1 ? 0 : -1;
+            this.value = oid;
+            this.index = -1;
+            this.separator = separator;
         }
 
-        public bool HasMoreTokens() => m_index < m_value.Length;
+		public bool HasMoreTokens()
+        {
+            return index != value.Length;
+        }
 
 		public string NextToken()
         {
-            if (m_index >= m_value.Length)
+            if (index == value.Length)
+            {
                 return null;
+            }
 
+            int end = index + 1;
             bool quoted = false;
             bool escaped = false;
 
-            int beginIndex = m_index + 1;
-            while (++m_index < m_value.Length)
-            {
-                char c = m_value[m_index];
+			buffer.Remove(0, buffer.Length);
 
-                if (escaped)
+			while (end != value.Length)
+            {
+                char c = value[end];
+
+				if (c == '"')
                 {
-                    escaped = false;
+                    if (!escaped)
+                    {
+                        quoted = !quoted;
+                    }
+                    else
+                    {
+                        buffer.Append(c);
+						escaped = false;
+                    }
                 }
-                else if (c == '"')
+                else
                 {
-                    quoted = !quoted;
+                    if (escaped || quoted)
+                    {
+						if (c == '#' && buffer[buffer.Length - 1] == '=')
+						{
+							buffer.Append('\\');
+						}
+						else if (c == '+' && separator != '+')
+						{
+							buffer.Append('\\');
+						}
+						buffer.Append(c);
+                        escaped = false;
+                    }
+                    else if (c == '\\')
+                    {
+                        escaped = true;
+                    }
+                    else if (c == separator)
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        buffer.Append(c);
+                    }
                 }
-                else if (quoted)
-                {
-                }
-                else if (c == '\\')
-                {
-                    escaped = true;
-                }
-                else if (c == m_separator)
-                {
-                    // TODO[api] The Trim() is for backward compatibility; remove on transition to X500NameTokenizer
-                    return m_value.Substring(beginIndex, m_index - beginIndex).Trim();
-                }
+
+				end++;
             }
 
-            if (escaped || quoted)
-                throw new ArgumentException("badly formatted directory string");
+			index = end;
 
-            // TODO[api] The Trim() is for backward compatibility; remove on transition to X500NameTokenizer
-            return m_value.Substring(beginIndex, m_index - beginIndex).Trim();
+			return buffer.ToString().Trim();
         }
     }
 }

@@ -61,7 +61,7 @@ namespace Org.BouncyCastle.Tls
         public const int brainpoolP512r1tls13 = 33;
 
         /*
-         * RFC 9189
+         * draft-smyshlyaev-tls12-gost-suites-10
          */
         public const int GC256A = 34;
         public const int GC256B = 35;
@@ -224,7 +224,9 @@ namespace Org.BouncyCastle.Tls
         public static string GetCurveName(int namedGroup)
         {
             if (RefersToASpecificCurve(namedGroup))
+            {
                 return CurveNames[namedGroup - sect163k1];
+            }
 
             return null;
         }
@@ -355,8 +357,6 @@ namespace Org.BouncyCastle.Tls
             return (namedGroup >= sect163k1 && namedGroup <= sect571r1)
                 || (namedGroup == arbitrary_explicit_char2_curves);
         }
-
-        public static bool IsFiniteField(int namedGroup) => (namedGroup & 0xFFFFFF00) == 0x00000100;
 
         public static bool IsPrimeCurve(int namedGroup)
         {

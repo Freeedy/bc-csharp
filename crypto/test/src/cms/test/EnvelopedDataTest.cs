@@ -1,9 +1,8 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Text;
 
 using NUnit.Framework;
-
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Kisa;
 using Org.BouncyCastle.Asn1.Nist;
@@ -11,9 +10,11 @@ using Org.BouncyCastle.Asn1.Ntt;
 using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Operators;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Encoders;
@@ -175,161 +176,6 @@ namespace Org.BouncyCastle.Cms.Tests
 			+ "AKAECJwE0hkuKlWhgCBeKNXhojuej3org9Lt7n+wWxOhnky5V50vSpoYRfRR"
 			+ "yw==");
 
-        private static readonly byte[] gost2012_Sender_Cert = Base64.Decode(
-			"MIIETDCCA/mgAwIBAgIEB/tRdzAKBggqhQMHAQEDAjCB0TELMAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQ" +
-			"sdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQtdC90L3QuNC6MSgwJgYDVQQLDB/QlNC10LnRgdGC0LLRg9GO0YnQ" +
-			"uNC1INC70LjRhtCwMS0wKwYDVQQMDCTQpNC40LvQvtGB0L7QsiDQuCDQv9GD0LHQu9C40YbQuNGB0YIxJjAkBgNVBAMMHdCV" +
-			"0LLQs9C10L3RltC5INCe0L3Ro9Cz0LjQvdGKMB4XDTE3MDcxNTE0MDAwMFoXDTM3MDcxNTE0MDAwMFowgdExCzAJBgNVBAYT" +
-			"AlJVMSAwHgYDVQQIDBfQoS7Qn9C40YLQtdGA0LHRg9GA0LPRijEfMB0GA1UECgwW0KHQvtCy0YDQtdC80LXQvdC90LjQujEo" +
-			"MCYGA1UECwwf0JTQtdC50YHRgtCy0YPRjtGJ0LjQtSDQu9C40YbQsDEtMCsGA1UEDAwk0KTQuNC70L7RgdC+0LIg0Lgg0L/R" +
-			"g9Cx0LvQuNGG0LjRgdGCMSYwJAYDVQQDDB3QldCy0LPQtdC90ZbQuSDQntC90aPQs9C40L3RijBmMB8GCCqFAwcBAQEBMBMG" +
-			"ByqFAwICJAAGCCqFAwcBAQICA0MABEAl9XE868NRYm3CQXCPO+BJlVi7kxORfoyRaHyWyKBFf4TYV4eEUF/WjAf3fAqsndp6" +
-			"v1DNqa3KS1R1yqn1Ug4do4IBrjCCAaowDgYDVR0PAQH/BAQDAgH+MGMGA1UdJQRcMFoGCCsGAQUFBwMBBggrBgEFBQcDAgYI" +
-			"KwYBBQUHAwMGCCsGAQUFBwMEBggrBgEFBQcDBQYIKwYBBQUHAwYGCCsGAQUFBwMHBggrBgEFBQcDCAYIKwYBBQUHAwkwDwYD" +
-			"VR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQUzhoR/a0hWGOpy6GPEm7LBCJ3dLYwggEBBgNVHSMEgfkwgfaAFM4aEf2tIVhjqcuh" +
-			"jxJuywQid3S2oYHXpIHUMIHRMQswCQYDVQQGEwJSVTEgMB4GA1UECAwX0KEu0J/QuNGC0LXRgNCx0YPRgNCz0YoxHzAdBgNV" +
-			"BAoMFtCh0L7QstGA0LXQvNC10L3QvdC40LoxKDAmBgNVBAsMH9CU0LXQudGB0YLQstGD0Y7RidC40LUg0LvQuNGG0LAxLTAr" +
-			"BgNVBAwMJNCk0LjQu9C+0YHQvtCyINC4INC/0YPQsdC70LjRhtC40YHRgjEmMCQGA1UEAwwd0JXQstCz0LXQvdGW0Lkg0J7Q" +
-			"vdGj0LPQuNC90YqCBAf7UXcwCgYIKoUDBwEBAwIDQQDcFDvbdfUu1087tslF70OeZgLW5QHRtPLUaldE9x1Geu2veJos9fZ7" +
-			"nqISVcd1wrf6FfADt3Tw2pQuG8mVCNUi"
-		);
-
-        private static readonly byte[] gost2012_Sender_Key = Base64.Decode(
-			"MEgCAQAwHwYIKoUDBwEBBgEwEwYHKoUDAgIkAAYIKoUDBwEBAgIEIgQgYARzlWBWAJLs64jQbYW4UEXqFN/ChtWCSHqRgivT" +
-			"8Ds="
-		);
-
-        private static readonly byte[] gost2012_Reci_Cert = Base64.Decode(
-			"MIIEMzCCA+CgAwIBAgIEe7X7RjAKBggqhQMHAQEDAjCByTELMAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQ" +
-			"sdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQtdC90L3QuNC6MR8wHQYDVQQLDBbQoNGD0LrQvtCy0L7QtNGB0YLQ" +
-			"stC+MRkwFwYDVQQMDBDQoNC10LTQsNC60YLQvtGAMTswOQYDVQQDDDLQn9GD0YjQutC40L0g0JDQu9C10LrRgdCw0L3QtNGA" +
-			"INCh0LXRgNCz0LXQtdCy0LjRhzAeFw0xNzA3MTUxNDAwMDBaFw0zNzA3MTUxNDAwMDBaMIHJMQswCQYDVQQGEwJSVTEgMB4G" +
-			"A1UECAwX0KEu0J/QuNGC0LXRgNCx0YPRgNCz0YoxHzAdBgNVBAoMFtCh0L7QstGA0LXQvNC10L3QvdC40LoxHzAdBgNVBAsM" +
-			"FtCg0YPQutC+0LLQvtC00YHRgtCy0L4xGTAXBgNVBAwMENCg0LXQtNCw0LrRgtC+0YAxOzA5BgNVBAMMMtCf0YPRiNC60LjQ" +
-			"vSDQkNC70LXQutGB0LDQvdC00YAg0KHQtdGA0LPQtdC10LLQuNGHMGYwHwYIKoUDBwEBAQEwEwYHKoUDAgIkAAYIKoUDBwEB" +
-			"AgIDQwAEQGQ4aJ3On0XqEt62PUfquYCAx0690AzlyE9IO8r5zkNKldvK4THC1IgBHkRzKiewquMm0YuYh76NI01uNjThOjyj" +
-			"ggGlMIIBoTAOBgNVHQ8BAf8EBAMCAf4wYwYDVR0lBFwwWgYIKwYBBQUHAwEGCCsGAQUFBwMCBggrBgEFBQcDAwYIKwYBBQUH" +
-			"AwQGCCsGAQUFBwMFBggrBgEFBQcDBgYIKwYBBQUHAwcGCCsGAQUFBwMIBggrBgEFBQcDCTAPBgNVHRMBAf8EBTADAQH/MB0G" +
-			"A1UdDgQWBBROPw+FggywJjV9aLLSKz2Cr0BD9zCB+QYDVR0jBIHxMIHugBROPw+FggywJjV9aLLSKz2Cr0BD96GBz6SBzDCB" +
-			"yTELMAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQsdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQ" +
-			"tdC90L3QuNC6MR8wHQYDVQQLDBbQoNGD0LrQvtCy0L7QtNGB0YLQstC+MRkwFwYDVQQMDBDQoNC10LTQsNC60YLQvtGAMTsw" +
-			"OQYDVQQDDDLQn9GD0YjQutC40L0g0JDQu9C10LrRgdCw0L3QtNGAINCh0LXRgNCz0LXQtdCy0LjRh4IEe7X7RjAKBggqhQMH" +
-			"AQEDAgNBAJR6UhzmUlRzlbiCU8IjhrR15c2uFtcHqHaUfiO8XJ2bnOiwxADZbnqlN3Foul6QrTXa5Vu1UbA2hFobJeuDniQ="
-		);
-
-        private static readonly byte[] gost2012_Reci_Key = Base64.Decode(
-			"MEgCAQAwHwYIKoUDBwEBBgEwEwYHKoUDAgIkAAYIKoUDBwEBAgIEIgQgbtgmrFxhZLQm9H1Gx0+BAVTP6ZVLu20KcmKNzdIh" +
-			"rKc="
-		);
-
-        private static readonly byte[] gost2012_Reci_Msg = Base64.Decode(
-			"MIICBgYJKoZIhvcNAQcDoIIB9zCCAfMCAQAxggGyoYIBrgIBA6BooWYwHwYIKoUDBwEBAQEwEwYHKoUDAgIkAAYIKoUDBwEB" +
-			"AgIDQwAEQCX1cTzrw1FibcJBcI874EmVWLuTE5F+jJFofJbIoEV/hNhXh4RQX9aMB/d8Cqyd2nq/UM2prcpLVHXKqfVSDh2h" +
-			"CgQIDIhh5975RYMwKgYIKoUDBwEBBgEwHgYHKoUDAgINATATBgcqhQMCAh8BBAgMiGHn3vlFgzCCAQUwggEBMIHSMIHJMQsw" +
-			"CQYDVQQGEwJSVTEgMB4GA1UECAwX0KEu0J/QuNGC0LXRgNCx0YPRgNCz0YoxHzAdBgNVBAoMFtCh0L7QstGA0LXQvNC10L3Q" +
-			"vdC40LoxHzAdBgNVBAsMFtCg0YPQutC+0LLQvtC00YHRgtCy0L4xGTAXBgNVBAwMENCg0LXQtNCw0LrRgtC+0YAxOzA5BgNV" +
-			"BAMMMtCf0YPRiNC60LjQvSDQkNC70LXQutGB0LDQvdC00YAg0KHQtdGA0LPQtdC10LLQuNGHAgR7tftGBCowKAQgLMyx3zUe" +
-			"56F7eAKUAezilo3fxp6M/E+YkVVUDgFadfcEBHMmXJMwOAYJKoZIhvcNAQcBMB0GBiqFAwICFTATBAhJHfyezbxrUQYHKoUD" +
-			"AgIfAYAMLLM89stnSyrWGWSW"
-		);
-
-        private static readonly byte[] gost2012_512_Sender_Cert = Base64.Decode(
-			"MIIE0jCCBD6gAwIBAgIEMBwU/jAKBggqhQMHAQEDAzCB0TELMAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQ" +
-			"sdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQtdC90L3QuNC6MSgwJgYDVQQLDB/QlNC10LnRgdGC0LLRg9GO0YnQ" +
-			"uNC1INC70LjRhtCwMS0wKwYDVQQMDCTQpNC40LvQvtGB0L7QsiDQuCDQv9GD0LHQu9C40YbQuNGB0YIxJjAkBgNVBAMMHdCV" +
-			"0LLQs9C10L3RltC5INCe0L3Ro9Cz0LjQvdGKMB4XDTE3MDcxNTE0MDAwMFoXDTM3MDcxNTE0MDAwMFowgdExCzAJBgNVBAYT" +
-			"AlJVMSAwHgYDVQQIDBfQoS7Qn9C40YLQtdGA0LHRg9GA0LPRijEfMB0GA1UECgwW0KHQvtCy0YDQtdC80LXQvdC90LjQujEo" +
-			"MCYGA1UECwwf0JTQtdC50YHRgtCy0YPRjtGJ0LjQtSDQu9C40YbQsDEtMCsGA1UEDAwk0KTQuNC70L7RgdC+0LIg0Lgg0L/R" +
-			"g9Cx0LvQuNGG0LjRgdGCMSYwJAYDVQQDDB3QldCy0LPQtdC90ZbQuSDQntC90aPQs9C40L3RijCBqjAhBggqhQMHAQEBAjAV" +
-			"BgkqhQMHAQIBAgEGCCqFAwcBAQIDA4GEAASBgLnNMC1uA9NjhZMyIotCn+4H+iqcTv5paCYmRIuIvWZO7OvUv3u9aWK5Lb0w" +
-			"CH2Imbg/ffZV84xSwbNST83w4IFh8u1mAnf302+uuqt62pBU3VtPOPt3RYRwEABSDuTlBP2VocXa2iP53HM09fxhS/AJ14eR" +
-			"K2oJ4cNpASXDH1mSo4IBrjCCAaowDgYDVR0PAQH/BAQDAgH+MGMGA1UdJQRcMFoGCCsGAQUFBwMBBggrBgEFBQcDAgYIKwYB" +
-			"BQUHAwMGCCsGAQUFBwMEBggrBgEFBQcDBQYIKwYBBQUHAwYGCCsGAQUFBwMHBggrBgEFBQcDCAYIKwYBBQUHAwkwDwYDVR0T" +
-			"AQH/BAUwAwEB/zAdBgNVHQ4EFgQUEImfPZM/dIJULOrK4d/vMchap9kwggEBBgNVHSMEgfkwgfaAFBCJnz2TP3SCVCzqyuHf" +
-			"7zHIWqfZoYHXpIHUMIHRMQswCQYDVQQGEwJSVTEgMB4GA1UECAwX0KEu0J/QuNGC0LXRgNCx0YPRgNCz0YoxHzAdBgNVBAoM" +
-			"FtCh0L7QstGA0LXQvNC10L3QvdC40LoxKDAmBgNVBAsMH9CU0LXQudGB0YLQstGD0Y7RidC40LUg0LvQuNGG0LAxLTArBgNV" +
-			"BAwMJNCk0LjQu9C+0YHQvtCyINC4INC/0YPQsdC70LjRhtC40YHRgjEmMCQGA1UEAwwd0JXQstCz0LXQvdGW0Lkg0J7QvdGj" +
-			"0LPQuNC90YqCBDAcFP4wCgYIKoUDBwEBAwMDgYEAKZRx05mBwO7VIzj1FFJcHlfbHuLF+XZbFZaVfWc32R+KLxBJ0t1RuQ34" +
-			"KtjQhu8/oU2rR/pKcmyHRw3nxJy+DExdj7sWJ01uWH6vBa+nsXS8OzSIg+wb9hlrFy0wZSkQjyNMtSiNg+On1yzFeI2fxuAY" +
-			"OtIKHdqht+V+6M0g8BA="
-		);
-
-        private static readonly byte[] gost2012_512_Sender_Key = Base64.Decode(
-			"MGoCAQAwIQYIKoUDBwEBBgIwFQYJKoUDBwECAQIBBggqhQMHAQECAwRCBEDYpenYz4GDc/sIGl34Cv1T4xtWDlt7FB28ghXT" +
-			"n4MXm43IvLwW3YclZbRz7V9W5lR0XoftGJ9q3ICv/IN2F+Dr"
-		);
-
-        private static readonly byte[] gost2012_512_Reci_Cert = Base64.Decode(
-			"MIIEuTCCBCWgAwIBAgIECpLweDAKBggqhQMHAQEDAzCByTELMAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQ" +
-			"sdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQtdC90L3QuNC6MR8wHQYDVQQLDBbQoNGD0LrQvtCy0L7QtNGB0YLQ" +
-			"stC+MRkwFwYDVQQMDBDQoNC10LTQsNC60YLQvtGAMTswOQYDVQQDDDLQn9GD0YjQutC40L0g0JDQu9C10LrRgdCw0L3QtNGA" +
-			"INCh0LXRgNCz0LXQtdCy0LjRhzAeFw0xNzA3MTUxNDAwMDBaFw0zNzA3MTUxNDAwMDBaMIHJMQswCQYDVQQGEwJSVTEgMB4G" +
-			"A1UECAwX0KEu0J/QuNGC0LXRgNCx0YPRgNCz0YoxHzAdBgNVBAoMFtCh0L7QstGA0LXQvNC10L3QvdC40LoxHzAdBgNVBAsM" +
-			"FtCg0YPQutC+0LLQvtC00YHRgtCy0L4xGTAXBgNVBAwMENCg0LXQtNCw0LrRgtC+0YAxOzA5BgNVBAMMMtCf0YPRiNC60LjQ" +
-			"vSDQkNC70LXQutGB0LDQvdC00YAg0KHQtdGA0LPQtdC10LLQuNGHMIGqMCEGCCqFAwcBAQECMBUGCSqFAwcBAgECAQYIKoUD" +
-			"BwEBAgMDgYQABIGAnZAIQhH/2nmSIZWfn+K3ftHGWbx1vrh/IeA43Q/z7h9jVPcVV3Csju92lgL5cnXyBAV90CVGw0/bCu1N" +
-			"CYUpC0EVx5OmTd54fqicmFgZLqEnX6sbCXvpgCdvXhyYl+h7PTGHcuwGsMXZlIKVQLq6quVKh/UI/IfGK5CcPkX0PVCjggGl" +
-			"MIIBoTAOBgNVHQ8BAf8EBAMCAf4wYwYDVR0lBFwwWgYIKwYBBQUHAwEGCCsGAQUFBwMCBggrBgEFBQcDAwYIKwYBBQUHAwQG" +
-			"CCsGAQUFBwMFBggrBgEFBQcDBgYIKwYBBQUHAwcGCCsGAQUFBwMIBggrBgEFBQcDCTAPBgNVHRMBAf8EBTADAQH/MB0GA1Ud" +
-			"DgQWBBRvBhSgd/YSnT1ldXAE2V92ksV6WzCB+QYDVR0jBIHxMIHugBRvBhSgd/YSnT1ldXAE2V92ksV6W6GBz6SBzDCByTEL" +
-			"MAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQsdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQtdC9" +
-			"0L3QuNC6MR8wHQYDVQQLDBbQoNGD0LrQvtCy0L7QtNGB0YLQstC+MRkwFwYDVQQMDBDQoNC10LTQsNC60YLQvtGAMTswOQYD" +
-			"VQQDDDLQn9GD0YjQutC40L0g0JDQu9C10LrRgdCw0L3QtNGAINCh0LXRgNCz0LXQtdCy0LjRh4IECpLweDAKBggqhQMHAQED" +
-			"AwOBgQDilJAjXm+OK+mkfOk2ij3qKj00+gyFzJbxtk8wKEG7QmvlOPQvywke1pmCh8b1Z48OFOdmfKnTLE/D4AI/MQECUb1h" +
-			"ChUfgfrSw0LY205tqxp6aqDtc2iPI7XHQAKE+jD819zubjCBzVDOiyRXatiRsEtfXPTBvqQdisM4rSw+OQ=="
-		);
-
-        private static readonly byte[] gost2012_512_Reci_Key = Base64.Decode(
-			"MGoCAQAwIQYIKoUDBwEBBgIwFQYJKoUDBwECAQIBBggqhQMHAQECAwRCBEDbd6/MUJS1QjpkwGUCg8OtxzuxiU2qm2VDBDDN" +
-			"ZQ8/GtO12OiysmJHAXS9fpO1TRuyySw0r5r4x2g0NCWtVdQf"
-		);
-
-        private static readonly byte[] gost2012_512_Reci_Msg = Base64.Decode(
-			"MIICTAYJKoZIhvcNAQcDoIICPTCCAjkCAQAxggH4oYIB9AIBA6CBraGBqjAhBggqhQMHAQEBAjAVBgkqhQMHAQIBAgEGCCqF" +
-			"AwcBAQIDA4GEAASBgLnNMC1uA9NjhZMyIotCn+4H+iqcTv5paCYmRIuIvWZO7OvUv3u9aWK5Lb0wCH2Imbg/ffZV84xSwbNS" +
-			"T83w4IFh8u1mAnf302+uuqt62pBU3VtPOPt3RYRwEABSDuTlBP2VocXa2iP53HM09fxhS/AJ14eRK2oJ4cNpASXDH1mSoQoE" +
-			"CGGh2agBkurNMCoGCCqFAwcBAQYCMB4GByqFAwICDQEwEwYHKoUDAgIfAQQIYaHZqAGS6s0wggEFMIIBATCB0jCByTELMAkG" +
-			"A1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQsdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQtdC90L3Q" +
-			"uNC6MR8wHQYDVQQLDBbQoNGD0LrQvtCy0L7QtNGB0YLQstC+MRkwFwYDVQQMDBDQoNC10LTQsNC60YLQvtGAMTswOQYDVQQD" +
-			"DDLQn9GD0YjQutC40L0g0JDQu9C10LrRgdCw0L3QtNGAINCh0LXRgNCz0LXQtdCy0LjRhwIECpLweAQqMCgEIBEN53tKgcd9" +
-			"VW9uczUiwSM0pS/a7/vKIvTIqnIR0E5pBAQ+WRdXMDgGCSqGSIb3DQEHATAdBgYqhQMCAhUwEwQIbDvPAW4Wm0UGByqFAwIC" +
-			"HwGADFMeOJyH3t7YSNgxsA=="
-		);
-
-        private static readonly byte[] gost2012_KeyTrans_Reci_Cert = Base64.Decode(
-			"MIIEMzCCA+CgAwIBAgIEBSqgszAKBggqhQMHAQEDAjCByTELMAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQ" +
-			"sdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQtdC90L3QuNC6MR8wHQYDVQQLDBbQoNGD0LrQvtCy0L7QtNGB0YLQ" +
-			"stC+MRkwFwYDVQQMDBDQoNC10LTQsNC60YLQvtGAMTswOQYDVQQDDDLQn9GD0YjQutC40L0g0JDQu9C10LrRgdCw0L3QtNGA" +
-			"INCh0LXRgNCz0LXQtdCy0LjRhzAeFw0xNzA3MTYxNDAwMDBaFw0zNzA3MTYxNDAwMDBaMIHJMQswCQYDVQQGEwJSVTEgMB4G" +
-			"A1UECAwX0KEu0J/QuNGC0LXRgNCx0YPRgNCz0YoxHzAdBgNVBAoMFtCh0L7QstGA0LXQvNC10L3QvdC40LoxHzAdBgNVBAsM" +
-			"FtCg0YPQutC+0LLQvtC00YHRgtCy0L4xGTAXBgNVBAwMENCg0LXQtNCw0LrRgtC+0YAxOzA5BgNVBAMMMtCf0YPRiNC60LjQ" +
-			"vSDQkNC70LXQutGB0LDQvdC00YAg0KHQtdGA0LPQtdC10LLQuNGHMGYwHwYIKoUDBwEBAQEwEwYHKoUDAgIkAAYIKoUDBwEB" +
-			"AgIDQwAEQEG5/wUY0LkiqETYAZY6o5mrjwWQNBYbSIKghYgKzLgSv1RCuTEFXRIJQcMG0V80auKVZNty9kcvn9P0IcJpGfGj" +
-			"ggGlMIIBoTAOBgNVHQ8BAf8EBAMCAf4wYwYDVR0lBFwwWgYIKwYBBQUHAwEGCCsGAQUFBwMCBggrBgEFBQcDAwYIKwYBBQUH" +
-			"AwQGCCsGAQUFBwMFBggrBgEFBQcDBgYIKwYBBQUHAwcGCCsGAQUFBwMIBggrBgEFBQcDCTAPBgNVHRMBAf8EBTADAQH/MB0G" +
-			"A1UdDgQWBBQJwiUIQOJNbB0Fzh6ucd3uRE9QzDCB+QYDVR0jBIHxMIHugBQJwiUIQOJNbB0Fzh6ucd3uRE9QzKGBz6SBzDCB" +
-			"yTELMAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf0LjRgtC10YDQsdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQ" +
-			"tdC90L3QuNC6MR8wHQYDVQQLDBbQoNGD0LrQvtCy0L7QtNGB0YLQstC+MRkwFwYDVQQMDBDQoNC10LTQsNC60YLQvtGAMTsw" +
-			"OQYDVQQDDDLQn9GD0YjQutC40L0g0JDQu9C10LrRgdCw0L3QtNGAINCh0LXRgNCz0LXQtdCy0LjRh4IEBSqgszAKBggqhQMH" +
-			"AQEDAgNBAKLmdCiVR9MWeoC+MNudXGny3l2uDBBttvhTli0gDEaQLnBFyvD+cfSLgsheoz8vwhyqD/6W3ATBMRiGjqNJjQE="
-		);
-
-        private static readonly byte[] gost2012_KeyTrans_Reci_Key = Base64.Decode(
-			"MEgCAQAwHwYIKoUDBwEBBgEwEwYHKoUDAgIkAAYIKoUDBwEBAgIEIgQgy+dPu0sLqJ/Fokomiu69lRA48HaPNkP7kmzDHOxP" +
-			"QFc="
-		);
-
-        private static readonly byte[] gost2012_KeyTrans_Msg = Base64.Decode(
-			"MIIB/gYJKoZIhvcNAQcDoIIB7zCCAesCAQAxggGqMIIBpgIBADCB0jCByTELMAkGA1UEBhMCUlUxIDAeBgNVBAgMF9ChLtCf" +
-			"0LjRgtC10YDQsdGD0YDQs9GKMR8wHQYDVQQKDBbQodC+0LLRgNC10LzQtdC90L3QuNC6MR8wHQYDVQQLDBbQoNGD0LrQvtCy" +
-			"0L7QtNGB0YLQstC+MRkwFwYDVQQMDBDQoNC10LTQsNC60YLQvtGAMTswOQYDVQQDDDLQn9GD0YjQutC40L0g0JDQu9C10LrR" +
-			"gdCw0L3QtNGAINCh0LXRgNCz0LXQtdCy0LjRhwIEBSqgszAfBggqhQMHAQEBATATBgcqhQMCAiQABggqhQMHAQECAgSBqjCB" +
-			"pzAoBCBnHA+9wEUh7KIkYlboGbtxRfrTL1oPGU3Tzaw8/khaWgQE+N56jaB7BgcqhQMCAh8BoGYwHwYIKoUDBwEBAQEwEwYH" +
-			"KoUDAgIkAAYIKoUDBwEBAgIDQwAEQMbb4wVWm1EWIIXKDseCNE6JHmS+4fNh2uB+10Isg7g8/1Wvdh66IFir6fyp8NRwwMkU" +
-			"QM0dmAfcpN6M2RSj83wECMCTi+FRlTafMDgGCSqGSIb3DQEHATAdBgYqhQMCAhUwEwQIzZlyAleTrCEGByqFAwICHwGADIO7" +
-			"l43OVnBpGM+FjQ=="
-		);
-
 		[Test]
 		public void TestKeyTrans()
 		{
@@ -341,64 +187,28 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.DesEde3Cbc);
+				CmsEnvelopedDataGenerator.DesEde3Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
 
-			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.DesEde3Cbc);
+			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedDataGenerator.DesEde3Cbc);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
 				Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.RsaEncryption.Id);
-                Assert.True(recipient.RecipientID.Match(ReciCert));
 
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
 		}
 
-        [Test]
-        public void TestKeyTransRC2bit40()
-        {
-            byte[] data = Encoding.ASCII.GetBytes("WallaWallaBouncyCastle");
-
-            CmsEnvelopedDataGenerator edGen = new CmsEnvelopedDataGenerator();
-
-            edGen.AddKeyTransRecipient(ReciCert);
-
-            CmsEnvelopedData ed = edGen.Generate(
-                new CmsProcessableByteArray(data),
-                CmsEnvelopedGenerator.RC2Cbc,
-				keySize: 40);
-
-            RecipientInformationStore recipients = ed.GetRecipientInfos();
-
-            Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.RC2Cbc);
-
-            RC2CbcParameter rc2P = RC2CbcParameter.GetInstance(ed.EncryptionAlgorithmID.Parameters);
-            Assert.AreEqual(160, rc2P.RC2ParameterVersion.IntValueExact);
-
-            var c = recipients.GetRecipients();
-
-            Assert.AreEqual(1, c.Count);
-
-            foreach (RecipientInformation recipient in c)
-            {
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
-                byte[] recData = recipient.GetContent(ReciKP.Private);
-
-                Assert.IsTrue(Arrays.AreEqual(data, recData));
-            }
-        }
-
-        [Test]
+		[Test]
 		public void TestKeyTransRC4()
 		{
 			byte[] data = Encoding.ASCII.GetBytes("WallaWallaBouncyCastle");
@@ -409,21 +219,19 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-                PkcsObjectIdentifiers.rc4.GetID());
+				"1.2.840.113549.3.4"); // RC4 OID
 
 			RecipientInformationStore  recipients = ed.GetRecipientInfos();
 
-			Assert.AreEqual(ed.EncryptionAlgOid, PkcsObjectIdentifiers.rc4.GetID());
+			Assert.AreEqual(ed.EncryptionAlgOid, "1.2.840.113549.3.4");
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
@@ -441,21 +249,19 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-                PkcsObjectIdentifiers.rc4.GetID(), 128);
+				"1.2.840.113549.3.4", 128);  // RC4 OID
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
-			Assert.AreEqual(ed.EncryptionAlgOid, PkcsObjectIdentifiers.rc4.GetID());
+			Assert.AreEqual(ed.EncryptionAlgOid, "1.2.840.113549.3.4");
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
@@ -478,15 +284,13 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(ed.EncryptionAlgOid, OiwObjectIdentifiers.DesCbc.Id);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
@@ -503,22 +307,20 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
 			Assert.AreEqual(ed.EncryptionAlgOid,
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
 		}
@@ -535,22 +337,20 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
 			Assert.AreEqual(ed.EncryptionAlgOid,
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
 		}
@@ -566,22 +366,20 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
 			Assert.AreEqual(ed.EncryptionAlgOid,
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
 		}
@@ -612,14 +410,12 @@ namespace Org.BouncyCastle.Cms.Tests
 
             Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
 
-            var c = recipients.GetRecipients();
+            ICollection c = recipients.GetRecipients();
 
             Assert.AreEqual(1, c.Count);
 
             foreach (RecipientInformation recipient in c)
             {
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
                 byte[] recData = recipient.GetContent(ReciKP.Private);
                 Assert.IsTrue(Arrays.AreEqual(data, recData));
             }
@@ -640,22 +436,20 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
 			Assert.AreEqual(ed.EncryptionAlgOid,
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
-                Assert.True(recipient.RecipientID.Match(ReciCert));
-
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
 		}
@@ -663,15 +457,15 @@ namespace Org.BouncyCastle.Cms.Tests
 		[Test]
 		public void TestKeyTransCast5()
 		{
-			TryKeyTrans(CmsEnvelopedGenerator.Cast5Cbc,
-				new DerObjectIdentifier(CmsEnvelopedGenerator.Cast5Cbc),
+			TryKeyTrans(CmsEnvelopedDataGenerator.Cast5Cbc,
+				new DerObjectIdentifier(CmsEnvelopedDataGenerator.Cast5Cbc),
 				typeof(Asn1Sequence));
 		}
 
 		[Test]
 		public void TestKeyTransAes128()
 		{
-			TryKeyTrans(CmsEnvelopedGenerator.Aes128Cbc,
+			TryKeyTrans(CmsEnvelopedDataGenerator.Aes128Cbc,
 				NistObjectIdentifiers.IdAes128Cbc,
 				typeof(DerOctetString));
 		}
@@ -679,7 +473,7 @@ namespace Org.BouncyCastle.Cms.Tests
 		[Test]
 		public void TestKeyTransAes192()
 		{
-			TryKeyTrans(CmsEnvelopedGenerator.Aes192Cbc,
+			TryKeyTrans(CmsEnvelopedDataGenerator.Aes192Cbc,
 				NistObjectIdentifiers.IdAes192Cbc,
 				typeof(DerOctetString));
 		}
@@ -687,7 +481,7 @@ namespace Org.BouncyCastle.Cms.Tests
 		[Test]
 		public void TestKeyTransAes256()
 		{
-			TryKeyTrans(CmsEnvelopedGenerator.Aes256Cbc,
+			TryKeyTrans(CmsEnvelopedDataGenerator.Aes256Cbc,
 				NistObjectIdentifiers.IdAes256Cbc,
 				typeof(DerOctetString));
 		}
@@ -695,28 +489,28 @@ namespace Org.BouncyCastle.Cms.Tests
 		[Test]
 		public void TestKeyTransSeed()
 		{
-			TryKeyTrans(CmsEnvelopedGenerator.SeedCbc,
+			TryKeyTrans(CmsEnvelopedDataGenerator.SeedCbc,
 				KisaObjectIdentifiers.IdSeedCbc,
 				typeof(DerOctetString));
 		}
 
 		public void TestKeyTransCamellia128()
 		{
-			TryKeyTrans(CmsEnvelopedGenerator.Camellia128Cbc,
+			TryKeyTrans(CmsEnvelopedDataGenerator.Camellia128Cbc,
 				NttObjectIdentifiers.IdCamellia128Cbc,
 				typeof(DerOctetString));
 		}
 
 		public void TestKeyTransCamellia192()
 		{
-			TryKeyTrans(CmsEnvelopedGenerator.Camellia192Cbc,
+			TryKeyTrans(CmsEnvelopedDataGenerator.Camellia192Cbc,
 				NttObjectIdentifiers.IdCamellia192Cbc,
 				typeof(DerOctetString));
 		}
 
 		public void TestKeyTransCamellia256()
 		{
-			TryKeyTrans(CmsEnvelopedGenerator.Camellia256Cbc,
+			TryKeyTrans(CmsEnvelopedDataGenerator.Camellia256Cbc,
 				NttObjectIdentifiers.IdCamellia256Cbc,
 				typeof(DerOctetString));
 		}
@@ -743,16 +537,15 @@ namespace Org.BouncyCastle.Cms.Tests
 				Assert.IsTrue(asn1Params.IsInstanceOfType(ed.EncryptionAlgorithmID.Parameters));
 			}
 
-			var c = recipients.GetRecipients();
+			ArrayList c = new ArrayList(recipients.GetRecipients());
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
 				Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.RsaEncryption.Id);
-                Assert.True(recipient.RecipientID.Match(ReciCert));
 
-                byte[] recData = recipient.GetContent(ReciKP.Private);
+				byte[] recData = recipient.GetContent(ReciKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
@@ -770,9 +563,9 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
-			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.DesEde3Cbc);
+			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedDataGenerator.DesEde3Cbc);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
@@ -780,7 +573,7 @@ namespace Org.BouncyCastle.Cms.Tests
 			{
 				Assert.AreEqual(recipient.KeyEncryptionAlgOid, NistObjectIdentifiers.IdAes128Wrap.Id);
 
-                byte[] recData = recipient.GetContent(kek);
+				byte[] recData = recipient.GetContent(kek);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
@@ -855,22 +648,21 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.DesEde3Cbc);
+				CmsEnvelopedDataGenerator.DesEde3Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
-			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.DesEde3Cbc);
+			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedDataGenerator.DesEde3Cbc);
 
-			var c = recipients.GetRecipients();
+			ArrayList c = new ArrayList(recipients.GetRecipients());
 
 			Assert.IsTrue(c.Count > 0);
 
 			foreach (RecipientInformation recipient in c)
 			{
 				Assert.AreEqual(algOid.Id, recipient.KeyEncryptionAlgOid);
-                Assert.True(Arrays.AreEqual(recipient.RecipientID.KeyIdentifier, kekId));
 
-                byte[] recData = recipient.GetContent(kek);
+				byte[] recData = recipient.GetContent(kek);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 			}
@@ -888,13 +680,13 @@ namespace Org.BouncyCastle.Cms.Tests
 				OrigECKP.Private,
 				OrigECKP.Public,
 				ReciECCert,
-				CmsEnvelopedGenerator.Aes128Wrap);
+				CmsEnvelopedDataGenerator.Aes128Wrap);
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
+			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
@@ -914,13 +706,13 @@ namespace Org.BouncyCastle.Cms.Tests
 				OrigECKP.Private,
 				OrigECKP.Public,
 				ReciECCert,
-				CmsEnvelopedGenerator.Aes128Wrap);
+				CmsEnvelopedDataGenerator.Aes128Wrap);
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
+			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
@@ -935,22 +727,22 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedDataGenerator edGen = new CmsEnvelopedDataGenerator();
 
-			var recipientCerts = new List<X509Certificate>();
+			ArrayList recipientCerts = new ArrayList();
 			recipientCerts.Add(ReciECCert);
 			recipientCerts.Add(ReciECCert2);
 
 			edGen.AddKeyAgreementRecipients(
-				CmsEnvelopedGenerator.ECMqvSha1Kdf,
+				CmsEnvelopedDataGenerator.ECMqvSha1Kdf,
 				OrigECKP.Private,
 				OrigECKP.Public,
 				recipientCerts,
-				CmsEnvelopedGenerator.Aes128Wrap);
+				CmsEnvelopedDataGenerator.Aes128Wrap);
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
+			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
@@ -963,7 +755,7 @@ namespace Org.BouncyCastle.Cms.Tests
 			byte[] expectedData, X509Certificate reciCert, AsymmetricKeyParameter reciPrivKey)
 		{
 			RecipientID rid = new RecipientID();
-			rid.Issuer = reciCert.IssuerDN;
+			rid.Issuer = PrincipalUtilities.GetIssuerX509Principal(reciCert);
 			rid.SerialNumber = reciCert.SerialNumber;
 
 			RecipientInformation recipient = recipients[rid];
@@ -999,15 +791,15 @@ namespace Org.BouncyCastle.Cms.Tests
 		[Test]
 		public void TestPasswordAes256()
 		{
-			PasswordTest(CmsEnvelopedGenerator.Aes256Cbc);
-			PasswordUtf8Test(CmsEnvelopedGenerator.Aes256Cbc);
+			PasswordTest(CmsEnvelopedDataGenerator.Aes256Cbc);
+			PasswordUtf8Test(CmsEnvelopedDataGenerator.Aes256Cbc);
 		}
 
 		[Test]
 		public void TestPasswordDesEde()
 		{
-			PasswordTest(CmsEnvelopedGenerator.DesEde3Cbc);
-			PasswordUtf8Test(CmsEnvelopedGenerator.DesEde3Cbc);
+			PasswordTest(CmsEnvelopedDataGenerator.DesEde3Cbc);
+			PasswordUtf8Test(CmsEnvelopedDataGenerator.DesEde3Cbc);
 		}
 
 		[Test]
@@ -1025,7 +817,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual("1.2.840.113549.3.7", ed.EncryptionAlgOid);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
@@ -1052,14 +844,14 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual("1.2.840.113549.3.2", ed.EncryptionAlgOid);
 
-			var c = recipients.GetRecipients();
-			var e = c.GetEnumerator();
+			ICollection c = recipients.GetRecipients();
+			IEnumerator e = c.GetEnumerator();
 
 			if (e.MoveNext())
 			{
 				do
 				{
-					RecipientInformation recipient = e.Current;
+					RecipientInformation recipient = (RecipientInformation) e.Current;
 
 					if (recipient is KeyTransRecipientInformation)
 					{
@@ -1083,47 +875,8 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			RecipientInformationStore  recipients = env.GetRecipientInfos();
 
-			Assert.AreEqual(CmsEnvelopedGenerator.DesEde3Cbc, env.EncryptionAlgOid);
+			Assert.AreEqual(CmsEnvelopedDataGenerator.DesEde3Cbc, env.EncryptionAlgOid);
 		}
-
-		//[Test]
-		//public void TestGost3410_2012_KeyAgree()
-		//{
-  //          AsymmetricKeyParameter privKey = PrivateKeyFactory.CreateKey(gost2012_Reci_Key);
-
-		//	CmsEnvelopedData ed = new CmsEnvelopedData(gost2012_Reci_Msg);
-
-		//	RecipientInformationStore recipients = ed.GetRecipientInfos();
-
-		//	Assert.AreEqual(ed.EncryptionAlgOid, CryptoProObjectIdentifiers.GostR28147Gcfb.Id);
-
-  //          var c = recipients.GetRecipients();
-
-  //          Assert.AreEqual(1, c.Count);
-
-		//	foreach (RecipientInformation recipient in c)
-		//	{
-		//		Assert.AreEqual(recipient.KeyEncryptionAlgOid,
-		//			RosstandartObjectIdentifiers.id_tc26_agreement_gost_3410_12_256.Id);
-
-  //              byte[] recData = recipient.GetContent(privKey);
-
-  //              Assert.AreEqual("Hello World!", Strings.FromByteArray(recData));
-		//	}
-
-		//	var cert = new X509CertificateParser().ReadCertificate(gost2012_Reci_Cert);
-  //          //CertificateFactory certFact = CertificateFactory.getInstance("X.509", BC);
-
-  //          //RecipientId id = new JceKeyAgreeRecipientId((X509Certificate)certFact.generateCertificate(new ByteArrayInputStream(gost2012_Reci_Cert)));
-  // //         RecipientID id = new KeyAgreeRecipentID(cert);
-
-		//	//var collection = recipients.GetRecipients(id);
-		//	//if (collection.Count != 1)
-		//	//{
-		//	//	Assert.Fail("recipients not matched using general recipient ID.");
-		//	//}
-		//	//Assert.IsTrue(collection[0] is RecipientInformation);
-		//}
 
 		private void PasswordTest(
 			string algorithm)
@@ -1136,13 +889,13 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
-			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
+			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
@@ -1169,13 +922,13 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			CmsEnvelopedData ed = edGen.Generate(
 				new CmsProcessableByteArray(data),
-				CmsEnvelopedGenerator.Aes128Cbc);
+				CmsEnvelopedDataGenerator.Aes128Cbc);
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
-			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
+			Assert.AreEqual(ed.EncryptionAlgOid, CmsEnvelopedDataGenerator.Aes128Cbc);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
@@ -1203,7 +956,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(wrapAlg, ed.EncryptionAlgOid);
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
@@ -1228,7 +981,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			RecipientInformationStore recipients = ed.GetRecipientInfos();
 
-			var c = recipients.GetRecipients();
+			ICollection c = recipients.GetRecipients();
 
 			Assert.AreEqual(wrapAlg, ed.EncryptionAlgOid);
 			Assert.AreEqual(1, c.Count);

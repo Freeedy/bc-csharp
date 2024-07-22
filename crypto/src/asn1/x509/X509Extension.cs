@@ -35,7 +35,7 @@ namespace Org.BouncyCastle.Asn1.X509
 
 		public Asn1OctetString Value { get { return value; } }
 
-		public Asn1Object GetParsedValue()
+		public Asn1Encodable GetParsedValue()
 		{
 			return ConvertValueToObject(this);
 		}

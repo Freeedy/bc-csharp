@@ -21,7 +21,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			AlgorithmIdentifier algId = new AlgorithmIdentifier(new DerObjectIdentifier("1.2.2.3"));
 			byte[] digest = new byte[20];
 			OtherHash otherHash = new OtherHash(new OtherHashAlgAndValue(algId, digest));
-			IssuerSerial issuerSerial = new IssuerSerial(new GeneralNames(new GeneralName(new X509Name("CN=test"))), DerInteger.One);
+			IssuerSerial issuerSerial = new IssuerSerial(new GeneralNames(new GeneralName(new X509Name("CN=test"))), new DerInteger(1));
 
 			OtherCertID certID = new OtherCertID(otherHash);
 
@@ -40,7 +40,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			try
 			{
-				OtherCertID.GetInstance(new object());
+				OtherCertID.GetInstance(new Object());
 
 				Fail("GetInstance() failed to detect bad object.");
 			}
@@ -81,6 +81,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 			checkMandatoryField("hashValue", digest, certID.OtherCertHash.GetHashValue());
 
 			checkOptionalField("issuerSerial", issuerSerial, certID.IssuerSerial);
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new OtherCertIDUnitTest());
 		}
 
 		[Test]

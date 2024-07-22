@@ -1,10 +1,14 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Text;
 
-using Org.BouncyCastle.Crypto.Utilities;
+#if PORTABLE
+using System.Linq;
+#endif
+
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.IO;
 
@@ -37,81 +41,51 @@ namespace Org.BouncyCastle.Bcpg
         /**
          * encode the input data producing a base 64 encoded byte array.
          */
-        private static void Encode(Stream outStream, byte[] data, int len)
+        private static void Encode(
+            Stream    outStream,
+            int[]    data,
+            int        len)
         {
             Debug.Assert(len > 0);
             Debug.Assert(len < 4);
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> bs = stackalloc byte[4];
-#else
             byte[] bs = new byte[4];
-#endif
-
             int d1 = data[0];
             bs[0] = encodingTable[(d1 >> 2) & 0x3f];
 
             switch (len)
             {
-            case 1:
-            {
-                bs[1] = encodingTable[(d1 << 4) & 0x3f];
-                bs[2] = (byte)'=';
-                bs[3] = (byte)'=';
-                break;
-            }
-            case 2:
-            {
-                int d2 = data[1];
-                bs[1] = encodingTable[((d1 << 4) | (d2 >> 4)) & 0x3f];
-                bs[2] = encodingTable[(d2 << 2) & 0x3f];
-                bs[3] = (byte)'=';
-                break;
-            }
-            case 3:
-            {
-                int d2 = data[1];
-                int d3 = data[2];
-                bs[1] = encodingTable[((d1 << 4) | (d2 >> 4)) & 0x3f];
-                bs[2] = encodingTable[((d2 << 2) | (d3 >> 6)) & 0x3f];
-                bs[3] = encodingTable[d3 & 0x3f];
-                break;
-            }
+                case 1:
+                {
+                    bs[1] = encodingTable[(d1 << 4) & 0x3f];
+                    bs[2] = (byte)'=';
+                    bs[3] = (byte)'=';
+                    break;
+                }
+                case 2:
+                {
+                    int d2 = data[1];
+                    bs[1] = encodingTable[((d1 << 4) | (d2 >> 4)) & 0x3f];
+                    bs[2] = encodingTable[(d2 << 2) & 0x3f];
+                    bs[3] = (byte)'=';
+                    break;
+                }
+                case 3:
+                {
+                    int d2 = data[1];
+                    int d3 = data[2];
+                    bs[1] = encodingTable[((d1 << 4) | (d2 >> 4)) & 0x3f];
+                    bs[2] = encodingTable[((d2 << 2) | (d3 >> 6)) & 0x3f];
+                    bs[3] = encodingTable[d3 & 0x3f];
+                    break;
+                }
             }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            outStream.Write(bs);
-#else
             outStream.Write(bs, 0, bs.Length);
-#endif
-        }
-
-        private static void Encode3(Stream outStream, byte[] data)
-        {
-            int d1 = data[0];
-            int d2 = data[1];
-            int d3 = data[2];
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> bs = stackalloc byte[4];
-#else
-            byte[] bs = new byte[4];
-#endif
-
-            bs[0] = encodingTable[(d1 >> 2) & 0x3f];
-            bs[1] = encodingTable[((d1 << 4) | (d2 >> 4)) & 0x3f];
-            bs[2] = encodingTable[((d2 << 2) | (d3 >> 6)) & 0x3f];
-            bs[3] = encodingTable[d3 & 0x3f];
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            outStream.Write(bs);
-#else
-            outStream.Write(bs, 0, bs.Length);
-#endif
         }
 
         private readonly Stream outStream;
-        private byte[]          buf = new byte[3];
+        private int[]           buf = new int[3];
         private int             bufPtr = 0;
         private Crc24           crc = new Crc24();
         private int             chunkCount = 0;
@@ -123,56 +97,32 @@ namespace Org.BouncyCastle.Bcpg
 
         private string          type;
 
-        private static readonly string    NewLine = Environment.NewLine;
+        private static readonly string    nl = Platform.NewLine;
         private static readonly string    headerStart = "-----BEGIN PGP ";
         private static readonly string    headerTail = "-----";
         private static readonly string    footerStart = "-----END PGP ";
         private static readonly string    footerTail = "-----";
 
-        private static string CreateVersion()
-        {
-            var assembly = Assembly.GetExecutingAssembly();
+        private static readonly string Version = "BCPG C# v" + AssemblyInfo.Version;
 
-            var titleAttr = assembly.GetCustomAttribute<AssemblyTitleAttribute>();
-            var versionAttr = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>();
-
-            if (titleAttr == null || versionAttr == null)
-                return "BouncyCastle (unknown version)";
-
-            return titleAttr.Title + " v" + versionAttr.InformationalVersion;
-        }
-
-        private static readonly string Version = CreateVersion();
-
-        private readonly Dictionary<string, List<string>> m_headers;
+        private readonly IDictionary headers;
 
         public ArmoredOutputStream(Stream outStream)
-            : this(outStream, true)
-        {
-        }
-
-        public ArmoredOutputStream(Stream outStream, bool addVersionHeader)
         {
             this.outStream = outStream;
-            this.m_headers = new Dictionary<string, List<string>>();
-
-            if (addVersionHeader)
-            {
-                SetHeader(HeaderVersion, Version);
-            }
+            this.headers = Platform.CreateHashtable(1);
+            SetHeader(HeaderVersion, Version);
         }
 
-        public ArmoredOutputStream(Stream outStream, IDictionary<string, string> headers)
-            : this(outStream, headers, true)
+        public ArmoredOutputStream(Stream outStream, IDictionary headers)
+            : this(outStream)
         {
-        }
-
-        public ArmoredOutputStream(Stream outStream, IDictionary<string, string> headers, bool addVersionHeader)
-            : this(outStream, addVersionHeader && !headers.ContainsKey(HeaderVersion))
-        {
-            foreach (var header in headers)
+            foreach (string header in headers.Keys)
             {
-                m_headers.Add(header.Key, new List<string> { header.Value });
+                IList headerList = Platform.CreateArrayList(1);
+                headerList.Add(headers[header]);
+
+                this.headers[header] = headerList;
             }
         }
 
@@ -186,21 +136,22 @@ namespace Org.BouncyCastle.Bcpg
         {
             if (val == null)
             {
-                this.m_headers.Remove(name);
-                return;
-            }
-
-            if (m_headers.TryGetValue(name, out var valueList))
-            {
-                valueList.Clear();
+                this.headers.Remove(name);
             }
             else
             {
-                valueList = new List<string>(1);
-                m_headers[name] = valueList;
+                IList valueList = (IList)headers[name];
+                if (valueList == null)
+                {
+                    valueList = Platform.CreateArrayList(1);
+                    this.headers[name] = valueList;
+                }
+                else
+                {
+                    valueList.Clear();
+                }
+                valueList.Add(val);
             }
-
-            valueList.Add(val);
         }
 
         /**
@@ -215,12 +166,12 @@ namespace Org.BouncyCastle.Bcpg
             if (val == null || name == null)
                 return;
 
-            if (!m_headers.TryGetValue(name, out var valueList))
+            IList valueList = (IList)headers[name];
+            if (valueList == null)
             {
-                valueList = new List<string>(1);
-                m_headers[name] = valueList;
+                valueList = Platform.CreateArrayList(1);
+                this.headers[name] = valueList;
             }
-
             valueList.Add(val);
         }
 
@@ -229,13 +180,13 @@ namespace Org.BouncyCastle.Bcpg
          */
         public void ResetHeaders()
         {
-            bool hadVersion = m_headers.TryGetValue(HeaderVersion, out var version);
+            IList versions = (IList)headers[HeaderVersion];
 
-            m_headers.Clear();
+            headers.Clear();
 
-            if (hadVersion)
+            if (versions != null)
             {
-                m_headers.Add(HeaderVersion, version);
+                headers[HeaderVersion] = versions;
             }
         }
 
@@ -275,8 +226,8 @@ namespace Org.BouncyCastle.Bcpg
                 throw new IOException("unknown hash algorithm tag in beginClearText: " + hashAlgorithm);
             }
 
-            DoWrite("-----BEGIN PGP SIGNED MESSAGE-----" + NewLine);
-            DoWrite("Hash: " + hash + NewLine + NewLine);
+            DoWrite("-----BEGIN PGP SIGNED MESSAGE-----" + nl);
+            DoWrite("Hash: " + hash + nl + nl);
 
             clearText = true;
             newLine = true;
@@ -344,84 +295,104 @@ namespace Org.BouncyCastle.Bcpg
                     break;
                 }
 
-                DoWrite(headerStart + type + headerTail + NewLine);
+                DoWrite(headerStart + type + headerTail + nl);
 
-                if (m_headers.TryGetValue(HeaderVersion, out var versionHeaders))
                 {
-                    WriteHeaderEntry(HeaderVersion, versionHeaders[0]);
+                    IList versionHeaders = (IList)headers[HeaderVersion];
+                    if (versionHeaders != null)
+                    {
+                        WriteHeaderEntry(HeaderVersion, versionHeaders[0].ToString());
+                    }
                 }
 
-                foreach (var de in m_headers)
+                foreach (DictionaryEntry de in headers)
                 {
-                    string k = de.Key;
+                    string k = (string)de.Key;
                     if (k != HeaderVersion)
                     {
-                        foreach (string v in de.Value)
+                        IList values = (IList)de.Value;
+                        foreach (string v in values)
                         {
                             WriteHeaderEntry(k, v);
                         }
                     }
                 }
 
-                DoWrite(NewLine);
+                DoWrite(nl);
 
                 start = false;
             }
 
             if (bufPtr == 3)
             {
-                crc.Update3(buf, 0);
-                Encode3(outStream, buf);
+                Encode(outStream, buf, bufPtr);
                 bufPtr = 0;
                 if ((++chunkCount & 0xf) == 0)
                 {
-                    DoWrite(NewLine);
+                    DoWrite(nl);
                 }
             }
 
-            buf[bufPtr++] = value;
+            crc.Update(value);
+            buf[bufPtr++] = value & 0xff;
         }
 
         /**
          * <b>Note</b>: Close() does not close the underlying stream. So it is possible to write
          * multiple objects using armoring to a single stream.
          */
+#if PORTABLE
         protected override void Dispose(bool disposing)
         {
             if (disposing)
             {
-                if (type != null)
-                {
-                    DoClose();
+                if (type == null)
+                    return;
 
-                    type = null;
-                    start = true;
-                }
+                DoClose();
+
+                type = null;
+                start = true;
             }
             base.Dispose(disposing);
         }
+#else
+        public override void Close()
+        {
+            if (type == null)
+                return;
+
+            DoClose();
+
+            type = null;
+            start = true;
+
+            base.Close();
+        }
+#endif
 
         private void DoClose()
         {
             if (bufPtr > 0)
             {
-                for (int i = 0; i < bufPtr; ++i)
-                {
-                    crc.Update(buf[i]);
-                }
                 Encode(outStream, buf, bufPtr);
             }
 
-            DoWrite(NewLine + '=');
+            DoWrite(nl + '=');
 
-            Pack.UInt24_To_BE((uint)crc.Value, buf);
-            Encode3(outStream, buf);
+            int crcV = crc.Value;
 
-            DoWrite(NewLine);
+            buf[0] = ((crcV >> 16) & 0xff);
+            buf[1] = ((crcV >> 8) & 0xff);
+            buf[2] = (crcV & 0xff);
+
+            Encode(outStream, buf, 3);
+
+            DoWrite(nl);
             DoWrite(footerStart);
             DoWrite(type);
             DoWrite(footerTail);
-            DoWrite(NewLine);
+            DoWrite(nl);
 
             outStream.Flush();
         }
@@ -430,7 +401,7 @@ namespace Org.BouncyCastle.Bcpg
             string name,
             string v)
         {
-            DoWrite(name + ": " + v + NewLine);
+            DoWrite(name + ": " + v + nl);
         }
 
         private void DoWrite(

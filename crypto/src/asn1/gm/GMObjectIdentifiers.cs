@@ -2,8 +2,7 @@ using System;
 
 namespace Org.BouncyCastle.Asn1.GM
 {
-    // TODO[api] Make static
-    public abstract class GMObjectIdentifiers
+	public abstract class GMObjectIdentifiers
 	{
         public static readonly DerObjectIdentifier sm_scheme = new DerObjectIdentifier("1.2.156.10197.1");
 
@@ -47,21 +46,7 @@ namespace Org.BouncyCastle.Asn1.GM
         public static readonly DerObjectIdentifier sm2exchange = sm_scheme.Branch("301.2");
         public static readonly DerObjectIdentifier sm2encrypt = sm_scheme.Branch("301.3");
 
-        /**
-         * &lt;Information security technology — Cryptographic application identifier criterion specification&gt;
-         * <url>http://c.gb688.cn/bzgk/gb/showGb?type=online&amp;hcno=252CF0F72A7BE339A56DEA7D774E8994</url>,
-         * Page 21 only cover from 301.1 to 301.3
-         */
         public static readonly DerObjectIdentifier wapip192v1 = sm_scheme.Branch("301.101");
-
-        /**
-         * &lt;WAPI certificate management—Part 5: Example of certificate format (draft)&gt;
-         * <url>http://www.chinabwips.org.cn/zqyjgs1.htm</url> and
-         * <url>http://www.chinabwips.org.cn/doc/101.pdf</url>,
-         * Page 9 and page 10 states the OID of ECDSA-192 algorithm based on SHA-256 is 1.2.156.11235.1.1.1
-         * */
-        public static readonly DerObjectIdentifier wapi192v1 = new DerObjectIdentifier("1.2.156.11235.1.1.1");
-        public static readonly DerObjectIdentifier wapi192v1_parameters = new DerObjectIdentifier("1.2.156.11235.1.1.2.1");
 
         public static readonly DerObjectIdentifier sm2encrypt_recommendedParameters = sm2encrypt.Branch("1");
         public static readonly DerObjectIdentifier sm2encrypt_specifiedParameters = sm2encrypt.Branch("2");

@@ -1,51 +1,70 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Ocsp
 {
     public class OcspRequest
         : Asn1Encodable
     {
-        public static OcspRequest GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is OcspRequest ocspRequest)
-				return ocspRequest;
-			return new OcspRequest(Asn1Sequence.GetInstance(obj));
+        private readonly TbsRequest	tbsRequest;
+        private readonly Signature	optionalSignature;
+
+		public static OcspRequest GetInstance(
+			Asn1TaggedObject	obj,
+			bool				explicitly)
+		{
+			return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
 		}
 
-        public static OcspRequest GetInstance(Asn1TaggedObject obj, bool explicitly)
+		public static OcspRequest GetInstance(
+			object obj)
+		{
+			if (obj == null || obj is OcspRequest)
+			{
+				return (OcspRequest)obj;
+			}
+
+			if (obj is Asn1Sequence)
+			{
+				return new OcspRequest((Asn1Sequence)obj);
+			}
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public OcspRequest(
+            TbsRequest	tbsRequest,
+            Signature	optionalSignature)
         {
-            return new OcspRequest(Asn1Sequence.GetInstance(obj, explicitly));
+			if (tbsRequest == null)
+				throw new ArgumentNullException("tbsRequest");
+
+			this.tbsRequest = tbsRequest;
+            this.optionalSignature = optionalSignature;
         }
 
-        private readonly TbsRequest m_tbsRequest;
-        private readonly Signature m_optionalSignature;
-
-        public OcspRequest(TbsRequest tbsRequest, Signature optionalSignature)
+		private OcspRequest(
+            Asn1Sequence seq)
         {
-			m_tbsRequest = tbsRequest ?? throw new ArgumentNullException(nameof(tbsRequest));
-            m_optionalSignature = optionalSignature;
+            tbsRequest = TbsRequest.GetInstance(seq[0]);
+
+			if (seq.Count == 2)
+            {
+                optionalSignature = Signature.GetInstance(
+					(Asn1TaggedObject)seq[1], true);
+            }
         }
 
-		private OcspRequest(Asn1Sequence seq)
-        {
-            int count = seq.Count;
-            if (count < 1 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+		public TbsRequest TbsRequest
+		{
+			get { return tbsRequest; }
+		}
 
-            int pos = 0;
-
-            m_tbsRequest = TbsRequest.GetInstance(seq[pos++]);
-            m_optionalSignature = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, Signature.GetTagged);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
-        }
-
-        public TbsRequest TbsRequest => m_tbsRequest;
-
-		public Signature OptionalSignature => m_optionalSignature;
+		public Signature OptionalSignature
+		{
+			get { return optionalSignature; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -57,9 +76,8 @@ namespace Org.BouncyCastle.Asn1.Ocsp
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(2);
-            v.Add(m_tbsRequest);
-            v.AddOptionalTagged(true, 0, m_optionalSignature);
+            Asn1EncodableVector v = new Asn1EncodableVector(tbsRequest);
+            v.AddOptionalTagged(true, 0, optionalSignature);
             return new DerSequence(v);
         }
     }

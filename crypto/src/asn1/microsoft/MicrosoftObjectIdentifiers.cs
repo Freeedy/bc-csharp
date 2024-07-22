@@ -2,7 +2,6 @@ using System;
 
 namespace Org.BouncyCastle.Asn1.Microsoft
 {
-    // TODO[api] Make static
     public abstract class MicrosoftObjectIdentifiers
     {
         //

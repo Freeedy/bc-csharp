@@ -32,24 +32,24 @@ namespace Org.BouncyCastle.Asn1
          *
          * @exception ArgumentException if the object cannot be converted.
          */
-        public static DerUniversalString GetInstance(object obj)
+        public static DerUniversalString GetInstance(
+            object obj)
         {
-            if (obj == null)
-                return null;
-
-            if (obj is DerUniversalString derUniversalString)
-                return derUniversalString;
-
-            if (obj is IAsn1Convertible asn1Convertible)
+            if (obj == null || obj is DerUniversalString)
             {
-                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is DerUniversalString converted)
-                    return converted;
+                return (DerUniversalString)obj;
             }
-            else if (obj is byte[] bytes)
+            else if (obj is IAsn1Convertible)
+            {
+                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
+                if (asn1Object is DerUniversalString)
+                    return (DerUniversalString)asn1Object;
+            }
+            else if (obj is byte[])
             {
                 try
                 {
-                    return (DerUniversalString)Meta.Instance.FromByteArray(bytes);
+                    return (DerUniversalString)Meta.Instance.FromByteArray((byte[])obj);
                 }
                 catch (IOException e)
                 {
@@ -70,22 +70,6 @@ namespace Org.BouncyCastle.Asn1
         public static DerUniversalString GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
             return (DerUniversalString)Meta.Instance.GetContextInstance(taggedObject, declaredExplicit);
-        }
-
-        public static DerUniversalString GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is DerUniversalString existing)
-                return existing;
-
-            return null;
-        }
-
-        public static DerUniversalString GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return (DerUniversalString)Meta.Instance.GetTagged(taggedObject, declaredExplicit);
         }
 
         private readonly byte[] m_contents;
@@ -132,16 +116,6 @@ namespace Org.BouncyCastle.Asn1
         internal override IAsn1Encoding GetEncodingImplicit(int encoding, int tagClass, int tagNo)
         {
             return new PrimitiveEncoding(tagClass, tagNo, m_contents);
-        }
-
-        internal sealed override DerEncoding GetEncodingDer()
-        {
-            return new PrimitiveDerEncoding(Asn1Tags.Universal, Asn1Tags.UniversalString, m_contents);
-        }
-
-        internal sealed override DerEncoding GetEncodingDerImplicit(int tagClass, int tagNo)
-        {
-            return new PrimitiveDerEncoding(tagClass, tagNo, m_contents);
         }
 
         protected override bool Asn1Equals(Asn1Object asn1Object)

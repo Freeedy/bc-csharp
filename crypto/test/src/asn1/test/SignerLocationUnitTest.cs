@@ -143,24 +143,24 @@ namespace Org.BouncyCastle.Asn1.Tests
         {
             if (countryName != null)
             {
-                if (!countryName.Equals(sl.Country))
+                if (!countryName.Equals(sl.CountryName))
                 {
                     Fail("countryNames don't match.");
                 }
             }
-            else if (sl.Country != null)
+            else if (sl.CountryName != null)
             {
                 Fail("countryName found when none expected.");
             }
 
             if (localityName != null)
             {
-                if (!localityName.Equals(sl.Locality))
+                if (!localityName.Equals(sl.LocalityName))
                 {
                     Fail("localityNames don't match.");
                 }
             }
-            else if (sl.Locality != null)
+            else if (sl.LocalityName != null)
             {
                 Fail("localityName found when none expected.");
             }
@@ -176,6 +176,12 @@ namespace Org.BouncyCastle.Asn1.Tests
             {
                 Fail("postalAddress found when none expected.");
             }
+        }
+
+		public static void Main(
+			string[] args)
+        {
+            RunTest(new SignerLocationUnitTest());
         }
 
         [Test]

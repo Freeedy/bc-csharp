@@ -2,99 +2,103 @@ using System;
 
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Esf
 {
-    /// <remarks>
-    /// RFC 3126: 4.2.2 Complete Revocation Refs Attribute Definition
-    /// <code>
-    /// CrlIdentifier ::= SEQUENCE 
-    /// {
-    /// 	crlissuer		Name,
-    /// 	crlIssuedTime	UTCTime,
-    /// 	crlNumber		INTEGER OPTIONAL
-    /// }
-    /// </code>
-    /// </remarks>
-    public class CrlIdentifier
+	/// <remarks>
+	/// RFC 3126: 4.2.2 Complete Revocation Refs Attribute Definition
+	/// <code>
+	/// CrlIdentifier ::= SEQUENCE 
+	/// {
+	/// 	crlissuer		Name,
+	/// 	crlIssuedTime	UTCTime,
+	/// 	crlNumber		INTEGER OPTIONAL
+	/// }
+	/// </code>
+	/// </remarks>
+	public class CrlIdentifier
 		: Asn1Encodable
 	{
-		public static CrlIdentifier GetInstance(object obj)
+		private readonly X509Name	crlIssuer;
+		private readonly DerUtcTime	crlIssuedTime;
+		private readonly DerInteger	crlNumber;
+
+		public static CrlIdentifier GetInstance(
+			object obj)
 		{
-			if (obj == null)
-				return null;
-			if (obj is CrlIdentifier crlIdentifier)
-                return crlIdentifier;
-			return new CrlIdentifier(Asn1Sequence.GetInstance(obj));
+			if (obj == null || obj is CrlIdentifier)
+				return (CrlIdentifier) obj;
+
+			if (obj is Asn1Sequence)
+				return new CrlIdentifier((Asn1Sequence) obj);
+
+			throw new ArgumentException(
+				"Unknown object in 'CrlIdentifier' factory: "
+                    + Platform.GetTypeName(obj),
+				"obj");
 		}
 
-        public static CrlIdentifier GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return GetInstance(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly X509Name m_crlIssuer;
-        private readonly Asn1UtcTime m_crlIssuedTime;
-        private readonly DerInteger m_crlNumber;
-
-        private CrlIdentifier(Asn1Sequence seq)
+		private CrlIdentifier(
+			Asn1Sequence seq)
 		{
-			int count = seq.Count;
-			if (count < 2 || count > 3)
-				throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (seq == null)
+				throw new ArgumentNullException("seq");
+			if (seq.Count < 2 || seq.Count > 3)
+				throw new ArgumentException("Bad sequence size: " + seq.Count, "seq");
 
-			m_crlIssuer = X509Name.GetInstance(seq[0]);
-			m_crlIssuedTime = Asn1UtcTime.GetInstance(seq[1]);
+			this.crlIssuer = X509Name.GetInstance(seq[0]);
+			this.crlIssuedTime = DerUtcTime.GetInstance(seq[1]);
 
-            // Validate crlIssuedTime is in the appropriate year range
-            m_crlIssuedTime.ToDateTime(2049);
-
-			if (count > 2)
+			if (seq.Count > 2)
 			{
-				m_crlNumber = DerInteger.GetInstance(seq[2]);
+				this.crlNumber = DerInteger.GetInstance(seq[2]);
 			}
 		}
 
-        public CrlIdentifier(X509Name crlIssuer, DateTime crlIssuedTime)
-            : this(crlIssuer, crlIssuedTime, null)
+		public CrlIdentifier(
+			X509Name	crlIssuer,
+			DateTime	crlIssuedTime)
+			: this(crlIssuer, crlIssuedTime, null)
 		{
 		}
 
-		public CrlIdentifier(X509Name crlIssuer, DateTime crlIssuedTime, BigInteger crlNumber)
-			: this(crlIssuer, Rfc5280Asn1Utilities.CreateUtcTime(crlIssuedTime), crlNumber)
+		public CrlIdentifier(
+			X509Name	crlIssuer,
+			DateTime	crlIssuedTime,
+			BigInteger	crlNumber)
 		{
+			if (crlIssuer == null)
+				throw new ArgumentNullException("crlIssuer");
+
+			this.crlIssuer = crlIssuer;
+			this.crlIssuedTime = new DerUtcTime(crlIssuedTime);
+
+			if (crlNumber != null)
+			{
+				this.crlNumber = new DerInteger(crlNumber);
+			}
 		}
 
-        public CrlIdentifier(X509Name crlIssuer, Asn1UtcTime crlIssuedTime)
-            : this(crlIssuer, crlIssuedTime, null)
-        {
-        }
+		public X509Name CrlIssuer
+		{
+			get { return crlIssuer; }
+		}
 
-        public CrlIdentifier(X509Name crlIssuer, Asn1UtcTime crlIssuedTime, BigInteger crlNumber)
-        {
-            m_crlIssuer = crlIssuer ?? throw new ArgumentNullException(nameof(crlIssuer));
-            m_crlIssuedTime = crlIssuedTime ?? throw new ArgumentNullException(nameof(crlIssuedTime));
+		public DateTime CrlIssuedTime
+		{
+			get { return crlIssuedTime.ToAdjustedDateTime(); }
+		}
 
-            if (null != crlNumber)
-            {
-                m_crlNumber = new DerInteger(crlNumber);
-            }
-
-            // Validate crlIssuedTime is in the appropriate year range
-            m_crlIssuedTime.ToDateTime(2049);
-        }
-
-        public X509Name CrlIssuer => m_crlIssuer;
-
-		public DateTime CrlIssuedTime => m_crlIssuedTime.ToDateTime(2049);
-
-		public BigInteger CrlNumber => m_crlNumber?.Value;
+		public BigInteger CrlNumber
+		{
+			get { return crlNumber == null ? null : crlNumber.Value; }
+		}
 
 		public override Asn1Object ToAsn1Object()
 		{
-			var v = new Asn1EncodableVector(3);
-			v.Add(m_crlIssuer, m_crlIssuedTime);
-            v.AddOptional(m_crlNumber);
+			Asn1EncodableVector v = new Asn1EncodableVector(crlIssuer.ToAsn1Object(), crlIssuedTime);
+            v.AddOptional(crlNumber);
 			return new DerSequence(v);
 		}
 	}

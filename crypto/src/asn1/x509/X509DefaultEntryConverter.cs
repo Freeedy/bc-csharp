@@ -46,7 +46,7 @@ namespace Org.BouncyCastle.Asn1.X509
 
 			if (oid.Equals(X509Name.DateOfBirth)) // accept time string as well as # (for compatibility)
 			{
-				return new Asn1GeneralizedTime(value);
+				return new DerGeneralizedTime(value);
 			}
 
 			if (oid.Equals(X509Name.C)

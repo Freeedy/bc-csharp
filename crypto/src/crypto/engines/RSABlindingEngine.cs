@@ -49,8 +49,10 @@ namespace Org.BouncyCastle.Crypto.Engines
 		{
 			RsaBlindingParameters p;
 
-			if (param is ParametersWithRandom rParam)
+			if (param is ParametersWithRandom)
 			{
+				ParametersWithRandom rParam = (ParametersWithRandom)param;
+
 				p = (RsaBlindingParameters)rParam.Parameters;
 			}
 			else

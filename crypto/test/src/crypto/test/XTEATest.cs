@@ -42,6 +42,12 @@ namespace Org.BouncyCastle.Crypto.Tests
 			get { return "XTEA"; }
 		}
 
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new XteaTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{

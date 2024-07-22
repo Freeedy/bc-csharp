@@ -1,85 +1,129 @@
 using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Ocsp
 {
-    public class ResponseData
+	public class ResponseData
 		: Asn1Encodable
 	{
-        public static ResponseData GetInstance(object obj)
-        {
-			if (obj == null)
-				return null;
-            if (obj is ResponseData responseData)
-                return responseData;
-			return new ResponseData(Asn1Sequence.GetInstance(obj));
-        }
+		private static readonly DerInteger V1 = new DerInteger(0);
 
-        public static ResponseData GetInstance(Asn1TaggedObject obj, bool explicitly)
-        {
-            return new ResponseData(Asn1Sequence.GetInstance(obj, explicitly));
-        }
+		private readonly bool                versionPresent;
+		private readonly DerInteger          version;
+		private readonly ResponderID         responderID;
+		private readonly DerGeneralizedTime  producedAt;
+		private readonly Asn1Sequence        responses;
+		private readonly X509Extensions      responseExtensions;
 
-        private static readonly DerInteger V1 = DerInteger.Zero;
-
-        private readonly DerInteger m_version;
-        private readonly bool m_versionPresent;
-        private readonly ResponderID m_responderID;
-        private readonly Asn1GeneralizedTime m_producedAt;
-        private readonly Asn1Sequence m_responses;
-        private readonly X509Extensions m_responseExtensions;
-
-        public ResponseData(ResponderID responderID, Asn1GeneralizedTime producedAt, Asn1Sequence responses,
-            X509Extensions responseExtensions)
-            : this(V1, responderID, producedAt, responses, responseExtensions)
-        {
-        }
-
-        public ResponseData(DerInteger version, ResponderID responderID, Asn1GeneralizedTime producedAt,
-            Asn1Sequence responses, X509Extensions responseExtensions)
-        {
-            m_version = version ?? V1;
-			m_versionPresent = false;
-			m_responderID = responderID ?? throw new ArgumentNullException(nameof(responderID));
-			m_producedAt = producedAt ?? throw new ArgumentNullException(nameof(producedAt));
-			m_responses = responses ?? throw new ArgumentNullException(nameof(responses));
-			m_responseExtensions = responseExtensions;
+		public static ResponseData GetInstance(
+			Asn1TaggedObject	obj,
+			bool				explicitly)
+		{
+			return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
 		}
 
-        private ResponseData(Asn1Sequence seq)
+		public static ResponseData GetInstance(
+			object  obj)
 		{
-            int count = seq.Count;
-            if (count < 3 || count > 5)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (obj == null || obj is ResponseData)
+			{
+				return (ResponseData)obj;
+			}
 
-            int pos = 0;
+			if (obj is Asn1Sequence)
+			{
+				return new ResponseData((Asn1Sequence)obj);
+			}
 
-            {
-                DerInteger version = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, DerInteger.GetTagged);
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
 
-                m_version = version ?? V1;
-                m_versionPresent = version != null;
-            }
+		public ResponseData(
+			DerInteger          version,
+			ResponderID         responderID,
+			DerGeneralizedTime  producedAt,
+			Asn1Sequence        responses,
+			X509Extensions      responseExtensions)
+		{
+			this.version = version;
+			this.responderID = responderID;
+			this.producedAt = producedAt;
+			this.responses = responses;
+			this.responseExtensions = responseExtensions;
+		}
 
-            m_responderID = ResponderID.GetInstance(seq[pos++]);
-            m_producedAt = Asn1GeneralizedTime.GetInstance(seq[pos++]);
-            m_responses = Asn1Sequence.GetInstance(seq[pos++]);
-            m_responseExtensions = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, X509Extensions.GetTagged);
+		public ResponseData(
+			ResponderID         responderID,
+			DerGeneralizedTime  producedAt,
+			Asn1Sequence        responses,
+			X509Extensions      responseExtensions)
+			: this(V1, responderID, producedAt, responses, responseExtensions)
+		{
+		}
 
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
-        }
+		private ResponseData(
+			Asn1Sequence seq)
+		{
+			int index = 0;
 
-        public DerInteger Version => m_version;
+			Asn1Encodable enc = seq[0];
+			if (enc is Asn1TaggedObject)
+			{
+				Asn1TaggedObject o = (Asn1TaggedObject)enc;
 
-		public ResponderID ResponderID => m_responderID;
+				if (o.TagNo == 0)
+				{
+					this.versionPresent = true;
+					this.version = DerInteger.GetInstance(o, true);
+					index++;
+				}
+				else
+				{
+					this.version = V1;
+				}
+			}
+			else
+			{
+				this.version = V1;
+			}
 
-		public Asn1GeneralizedTime ProducedAt => m_producedAt;
+			this.responderID = ResponderID.GetInstance(seq[index++]);
+			this.producedAt = (DerGeneralizedTime)seq[index++];
+			this.responses = (Asn1Sequence)seq[index++];
 
-		public Asn1Sequence Responses => m_responses;
+			if (seq.Count > index)
+			{
+				this.responseExtensions = X509Extensions.GetInstance(
+					(Asn1TaggedObject)seq[index], true);
+			}
+		}
 
-		public X509Extensions ResponseExtensions => m_responseExtensions;
+		public DerInteger Version
+		{
+			get { return version; }
+		}
+
+		public ResponderID ResponderID
+		{
+			get { return responderID; }
+		}
+
+		public DerGeneralizedTime ProducedAt
+		{
+			get { return producedAt; }
+		}
+
+		public Asn1Sequence Responses
+		{
+			get { return responses; }
+		}
+
+		public X509Extensions ResponseExtensions
+		{
+			get { return responseExtensions; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -94,15 +138,15 @@ namespace Org.BouncyCastle.Asn1.Ocsp
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(5);
+            Asn1EncodableVector v = new Asn1EncodableVector();
 
-            if (m_versionPresent || !V1.Equals(m_version))
+            if (versionPresent || !version.Equals(V1))
             {
-                v.Add(new DerTaggedObject(true, 0, m_version));
+                v.Add(new DerTaggedObject(true, 0, version));
             }
 
-            v.Add(m_responderID, m_producedAt, m_responses);
-            v.AddOptionalTagged(true, 1, m_responseExtensions);
+            v.Add(responderID, producedAt, responses);
+            v.AddOptionalTagged(true, 1, responseExtensions);
             return new DerSequence(v);
         }
     }

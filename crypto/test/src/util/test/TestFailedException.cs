@@ -2,20 +2,23 @@ using System;
 
 namespace Org.BouncyCastle.Utilities.Test
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
+    [Serializable]
+#endif
     public class TestFailedException
         : Exception
     {
-        private readonly ITestResult m_result;
+        private ITestResult _result;
 
-        public TestFailedException(ITestResult result)
-            : base()
+        public TestFailedException(
+            ITestResult result)
         {
-            m_result = result;
+            _result = result;
         }
 
-        public ITestResult Result
+        public ITestResult GetResult()
         {
-            get { return m_result; }
+            return _result;
         }
     }
 }

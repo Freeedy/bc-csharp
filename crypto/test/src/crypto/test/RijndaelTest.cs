@@ -114,6 +114,15 @@ namespace Org.BouncyCastle.Crypto.Tests
 			get { return "Rijndael"; }
         }
 
+        public static void Main(
+			string[] args)
+        {
+            ITest test = new RijndaelTest();
+            ITestResult result = test.Perform();
+
+			Console.WriteLine(result);
+        }
+
         [Test]
         public void TestFunction()
         {

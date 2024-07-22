@@ -11,7 +11,7 @@ namespace Org.BouncyCastle.Crypto.Generators
     * <br/>
     * This implementation is based on ISO 18033/P1363a.
     */
-    public abstract class BaseKdfBytesGenerator
+    public class BaseKdfBytesGenerator
         : IDerivationFunction
     {
         private int     counterStart;
@@ -25,22 +25,26 @@ namespace Org.BouncyCastle.Crypto.Generators
         * @param counterStart value of counter.
         * @param digest the digest to be used as the source of derived keys.
         */
-        protected BaseKdfBytesGenerator(int counterStart, IDigest digest)
+        public BaseKdfBytesGenerator(int counterStart, IDigest digest)
         {
             this.counterStart = counterStart;
             this.digest = digest;
         }
 
-        public void Init(IDerivationParameters parameters)
+        public virtual void Init(IDerivationParameters parameters)
         {
-            if (parameters is KdfParameters kdfParameters)
+            if (parameters is KdfParameters)
             {
-                shared = kdfParameters.GetSharedSecret();
-                iv = kdfParameters.GetIV();
+                KdfParameters   p = (KdfParameters)parameters;
+
+                shared = p.GetSharedSecret();
+                iv = p.GetIV();
             }
-            else if (parameters is Iso18033KdfParameters iso18033KdfParameters)
+            else if (parameters is Iso18033KdfParameters)
             {
-                shared = iso18033KdfParameters.GetSeed();
+                Iso18033KdfParameters p = (Iso18033KdfParameters)parameters;
+
+                shared = p.GetSeed();
                 iv = null;
             }
             else
@@ -52,7 +56,10 @@ namespace Org.BouncyCastle.Crypto.Generators
         /**
         * return the underlying digest.
         */
-        public IDigest Digest => digest;
+        public virtual IDigest Digest
+        {
+            get { return digest; }
+        }
 
         /**
         * fill len bytes of the output buffer with bytes generated from
@@ -61,15 +68,13 @@ namespace Org.BouncyCastle.Crypto.Generators
         * @throws ArgumentException if the size of the request will cause an overflow.
         * @throws DataLengthException if the out buffer is too small.
         */
-        public int GenerateBytes(byte[] output, int outOff, int length)
+        public virtual int GenerateBytes(byte[] output, int outOff, int length)
         {
-            Check.OutputLength(output, outOff, length, "output buffer too short");
+            if ((output.Length - length) < outOff)
+                throw new DataLengthException("output buffer too small");
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return GenerateBytes(output.AsSpan(outOff, length));
-#else
             long oBytes = length;
-            int digestSize = digest.GetDigestSize();
+            int outLen = digest.GetDigestSize();
 
             //
             // this is at odds with the standard implementation, the
@@ -80,9 +85,9 @@ namespace Org.BouncyCastle.Crypto.Generators
             if (oBytes > ((2L << 32) - 1))
                 throw new ArgumentException("Output length too large");
 
-            int cThreshold = (int)((oBytes + digestSize - 1) / digestSize);
+            int cThreshold = (int)((oBytes + outLen - 1) / outLen);
 
-            byte[] dig = new byte[digestSize];
+            byte[] dig = new byte[digest.GetDigestSize()];
 
             byte[] C = new byte[4];
             Pack.UInt32_To_BE((uint)counterStart, C, 0);
@@ -101,11 +106,11 @@ namespace Org.BouncyCastle.Crypto.Generators
 
                 digest.DoFinal(dig, 0);
 
-                if (length > digestSize)
+                if (length > outLen)
                 {
-                    Array.Copy(dig, 0, output, outOff, digestSize);
-                    outOff += digestSize;
-                    length -= digestSize;
+                    Array.Copy(dig, 0, output, outOff, outLen);
+                    outOff += outLen;
+                    length -= outLen;
                 }
                 else
                 {
@@ -122,69 +127,6 @@ namespace Org.BouncyCastle.Crypto.Generators
             digest.Reset();
 
             return (int)oBytes;
-#endif
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int GenerateBytes(Span<byte> output)
-        {
-            long oBytes = output.Length;
-            int digestSize = digest.GetDigestSize();
-
-            //
-            // this is at odds with the standard implementation, the
-            // maximum value should be hBits * (2^32 - 1) where hBits
-            // is the digest output size in bits. We can't have an
-            // array with a long index at the moment...
-            //
-            if (oBytes > ((2L << 32) - 1))
-                throw new ArgumentException("Output length too large");
-
-            int cThreshold = (int)((oBytes + digestSize - 1) / digestSize);
-
-            Span<byte> dig = digestSize <= 128
-                ? stackalloc byte[digestSize]
-                : new byte[digestSize];
-
-            Span<byte> C = stackalloc byte[4];
-            Pack.UInt32_To_BE((uint)counterStart, C);
-
-            uint counterBase = (uint)(counterStart & ~0xFF);
-
-            for (int i = 0; i < cThreshold; i++)
-            {
-                digest.BlockUpdate(shared);
-                digest.BlockUpdate(C);
-
-                if (iv != null)
-                {
-                    digest.BlockUpdate(iv);
-                }
-
-                digest.DoFinal(dig);
-
-                int remaining = output.Length;
-                if (remaining > digestSize)
-                {
-                    dig.CopyTo(output);
-                    output = output[digestSize..];
-                }
-                else
-                {
-                    dig[..remaining].CopyTo(output);
-                }
-
-                if (++C[3] == 0)
-                {
-                    counterBase += 0x100;
-                    Pack.UInt32_To_BE(counterBase, C);
-                }
-            }
-
-            digest.Reset();
-
-            return (int)oBytes;
-        }
-#endif
     }
 }

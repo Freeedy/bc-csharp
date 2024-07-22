@@ -4,7 +4,6 @@ using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Macs;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Utilities;
-using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
 {
@@ -31,7 +30,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
             {
                 int ciphertextLength = inputLength;
 
-                m_cipher.DoFinal(input, inputOffset, inputLength, output, outputOffset);
+                m_cipher.ProcessBytes(input, inputOffset, inputLength, output, outputOffset);
                 int outputLength = inputLength;
 
                 if (ciphertextLength != outputLength)
@@ -64,7 +63,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
                 if (badMac)
                     throw new TlsFatalAlert(AlertDescription.bad_record_mac);
 
-                m_cipher.DoFinal(input, inputOffset, ciphertextLength, output, outputOffset);
+                m_cipher.ProcessBytes(input, inputOffset, ciphertextLength, output, outputOffset);
                 int outputLength = ciphertextLength;
 
                 if (ciphertextLength != outputLength)
@@ -72,21 +71,6 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
 
                 return ciphertextLength;
             }
-        }
-
-        public int DoFinal(byte[] additionalData, byte[] input, int inputOffset, int inputLength, byte[] output,
-            int outputOffset)
-        {
-            if (!Arrays.IsNullOrEmpty(additionalData))
-            {
-                if (m_additionalDataLength != 0)
-                    throw new InvalidOperationException();
-
-                m_additionalDataLength = additionalData.Length;
-                UpdateMac(additionalData, 0, additionalData.Length);
-            }
-
-            return DoFinal(input, inputOffset, inputLength, output, outputOffset);
         }
 
         public int GetOutputSize(int inputLength)
@@ -101,19 +85,15 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
 
             m_cipher.Init(m_isEncrypting, new ParametersWithIV(null, nonce));
             InitMac();
-            if (Arrays.IsNullOrEmpty(additionalData))
+            if (additionalData == null)
             {
-                m_additionalDataLength = 0;
+                this.m_additionalDataLength = 0;
             }
             else
             {
-                m_additionalDataLength = additionalData.Length;
+                this.m_additionalDataLength = additionalData.Length;
                 UpdateMac(additionalData, 0, additionalData.Length);
             }
-        }
-
-        public void Reset()
-        {
         }
 
         public void SetKey(byte[] key, int keyOff, int keyLen)
@@ -122,27 +102,12 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
             m_cipher.Init(m_isEncrypting, new ParametersWithIV(cipherKey, Zeroes, 0, 12));
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public void SetKey(ReadOnlySpan<byte> key)
-        {
-            KeyParameter cipherKey = new KeyParameter(key);
-            m_cipher.Init(m_isEncrypting, new ParametersWithIV(cipherKey, Zeroes.AsSpan(0, 12)));
-        }
-#endif
-
         private void InitMac()
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> firstBlock = stackalloc byte[64];
-            m_cipher.ProcessBytes(firstBlock, firstBlock);
-            m_mac.Init(new KeyParameter(firstBlock[..32]));
-            firstBlock.Fill(0x00);
-#else
             byte[] firstBlock = new byte[64];
             m_cipher.ProcessBytes(firstBlock, 0, 64, firstBlock, 0);
             m_mac.Init(new KeyParameter(firstBlock, 0, 32));
             Array.Clear(firstBlock, 0, firstBlock.Length);
-#endif
         }
 
         private void UpdateMac(byte[] buf, int off, int len)

@@ -1,9 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tls.Tests
@@ -12,7 +13,7 @@ namespace Org.BouncyCastle.Tls.Tests
         : AbstractTlsClient
     {
         internal MockPskTls13Client()
-            : base(new BcTlsCrypto())
+            : base(new BcTlsCrypto(new SecureRandom()))
         {
         }
 
@@ -27,9 +28,9 @@ namespace Org.BouncyCastle.Tls.Tests
         //    return new short[] { PskKeyExchangeMode.psk_dhe_ke, PskKeyExchangeMode.psk_ke };
         //}
 
-        protected override IList<ProtocolName> GetProtocolNames()
+        protected override IList GetProtocolNames()
         {
-            var protocolNames = new List<ProtocolName>();
+            IList protocolNames = new ArrayList();
             protocolNames.Add(ProtocolName.Http_1_1);
             protocolNames.Add(ProtocolName.Http_2_Tls);
             return protocolNames;
@@ -45,13 +46,13 @@ namespace Org.BouncyCastle.Tls.Tests
             return ProtocolVersion.TLSv13.Only();
         }
 
-        public override IList<TlsPskExternal> GetExternalPsks()
+        public override IList GetExternalPsks()
         {
             byte[] identity = Strings.ToUtf8ByteArray("client");
             TlsSecret key = Crypto.CreateSecret(Strings.ToUtf8ByteArray("TLS_TEST_PSK"));
             int prfAlgorithm = PrfAlgorithm.tls13_hkdf_sha256;
 
-            return TlsUtilities.VectorOfOne<TlsPskExternal>(new BasicTlsPskExternal(identity, key, prfAlgorithm));
+            return TlsUtilities.VectorOfOne(new BasicTlsPskExternal(identity, key, prfAlgorithm));
         }
 
         public override void NotifyAlertRaised(short alertLevel, short alertDescription, string message,
@@ -106,7 +107,7 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
-        public override IDictionary<int, byte[]> GetClientExtensions()
+        public override IDictionary GetClientExtensions()
         {
             if (m_context.SecurityParameters.ClientRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -114,7 +115,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return base.GetClientExtensions();
         }
 
-        public override void ProcessServerExtensions(IDictionary<int, byte[]> serverExtensions)
+        public override void ProcessServerExtensions(IDictionary serverExtensions)
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);

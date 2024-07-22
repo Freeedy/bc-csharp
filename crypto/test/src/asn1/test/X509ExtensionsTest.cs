@@ -208,6 +208,12 @@ namespace Org.BouncyCastle.Asn1.Tests
             }
         }
 
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new X509ExtensionsTest());
+        }
+
         [Test]
         public void TestFunction()
         {

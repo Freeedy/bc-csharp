@@ -1,5 +1,9 @@
 using System;
+using System.Collections;
 using System.Text;
+
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.X509
 {
@@ -29,10 +33,10 @@ namespace Org.BouncyCastle.Asn1.X509
 
         public static AuthorityInformationAccess GetInstance(object obj)
         {
+            if (obj is AuthorityInformationAccess)
+                return (AuthorityInformationAccess)obj;
             if (obj == null)
                 return null;
-            if (obj is AuthorityInformationAccess authorityInformationAccess)
-                return authorityInformationAccess;
             return new AuthorityInformationAccess(Asn1Sequence.GetInstance(obj));
         }
 
@@ -43,12 +47,18 @@ namespace Org.BouncyCastle.Asn1.X509
 
         private readonly AccessDescription[] descriptions;
 
-        private AuthorityInformationAccess(Asn1Sequence seq)
+        private AuthorityInformationAccess(
+            Asn1Sequence seq)
         {
             if (seq.Count < 1)
                 throw new ArgumentException("sequence may not be empty");
 
-            this.descriptions = seq.MapElements(AccessDescription.GetInstance);
+            this.descriptions = new AccessDescription[seq.Count];
+
+            for (int i = 0; i < seq.Count; ++i)
+            {
+                descriptions[i] = AccessDescription.GetInstance(seq[i]);
+            }
         }
 
         public AuthorityInformationAccess(
@@ -86,13 +96,18 @@ namespace Org.BouncyCastle.Asn1.X509
             //return "AuthorityInformationAccess: Oid(" + this.descriptions[0].AccessMethod.Id + ")";
 
             StringBuilder buf = new StringBuilder();
-            buf.AppendLine("AuthorityInformationAccess:");
+            string sep = Platform.NewLine;
+
+            buf.Append("AuthorityInformationAccess:");
+            buf.Append(sep);
+
             foreach (AccessDescription description in descriptions)
             {
-                buf.Append("    ")
-                   .Append(description)
-                   .AppendLine();
+                buf.Append("    ");
+                buf.Append(description);
+                buf.Append(sep);
             }
+
             return buf.ToString();
         }
     }

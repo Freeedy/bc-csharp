@@ -1,7 +1,10 @@
 ﻿using System;
+using System.Collections;
 
 using NUnit.Framework;
 
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Asn1.Crmf;
 using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.Pkcs;
@@ -150,10 +153,10 @@ namespace Org.BouncyCastle.Crmf.Tests
                 CrmfObjectIdentifiers.id_regCtrl_pkiArchiveOptions);
             IsEquals("Archive type", PkiArchiveControl.encryptedPrivKey, archiveControl.ArchiveType);
 
-            IsTrue(archiveControl.IsEnvelopedData());
+            IsTrue(archiveControl.EnvelopedData);
             RecipientInformationStore recips = archiveControl.GetEnvelopedData().GetRecipientInfos();
 
-            var collection = recips.GetRecipients();
+            IList collection =  (IList)recips.GetRecipients();
 
             IsTrue(collection.Count == 1);
             KeyTransRecipientInformation info = (KeyTransRecipientInformation)collection[0];

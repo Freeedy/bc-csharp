@@ -1,4 +1,6 @@
 using System;
+using System.Collections;
+using System.IO;
 
 namespace Org.BouncyCastle.Asn1.X509
 {
@@ -11,79 +13,58 @@ namespace Org.BouncyCastle.Asn1.X509
     public class SubjectPublicKeyInfo
         : Asn1Encodable
     {
-        public static SubjectPublicKeyInfo GetInstance(object obj)
+        private readonly AlgorithmIdentifier	algID;
+        private readonly DerBitString			keyData;
+
+		public static SubjectPublicKeyInfo GetInstance(
+            Asn1TaggedObject	obj,
+            bool				explicitly)
         {
-            if (obj == null)
-                return null;
-            if (obj is SubjectPublicKeyInfo subjectPublicKeyInfo)
-                return subjectPublicKeyInfo;
-            return new SubjectPublicKeyInfo(Asn1Sequence.GetInstance(obj));
+            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
         }
 
-        public static SubjectPublicKeyInfo GetInstance(Asn1TaggedObject obj, bool explicitly) =>
-            new SubjectPublicKeyInfo(Asn1Sequence.GetInstance(obj, explicitly));
-
-        public static SubjectPublicKeyInfo GetOptional(Asn1Encodable element)
+		public static SubjectPublicKeyInfo GetInstance(
+            object obj)
         {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
+            if (obj is SubjectPublicKeyInfo)
+                return (SubjectPublicKeyInfo) obj;
 
-            if (element is SubjectPublicKeyInfo subjectPublicKeyInfo)
-                return subjectPublicKeyInfo;
+			if (obj != null)
+				return new SubjectPublicKeyInfo(Asn1Sequence.GetInstance(obj));
 
-            Asn1Sequence asn1Sequence = Asn1Sequence.GetOptional(element);
-            if (asn1Sequence != null)
-                return new SubjectPublicKeyInfo(asn1Sequence);
-
-            return null;
+			return null;
         }
 
-        public static SubjectPublicKeyInfo GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new SubjectPublicKeyInfo(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
-
-        private readonly AlgorithmIdentifier m_algorithm;
-        private readonly DerBitString m_publicKey;
-
-        public SubjectPublicKeyInfo(AlgorithmIdentifier algID, DerBitString publicKey)
+		public SubjectPublicKeyInfo(
+            AlgorithmIdentifier	algID,
+            Asn1Encodable		publicKey)
         {
-            m_algorithm = algID;
-            m_publicKey = publicKey;
+            this.keyData = new DerBitString(publicKey);
+            this.algID = algID;
         }
 
-        public SubjectPublicKeyInfo(AlgorithmIdentifier algID, Asn1Encodable publicKey)
+		public SubjectPublicKeyInfo(
+            AlgorithmIdentifier	algID,
+            byte[]				publicKey)
         {
-            m_algorithm = algID;
-            m_publicKey = new DerBitString(publicKey);
+            this.keyData = new DerBitString(publicKey);
+            this.algID = algID;
         }
 
-        public SubjectPublicKeyInfo(AlgorithmIdentifier algID, byte[] publicKey)
+		private SubjectPublicKeyInfo(
+            Asn1Sequence seq)
         {
-            m_algorithm = algID;
-            m_publicKey = new DerBitString(publicKey);
-        }
+			if (seq.Count != 2)
+				throw new ArgumentException("Bad sequence size: " + seq.Count, "seq");
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public SubjectPublicKeyInfo(AlgorithmIdentifier algID, ReadOnlySpan<byte> publicKey)
-        {
-            m_algorithm = algID;
-            m_publicKey = new DerBitString(publicKey);
-        }
-#endif
-
-        private SubjectPublicKeyInfo(Asn1Sequence seq)
-        {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_algorithm = AlgorithmIdentifier.GetInstance(seq[0]);
-			m_publicKey = DerBitString.GetInstance(seq[1]);
+            this.algID = AlgorithmIdentifier.GetInstance(seq[0]);
+			this.keyData = DerBitString.GetInstance(seq[1]);
 		}
 
-        public AlgorithmIdentifier Algorithm => m_algorithm;
-
-        [Obsolete("Use 'Algorithm' instead")]
-        public AlgorithmIdentifier AlgorithmID => m_algorithm;
+		public AlgorithmIdentifier AlgorithmID
+        {
+			get { return algID; }
+        }
 
         /**
          * for when the public key is an encoded object - if the bitstring
@@ -92,16 +73,33 @@ namespace Org.BouncyCastle.Asn1.X509
          * @exception IOException - if the bit string doesn't represent a Der
          * encoded object.
          */
-        public Asn1Object ParsePublicKey() => Asn1Object.FromByteArray(m_publicKey.GetOctets());
+        public Asn1Object ParsePublicKey()
+        {
+            return Asn1Object.FromByteArray(keyData.GetOctets());
+        }
 
-        /// <summary>Return the public key as a raw bit string.</summary>
-        public DerBitString PublicKey => m_publicKey;
+		/**
+         * for when the public key is an encoded object - if the bitstring
+         * can't be decoded this routine raises an IOException.
+         *
+         * @exception IOException - if the bit string doesn't represent a Der
+         * encoded object.
+         */
+        [Obsolete("Use 'ParsePublicKey' instead")]
+        public Asn1Object GetPublicKey()
+        {
+			return Asn1Object.FromByteArray(keyData.GetOctets());
+        }
 
-        /// <summary>Return the public key as a raw bit string.</summary>
-        [Obsolete("Use 'PublicKey' instead")]
-        public DerBitString PublicKeyData => m_publicKey;
+		/**
+         * for when the public key is raw bits...
+         */
+        public DerBitString PublicKeyData
+        {
+			get { return keyData; }
+        }
 
-        /**
+		/**
          * Produce an object suitable for an Asn1OutputStream.
          * <pre>
          * SubjectPublicKeyInfo ::= Sequence {
@@ -109,6 +107,9 @@ namespace Org.BouncyCastle.Asn1.X509
          *                          publicKey BIT STRING }
          * </pre>
          */
-        public override Asn1Object ToAsn1Object() => new DerSequence(m_algorithm, m_publicKey);
+        public override Asn1Object ToAsn1Object()
+        {
+			return new DerSequence(algID, keyData);
+        }
     }
 }

@@ -7,63 +7,70 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class SignerIdentifier
         : Asn1Encodable, IAsn1Choice
     {
-        public static SignerIdentifier GetInstance(object o)
+        private Asn1Encodable id;
+
+		public SignerIdentifier(
+            IssuerAndSerialNumber id)
         {
-            if (o == null)
-                return null;
-
-            if (o is SignerIdentifier signerIdentifier)
-                return signerIdentifier;
-
-            if (o is IssuerAndSerialNumber issuerAndSerialNumber)
-                return new SignerIdentifier(issuerAndSerialNumber);
-
-            if (o is Asn1OctetString octetString)
-                return new SignerIdentifier(octetString);
-
-            if (o is Asn1Object asn1Object)
-                return new SignerIdentifier(asn1Object);
-
-            throw new ArgumentException("Illegal object in SignerIdentifier: " + Platform.GetTypeName(o), nameof(o));
+            this.id = id;
         }
 
-        public static SignerIdentifier GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public static SignerIdentifier GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        private readonly Asn1Encodable m_id;
-
-        public SignerIdentifier(IssuerAndSerialNumber id)
+		public SignerIdentifier(
+            Asn1OctetString id)
         {
-            m_id = id ?? throw new ArgumentNullException(nameof(id));
+            this.id = new DerTaggedObject(false, 0, id);
         }
 
-		public SignerIdentifier(Asn1OctetString id)
+		public SignerIdentifier(
+            Asn1Object id)
         {
-            m_id = new DerTaggedObject(false, 0, id);
+            this.id = id;
         }
 
-		public SignerIdentifier(Asn1Object id)
+		/**
+         * return a SignerIdentifier object from the given object.
+         *
+         * @param o the object we want converted.
+         * @exception ArgumentException if the object cannot be converted.
+         */
+        public static SignerIdentifier GetInstance(
+            object o)
         {
-            m_id = id ?? throw new ArgumentNullException(nameof(id));
+            if (o == null || o is SignerIdentifier)
+                return (SignerIdentifier) o;
+
+			if (o is IssuerAndSerialNumber)
+                return new SignerIdentifier((IssuerAndSerialNumber) o);
+
+			if (o is Asn1OctetString)
+                return new SignerIdentifier((Asn1OctetString) o);
+
+			if (o is Asn1Object)
+                return new SignerIdentifier((Asn1Object) o);
+
+			throw new ArgumentException(
+                "Illegal object in SignerIdentifier: " + Platform.GetTypeName(o));
         }
 
-        public bool IsTagged => m_id is Asn1TaggedObject;
+		public bool IsTagged
+		{
+			get { return (id is Asn1TaggedObject); }
+		}
 
-        public Asn1Encodable ID
+		public Asn1Encodable ID
         {
             get
             {
-                if (m_id is Asn1TaggedObject taggedObject)
-                    return Asn1OctetString.GetInstance(taggedObject, false);
+                if (id is Asn1TaggedObject)
+                {
+                    return Asn1OctetString.GetInstance((Asn1TaggedObject)id, false);
+                }
 
-                return m_id;
+				return id;
             }
         }
 
-        /**
+		/**
          * Produce an object suitable for an Asn1OutputStream.
          * <pre>
          * SignerIdentifier ::= CHOICE {
@@ -74,6 +81,9 @@ namespace Org.BouncyCastle.Asn1.Cms
          * SubjectKeyIdentifier ::= OCTET STRING
          * </pre>
          */
-        public override Asn1Object ToAsn1Object() => m_id.ToAsn1Object();
+        public override Asn1Object ToAsn1Object()
+        {
+            return id.ToAsn1Object();
+        }
     }
 }

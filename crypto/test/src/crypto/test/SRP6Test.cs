@@ -242,6 +242,11 @@ namespace Org.BouncyCastle.Crypto.Tests
 	        }
 	    }
 
+	    public static void Main(string[] args)
+	    {
+	        RunTest(new Srp6Test());
+	    }
+
 		[Test]
         public void TestFunction()
         {

@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Utilities;
@@ -21,7 +21,7 @@ namespace Org.BouncyCastle.Tls
 
             TlsProtocol.AssertEmpty(buf);
 
-            if (!Arrays.FixedTimeEquals(expected_verify_data, verify_data))
+            if (!Arrays.ConstantTimeAreEqual(expected_verify_data, verify_data))
                 throw new TlsFatalAlert(AlertDescription.handshake_failure);
         }
 
@@ -39,6 +39,23 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
+        internal static short EvaluateMaxFragmentLengthExtension(bool resumedSession, IDictionary clientExtensions,
+            IDictionary serverExtensions, short alertDescription)
+        {
+            short maxFragmentLength = TlsExtensionsUtilities.GetMaxFragmentLengthExtension(serverExtensions);
+            if (maxFragmentLength >= 0)
+            {
+                if (!MaxFragmentLength.IsValid(maxFragmentLength)
+                    || (!resumedSession && maxFragmentLength != TlsExtensionsUtilities
+                        .GetMaxFragmentLengthExtension(clientExtensions)))
+                {
+                    throw new TlsFatalAlert(alertDescription);
+                }
+            }
+            return maxFragmentLength;
+        }
+
+        /// <exception cref="IOException"/>
         internal static byte[] GenerateCertificate(TlsContext context, Certificate certificate, Stream endPointHash)
         {
             MemoryStream buf = new MemoryStream();
@@ -47,7 +64,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static byte[] GenerateSupplementalData(IList<SupplementalDataEntry> supplementalData)
+        internal static byte[] GenerateSupplementalData(IList supplementalData)
         {
             MemoryStream buf = new MemoryStream();
             TlsProtocol.WriteSupplementalData(buf, supplementalData);
@@ -76,14 +93,15 @@ namespace Org.BouncyCastle.Tls
         /// <exception cref="IOException"/>
         internal static int ValidateSelectedCipherSuite(int selectedCipherSuite, short alertDescription)
         {
-            int encryptionAlgorithm = TlsUtilities.GetEncryptionAlgorithm(selectedCipherSuite);
-            if (EncryptionAlgorithm.NULL != encryptionAlgorithm)
+            switch (TlsUtilities.GetEncryptionAlgorithm(selectedCipherSuite))
             {
-                int cipherType = TlsUtilities.GetEncryptionAlgorithmType(encryptionAlgorithm);
-                if (cipherType < 0 || CipherType.stream == cipherType)
-                    throw new TlsFatalAlert(alertDescription);
+            case EncryptionAlgorithm.RC4_40:
+            case EncryptionAlgorithm.RC4_128:
+            case -1:
+                throw new TlsFatalAlert(alertDescription);
+            default:
+                return selectedCipherSuite;
             }
-            return selectedCipherSuite;
         }
     }
 }

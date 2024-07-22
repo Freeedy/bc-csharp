@@ -5,9 +5,9 @@ using NUnit.Framework;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Utilities.Test;
 using Org.BouncyCastle.X509;
@@ -72,7 +72,7 @@ namespace Org.BouncyCastle.Tests
 			get { return "AttrCertSelector"; }
 		}
 
-		private X509V2AttributeCertificate CreateAttrCert()
+		private IX509AttributeCertificate CreateAttrCert()
 		{
 //			CertificateFactory fact = CertificateFactory.getInstance("X.509", "BC");
 //			X509Certificate iCert = (X509Certificate) fact
@@ -105,11 +105,12 @@ namespace Org.BouncyCastle.Tests
 				new DerSequence(roleSyntax));
 
 			gen.AddAttribute(attributes);
-			gen.SetHolder(new AttributeCertificateHolder(iCert.SubjectDN));
+			gen.SetHolder(new AttributeCertificateHolder(PrincipalUtilities.GetSubjectX509Principal(iCert)));
 			gen.SetIssuer(new AttributeCertificateIssuer(new X509Name("cn=test")));
 			gen.SetNotBefore(DateTime.UtcNow.AddSeconds(-50));
 			gen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
 			gen.SetSerialNumber(BigInteger.One);
+			gen.SetSignatureAlgorithm("SHA1WithRSAEncryption");
 
 			Target targetName = new Target(
 				Target.Choice.Name,
@@ -124,13 +125,13 @@ namespace Org.BouncyCastle.Tests
 			TargetInformation targetInformation = new TargetInformation(targets);
 			gen.AddExtension(X509Extensions.TargetInformation.Id, true, targetInformation);
 
-			return gen.Generate(new Asn1SignatureFactory("SHA1WithRSAEncryption", privKey, null));
+			return gen.Generate(privKey);
 		}
 
 		[Test]
 		public void TestSelector()
 		{
-			X509V2AttributeCertificate aCert = CreateAttrCert();
+			IX509AttributeCertificate aCert = CreateAttrCert();
 			X509AttrCertStoreSelector sel = new X509AttrCertStoreSelector();
 			sel.AttributeCert = aCert;
 			bool match = sel.Match(aCert);
@@ -176,7 +177,7 @@ namespace Org.BouncyCastle.Tests
 				Fail("Selector does not match attribute certificate serial number.");
 			}
 
-			sel.AttributeCertificateValid = DateTime.UtcNow;
+			sel.AttributeCertificateValid = new DateTimeObject(DateTime.UtcNow);
 			match = sel.Match(aCert);
 			if (!match)
 			{
@@ -202,6 +203,12 @@ namespace Org.BouncyCastle.Tests
 		public override void PerformTest()
 		{
 			TestSelector();
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new AttrCertSelectorTest());
 		}
 	}
 }

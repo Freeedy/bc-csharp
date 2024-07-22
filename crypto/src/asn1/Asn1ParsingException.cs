@@ -1,9 +1,10 @@
 using System;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Asn1
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
+#endif
     public class Asn1ParsingException
 		: InvalidOperationException
 	{
@@ -12,18 +13,16 @@ namespace Org.BouncyCastle.Asn1
 		{
 		}
 
-		public Asn1ParsingException(string message)
+		public Asn1ParsingException(
+			string message)
 			: base(message)
 		{
 		}
 
-		public Asn1ParsingException(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected Asn1ParsingException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
+		public Asn1ParsingException(
+			string		message,
+			Exception	exception)
+			: base(message, exception)
 		{
 		}
 	}

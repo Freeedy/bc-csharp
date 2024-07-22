@@ -78,7 +78,7 @@ namespace Org.BouncyCastle.Crypto.Digests
             //
             // process whole words.
             //
-            int limit = length - 3;
+            int limit = ((length - i) & ~3) + i;
             for (; i < limit; i += 4)
             {
                 ProcessWord(input, inOff + i);
@@ -94,50 +94,6 @@ namespace Org.BouncyCastle.Crypto.Digests
 
             byteCount += length;
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public void BlockUpdate(ReadOnlySpan<byte> input)
-        {
-            int length = input.Length;
-
-            //
-            // fill the current word
-            //
-            int i = 0;
-            if (xBufOff != 0)
-            {
-                while (i < length)
-                {
-                    xBuf[xBufOff++] = input[i++];
-                    if (xBufOff == 4)
-                    {
-                        ProcessWord(xBuf, 0);
-                        xBufOff = 0;
-                        break;
-                    }
-                }
-            }
-
-            //
-            // process whole words.
-            //
-            int limit = length - 3;
-            for (; i < limit; i += 4)
-            {
-                ProcessWord(input.Slice(i, 4));
-            }
-
-            //
-            // load in the remainder.
-            //
-            while (i < length)
-            {
-                xBuf[xBufOff++] = input[i++];
-            }
-
-            byteCount += length;
-        }
-#endif
 
         public void Finish()
         {
@@ -166,9 +122,6 @@ namespace Org.BouncyCastle.Crypto.Digests
 		}
 
 		internal abstract void ProcessWord(byte[] input, int inOff);
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        internal abstract void ProcessWord(ReadOnlySpan<byte> word);
-#endif
         internal abstract void ProcessLength(long bitLength);
         internal abstract void ProcessBlock();
         public abstract string AlgorithmName { get; }
@@ -176,8 +129,5 @@ namespace Org.BouncyCastle.Crypto.Digests
         public abstract int DoFinal(byte[] output, int outOff);
 		public abstract IMemoable Copy();
 		public abstract void Reset(IMemoable t);
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public abstract int DoFinal(Span<byte> output);
-#endif
     }
 }

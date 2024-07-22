@@ -40,15 +40,13 @@ namespace Org.BouncyCastle.Crypto.Tests
         public override void PerformTest()
         {
             TestVectors();
-
-            DigestTest.SpanConsistencyTests(this, new Sha3Digest());
         }
 
         public void TestVectors()
         {
             using (StreamReader r = new StreamReader(SimpleTest.GetTestDataAsStream("crypto.SHA3TestVectors.txt")))
             {
-                string line;
+                String line;
                 while (null != (line = ReadLine(r)))
                 {
                     if (line.Length != 0)
@@ -99,7 +97,7 @@ namespace Org.BouncyCastle.Crypto.Tests
 
         private int ParseDecimal(string s)
         {
-            return int.Parse(s);
+            return Int32.Parse(s);
         }
 
         private string ReadBlock(StreamReader r)
@@ -229,6 +227,12 @@ namespace Org.BouncyCastle.Crypto.Tests
                 s = s.Substring(0, i);
             }
             return s;
+        }
+
+        public static void Main(
+            string[]    args)
+        {
+            RunTest(new Sha3DigestTest());
         }
 
         [Test]

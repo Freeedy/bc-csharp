@@ -1,48 +1,60 @@
 using System;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Pkcs
 {
     public class EncryptedPrivateKeyInfo
         : Asn1Encodable
     {
-        public static EncryptedPrivateKeyInfo GetInstance(object obj)
+        private readonly AlgorithmIdentifier algId;
+        private readonly Asn1OctetString data;
+
+		private EncryptedPrivateKeyInfo(
+            Asn1Sequence seq)
         {
-            if (obj == null)
-                return null;
-            if (obj is EncryptedPrivateKeyInfo encryptedPrivateKeyInfo)
-                return encryptedPrivateKeyInfo;
-            return new EncryptedPrivateKeyInfo(Asn1Sequence.GetInstance(obj));
+			if (seq.Count != 2)
+				throw new ArgumentException("Wrong number of elements in sequence", "seq");
+
+            algId = AlgorithmIdentifier.GetInstance(seq[0]);
+            data = Asn1OctetString.GetInstance(seq[1]);
         }
 
-        public static EncryptedPrivateKeyInfo GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+		public EncryptedPrivateKeyInfo(
+            AlgorithmIdentifier	algId,
+            byte[]				encoding)
         {
-            return new EncryptedPrivateKeyInfo(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+            this.algId = algId;
+            this.data = new DerOctetString(encoding);
         }
 
-        private readonly AlgorithmIdentifier m_encryptionAlgorithm;
-        private readonly Asn1OctetString m_encryptedData;
-
-		private EncryptedPrivateKeyInfo(Asn1Sequence seq)
+		public static EncryptedPrivateKeyInfo GetInstance(
+             object obj)
         {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (obj is EncryptedPrivateKeyInfo)
+			{
+				return (EncryptedPrivateKeyInfo) obj;
+			}
 
-            m_encryptionAlgorithm = AlgorithmIdentifier.GetInstance(seq[0]);
-            m_encryptedData = Asn1OctetString.GetInstance(seq[1]);
-        }
+			if (obj is Asn1Sequence)
+			{
+				return new EncryptedPrivateKeyInfo((Asn1Sequence) obj);
+			}
 
-        public EncryptedPrivateKeyInfo(AlgorithmIdentifier algId, byte[] encoding)
+			throw new ArgumentException("Unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public AlgorithmIdentifier EncryptionAlgorithm
+		{
+			get { return algId; }
+		}
+
+		public byte[] GetEncryptedData()
         {
-            m_encryptionAlgorithm = algId ?? throw new ArgumentNullException(nameof(algId));
-            m_encryptedData = new DerOctetString(encoding);
+            return data.GetOctets();
         }
-
-        public AlgorithmIdentifier EncryptionAlgorithm => m_encryptionAlgorithm;
-
-        public byte[] GetEncryptedData() => m_encryptedData.GetOctets();
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -59,6 +71,9 @@ namespace Org.BouncyCastle.Asn1.Pkcs
          * }
          * </pre>
          */
-        public override Asn1Object ToAsn1Object() => new DerSequence(m_encryptionAlgorithm, m_encryptedData);
+        public override Asn1Object ToAsn1Object()
+        {
+			return new DerSequence(algId, data);
+        }
     }
 }

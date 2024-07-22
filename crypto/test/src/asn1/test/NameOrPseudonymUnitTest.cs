@@ -39,7 +39,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			try
 			{
-				NameOrPseudonym.GetInstance(new object());
+				NameOrPseudonym.GetInstance(new Object());
 
 				Fail("GetInstance() failed to detect bad object.");
 			}
@@ -95,6 +95,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 			{
 				checkOptionalField("pseudonym", new DirectoryString(pseudonym), id.Pseudonym);
 			}
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new NameOrPseudonymUnitTest());
 		}
 
 		[Test]

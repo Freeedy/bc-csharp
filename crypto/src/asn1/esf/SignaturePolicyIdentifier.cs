@@ -17,40 +17,50 @@ namespace Org.BouncyCastle.Asn1.Esf
 	public class SignaturePolicyIdentifier
 		: Asn1Encodable, IAsn1Choice
 	{
-		public static SignaturePolicyIdentifier GetInstance(object obj)
+		private readonly SignaturePolicyId sigPolicy;
+
+		public static SignaturePolicyIdentifier GetInstance(
+			object obj)
 		{
-			if (obj == null)
-				return null;
+			if (obj == null || obj is SignaturePolicyIdentifier)
+				return (SignaturePolicyIdentifier) obj;
 
-			if (obj is SignaturePolicyIdentifier signaturePolicyIdentifier)
-				return signaturePolicyIdentifier;
+			if (obj is SignaturePolicyId)
+				return new SignaturePolicyIdentifier((SignaturePolicyId) obj);
 
-            if (obj is Asn1Null)
-                return new SignaturePolicyIdentifier();
+			if (obj is Asn1Null)
+				return new SignaturePolicyIdentifier();
 
-			return new SignaturePolicyIdentifier(SignaturePolicyId.GetInstance(obj));
+			throw new ArgumentException(
+				"Unknown object in 'SignaturePolicyIdentifier' factory: "
+                    + Platform.GetTypeName(obj),
+				"obj");
 		}
 
-        public static SignaturePolicyIdentifier GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public static SignaturePolicyIdentifier GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        private readonly SignaturePolicyId m_sigPolicy;
-
-        public SignaturePolicyIdentifier()
+		public SignaturePolicyIdentifier()
 		{
-			m_sigPolicy = null;
+			this.sigPolicy = null;
 		}
 
-		public SignaturePolicyIdentifier(SignaturePolicyId signaturePolicyId)
+		public SignaturePolicyIdentifier(
+			SignaturePolicyId signaturePolicyId)
 		{
-			m_sigPolicy = signaturePolicyId ?? throw new ArgumentNullException(nameof(signaturePolicyId));
-        }
+			if (signaturePolicyId == null)
+				throw new ArgumentNullException("signaturePolicyId");
 
-        public SignaturePolicyId SignaturePolicyId => m_sigPolicy;
+			this.sigPolicy = signaturePolicyId;
+		}
 
-		public override Asn1Object ToAsn1Object() => m_sigPolicy?.ToAsn1Object() ?? DerNull.Instance;
+		public SignaturePolicyId SignaturePolicyId
+		{
+			get { return sigPolicy; }
+		}
+
+		public override Asn1Object ToAsn1Object()
+		{
+			return sigPolicy == null
+				?	DerNull.Instance
+				:	sigPolicy.ToAsn1Object();
+		}
 	}
 }

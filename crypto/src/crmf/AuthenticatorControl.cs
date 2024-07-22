@@ -11,7 +11,9 @@ namespace Org.BouncyCastle.Crmf
     public class AuthenticatorControl
         : IControl
     {
-        private readonly DerUtf8String m_token;
+        private static readonly DerObjectIdentifier type = CrmfObjectIdentifiers.id_regCtrl_authenticator;
+
+        private readonly DerUtf8String token;
 
         /// <summary>
         /// Basic constructor - build from a UTF-8 string representing the token.
@@ -19,7 +21,7 @@ namespace Org.BouncyCastle.Crmf
         /// <param name="token">UTF-8 string representing the token.</param>
         public AuthenticatorControl(DerUtf8String token)
         {
-            m_token = token;
+            this.token = token;
         }
 
         /// <summary>
@@ -28,17 +30,23 @@ namespace Org.BouncyCastle.Crmf
         /// <param name="token">string representing the token.</param>
         public AuthenticatorControl(string token)
         {
-            m_token = new DerUtf8String(token);
+            this.token = new DerUtf8String(token);
         }
 
         /// <summary>
         /// Return the type of this control.
         /// </summary>
-        public DerObjectIdentifier Type => CrmfObjectIdentifiers.id_regCtrl_authenticator;
+        public DerObjectIdentifier Type
+        {
+            get { return type; }
+        }
 
         /// <summary>
         /// Return the token associated with this control (a UTF8String).
         /// </summary>
-        public Asn1Encodable Value => m_token;
+        public Asn1Encodable Value
+        {
+            get { return token; }
+        }
     }
 }

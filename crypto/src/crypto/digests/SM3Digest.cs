@@ -118,6 +118,7 @@ namespace Org.BouncyCastle.Crypto.Digests
 			this.xOff = 0;
 		}
 
+
 		public override int DoFinal(byte[] output, int outOff)
 		{
 			Finish();
@@ -129,22 +130,13 @@ namespace Org.BouncyCastle.Crypto.Digests
 			return DIGEST_LENGTH;
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int DoFinal(Span<byte> output)
-        {
-            Finish();
 
-            Pack.UInt32_To_BE(V, output);
-
-            Reset();
-
-            return DIGEST_LENGTH;
-        }
-#endif
-
-        internal override void ProcessWord(byte[] input, int inOff)
+		internal override void ProcessWord(byte[] input,
+		                                   int inOff)
 		{
-			inwords[xOff++] = Pack.BE_To_UInt32(input, inOff);
+			uint n = Pack.BE_To_UInt32(input, inOff);
+			this.inwords[this.xOff] = n;
+			++this.xOff;
 
 			if (this.xOff >= 16)
 			{
@@ -152,19 +144,7 @@ namespace Org.BouncyCastle.Crypto.Digests
 			}
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        internal override void ProcessWord(ReadOnlySpan<byte> word)
-        {
-            inwords[xOff++] = Pack.BE_To_UInt32(word);
-
-            if (this.xOff >= 16)
-            {
-                ProcessBlock();
-            }
-        }
-#endif
-
-        internal override void ProcessLength(long bitLength)
+		internal override void ProcessLength(long bitLength)
 		{
 			if (this.xOff > (BLOCK_SIZE - 2))
 			{

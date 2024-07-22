@@ -19,7 +19,7 @@ namespace Org.BouncyCastle.Asn1.X509
      */
     public class V1TbsCertificateGenerator
     {
-        internal DerTaggedObject		version = new DerTaggedObject(0, DerInteger.Zero);
+        internal DerTaggedObject		version = new DerTaggedObject(0, new DerInteger(0));
         internal DerInteger				serialNumber;
         internal AlgorithmIdentifier	signature;
         internal X509Name				issuer;
@@ -56,7 +56,7 @@ namespace Org.BouncyCastle.Asn1.X509
         }
 
 		public void SetStartDate(
-            Asn1UtcTime startDate)
+            DerUtcTime startDate)
         {
             this.startDate = new Time(startDate);
         }
@@ -68,7 +68,7 @@ namespace Org.BouncyCastle.Asn1.X509
         }
 
 		public void SetEndDate(
-            Asn1UtcTime endDate)
+            DerUtcTime endDate)
         {
             this.endDate = new Time(endDate);
         }
@@ -94,7 +94,7 @@ namespace Org.BouncyCastle.Asn1.X509
                 throw new InvalidOperationException("not all mandatory fields set in V1 TBScertificate generator");
             }
 
-			return TbsCertificateStructure.GetInstance(
+			return new TbsCertificateStructure(
 				new DerSequence(
 					//version, - not required as default value
 					serialNumber,

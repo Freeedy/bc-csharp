@@ -7,51 +7,47 @@ namespace Org.BouncyCastle.Asn1.Crmf
     public class OptionalValidity
         : Asn1Encodable
     {
-        public static OptionalValidity GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is OptionalValidity optionalValidity)
-                return optionalValidity;
-            return new OptionalValidity(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static OptionalValidity GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new OptionalValidity(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-
-        public static OptionalValidity GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new OptionalValidity(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
-
-        private readonly Time m_notBefore;
-        private readonly Time m_notAfter;
+        private readonly Time notBefore;
+        private readonly Time notAfter;
 
         private OptionalValidity(Asn1Sequence seq)
         {
-            // TODO Enforce "at least one MUST be present"?
+            foreach (Asn1TaggedObject tObj in seq)
+            {
+                if (tObj.TagNo == 0)
+                {
+                    notBefore = Time.GetInstance(tObj, true);
+                }
+                else
+                {
+                    notAfter = Time.GetInstance(tObj, true);
+                }
+            }
+        }
 
-            int count = seq.Count;
-            if (count < 0 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+        public static OptionalValidity GetInstance(object obj)
+        {
+            if (obj == null || obj is OptionalValidity)
+                return (OptionalValidity)obj;
 
-            int pos = 0;
-
-            m_notBefore = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, Time.GetTagged);
-            m_notAfter = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, Time.GetTagged);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+            return new OptionalValidity(Asn1Sequence.GetInstance(obj));
         }
 
         public OptionalValidity(Time notBefore, Time notAfter)
         {
-            // TODO Enforce "at least one MUST be present"?
-            m_notBefore = notBefore;
-            m_notAfter = notAfter;
+            this.notBefore = notBefore;
+            this.notAfter = notAfter;
         }
 
-        public virtual Time NotBefore => m_notBefore;
+        public virtual Time NotBefore
+        {
+            get { return notBefore; }
+        }
 
-        public virtual Time NotAfter => m_notAfter;
+        public virtual Time NotAfter
+        {
+            get { return notAfter; }
+        }
 
         /**
          * <pre>
@@ -63,9 +59,9 @@ namespace Org.BouncyCastle.Asn1.Crmf
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(2);
-            v.AddOptionalTagged(true, 0, m_notBefore);
-            v.AddOptionalTagged(true, 1, m_notAfter);
+            Asn1EncodableVector v = new Asn1EncodableVector();
+            v.AddOptionalTagged(true, 0, notBefore);
+            v.AddOptionalTagged(true, 1, notAfter);
             return new DerSequence(v);
         }
     }

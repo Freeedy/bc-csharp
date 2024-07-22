@@ -1,20 +1,19 @@
 using System;
 using System.IO;
 
-using Org.BouncyCastle.Asn1.Cryptlib;
+using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.IO;
+using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.IO;
-using Org.BouncyCastle.Crypto.Agreement;
-using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Asn1.EdEC;
 
 namespace Org.BouncyCastle.Bcpg.OpenPgp
 {
-    /// <remarks>A public key encrypted data object.</remarks>
+	/// <remarks>A public key encrypted data object.</remarks>
     public class PgpPublicKeyEncryptedData
         : PgpEncryptedData
     {
@@ -45,9 +44,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                         throw new PgpException("unknown asymmetric algorithm: " + algorithm);
                 }
             }
-            catch (PgpException)
+            catch (PgpException e)
             {
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
@@ -116,9 +115,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
                 cipher = CipherUtilities.GetCipher(cName);
 			}
-            catch (PgpException)
+            catch (PgpException e)
             {
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
@@ -140,9 +139,10 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                 {
                     truncStream = new TruncatedStream(encStream);
 
-                    IDigest digest = PgpUtilities.CreateDigest(HashAlgorithmTag.Sha1);
+					string digestName = PgpUtilities.GetDigestName(HashAlgorithmTag.Sha1);
+					IDigest digest = DigestUtilities.GetDigest(digestName);
 
-                    encStream = new DigestStream(truncStream, digest, null);
+					encStream = new DigestStream(truncStream, digest, null);
                 }
 
 				if (Streams.ReadFully(encStream, iv, 0, iv.Length) < iv.Length)
@@ -175,9 +175,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
 				return encStream;
             }
-            catch (PgpException)
+            catch (PgpException e)
             {
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
@@ -189,114 +189,76 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 		{
             byte[][] secKeyData = keyData.GetEncSessionKey();
 
-            if (keyData.Algorithm != PublicKeyAlgorithmTag.ECDH)
+            if (keyData.Algorithm == PublicKeyAlgorithmTag.ECDH)
             {
-                IBufferedCipher cipher = GetKeyCipher(keyData.Algorithm);
+                ECDHPublicBcpgKey ecKey = (ECDHPublicBcpgKey)privKey.PublicKeyPacket.Key;
+                X9ECParameters x9Params = ECKeyPairGenerator.FindECCurveByOid(ecKey.CurveOid);
 
-                try
-			    {
-                    cipher.Init(false, privKey.Key);
-			    }
-			    catch (InvalidKeyException e)
-			    {
-				    throw new PgpException("error setting asymmetric cipher", e);
-			    }
+                byte[] enc = secKeyData[0];
 
-                if (keyData.Algorithm == PublicKeyAlgorithmTag.RsaEncrypt
-				    || keyData.Algorithm == PublicKeyAlgorithmTag.RsaGeneral)
-			    {
-                    byte[] bi = secKeyData[0];
+                int pLen = ((((enc[0] & 0xff) << 8) + (enc[1] & 0xff)) + 7) / 8;
+                if ((2 + pLen + 1) > enc.Length) 
+                    throw new PgpException("encoded length out of range");
 
-                    cipher.ProcessBytes(bi, 2, bi.Length - 2);
-			    }
-			    else
-			    {
-				    ElGamalPrivateKeyParameters k = (ElGamalPrivateKeyParameters)privKey.Key;
-				    int size = (k.Parameters.P.BitLength + 7) / 8;
+                byte[] pEnc = new byte[pLen];
+                Array.Copy(enc, 2, pEnc, 0, pLen);
 
-                    ProcessEncodedMpi(cipher, size, secKeyData[0]);
-                    ProcessEncodedMpi(cipher, size, secKeyData[1]);
-			    }
+                int keyLen = enc[pLen + 2];
+                if ((2 + pLen + 1 + keyLen) > enc.Length)
+                    throw new PgpException("encoded length out of range");
 
-                try
-			    {
-                    return cipher.DoFinal();
-			    }
-			    catch (Exception e)
-			    {
-				    throw new PgpException("exception decrypting secret key", e);
-			    }
+                byte[] keyEnc = new byte[keyLen];
+                Array.Copy(enc, 2 + pLen + 1, keyEnc, 0, keyEnc.Length);
+
+                ECPoint publicPoint = x9Params.Curve.DecodePoint(pEnc);
+
+                ECPrivateKeyParameters privKeyParams = (ECPrivateKeyParameters)privKey.Key;
+                ECPoint S = publicPoint.Multiply(privKeyParams.D).Normalize();
+
+                KeyParameter key = new KeyParameter(Rfc6637Utilities.CreateKey(privKey.PublicKeyPacket, S));
+
+                IWrapper w = PgpUtilities.CreateWrapper(ecKey.SymmetricKeyAlgorithm);
+                w.Init(false, key);
+
+                return PgpPad.UnpadSessionData(w.Unwrap(keyEnc, 0, keyEnc.Length));
             }
 
-            ECDHPublicBcpgKey ecPubKey = (ECDHPublicBcpgKey)privKey.PublicKeyPacket.Key;
-            byte[] enc = secKeyData[0];
+            IBufferedCipher cipher = GetKeyCipher(keyData.Algorithm);
 
-            int pLen = ((((enc[0] & 0xff) << 8) + (enc[1] & 0xff)) + 7) / 8;
-            if ((2 + pLen + 1) > enc.Length) 
-                throw new PgpException("encoded length out of range");
+            try
+			{
+                cipher.Init(false, privKey.Key);
+			}
+			catch (InvalidKeyException e)
+			{
+				throw new PgpException("error setting asymmetric cipher", e);
+			}
 
-            byte[] pEnc = new byte[pLen];
-            Array.Copy(enc, 2, pEnc, 0, pLen);
+            if (keyData.Algorithm == PublicKeyAlgorithmTag.RsaEncrypt
+				|| keyData.Algorithm == PublicKeyAlgorithmTag.RsaGeneral)
+			{
+                byte[] bi = secKeyData[0];
 
-            int keyLen = enc[pLen + 2];
-            if ((2 + pLen + 1 + keyLen) > enc.Length)
-                throw new PgpException("encoded length out of range");
+                cipher.ProcessBytes(bi, 2, bi.Length - 2);
+			}
+			else
+			{
+				ElGamalPrivateKeyParameters k = (ElGamalPrivateKeyParameters)privKey.Key;
+				int size = (k.Parameters.P.BitLength + 7) / 8;
 
-            byte[] keyEnc = new byte[keyLen];
-            Array.Copy(enc, 2 + pLen + 1, keyEnc, 0, keyEnc.Length);
+                ProcessEncodedMpi(cipher, size, secKeyData[0]);
+                ProcessEncodedMpi(cipher, size, secKeyData[1]);
+			}
 
-            var curveOid = ecPubKey.CurveOid;
-            byte[] secret;
-
-            if (EdECObjectIdentifiers.id_X25519.Equals(curveOid) ||
-                CryptlibObjectIdentifiers.curvey25519.Equals(curveOid))
-            {
-                // skip the 0x40 header byte.
-                if (pEnc.Length != (1 + X25519PublicKeyParameters.KeySize) || 0x40 != pEnc[0])
-                    throw new ArgumentException("Invalid X25519 public key");
-
-                X25519PublicKeyParameters ephPub = new X25519PublicKeyParameters(pEnc, 1);
-
-                X25519Agreement agreement = new X25519Agreement();
-                agreement.Init(privKey.Key);
-
-                secret = new byte[agreement.AgreementSize];
-                agreement.CalculateAgreement(ephPub, secret, 0);
-            }
-            else if (EdECObjectIdentifiers.id_X448.Equals(curveOid))
-            {
-                // skip the 0x40 header byte.
-                if (pEnc.Length != (1 + X448PublicKeyParameters.KeySize) || 0x40 != pEnc[0])
-                    throw new ArgumentException("Invalid X448 public key");
-
-                X448PublicKeyParameters ephPub = new X448PublicKeyParameters(pEnc, 1);
-
-                X448Agreement agreement = new X448Agreement();
-                agreement.Init(privKey.Key);
-
-                secret = new byte[agreement.AgreementSize];
-                agreement.CalculateAgreement(ephPub, secret, 0);
-            }
-            else
-            {
-                ECDomainParameters ecParameters = ((ECPrivateKeyParameters)privKey.Key).Parameters;
-
-                ECPublicKeyParameters ephPub = new ECPublicKeyParameters(ecParameters.Curve.DecodePoint(pEnc),
-                    ecParameters);
-
-                ECDHBasicAgreement agreement = new ECDHBasicAgreement();
-                agreement.Init(privKey.Key);
-                BigInteger S = agreement.CalculateAgreement(ephPub);
-                secret = BigIntegers.AsUnsignedByteArray(agreement.GetFieldSize(), S);
-            }
-
-            KeyParameter key = new KeyParameter(Rfc6637Utilities.CreateKey(privKey.PublicKeyPacket, secret));
-
-            IWrapper w = PgpUtilities.CreateWrapper(ecPubKey.SymmetricKeyAlgorithm);
-            w.Init(false, key);
-
-            return PgpPad.UnpadSessionData(w.Unwrap(keyEnc, 0, keyEnc.Length));
-        }
+            try
+			{
+                return cipher.DoFinal();
+			}
+			catch (Exception e)
+			{
+				throw new PgpException("exception decrypting secret key", e);
+			}
+		}
 
         private static void ProcessEncodedMpi(IBufferedCipher cipher, int size, byte[] mpiEnc)
         {

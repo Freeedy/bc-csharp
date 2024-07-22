@@ -1,60 +1,73 @@
 using System;
-using System.Collections.Generic;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Security.Certificates;
 using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Utilities.Collections;
+using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.X509
 {
-    /// <remarks>
-    /// The Holder object.
-    /// <pre>
-    /// Holder ::= SEQUENCE {
-    ///		baseCertificateID   [0] IssuerSerial OPTIONAL,
-    ///			-- the issuer and serial number of
-    ///			-- the holder's Public Key Certificate
-    ///		entityName          [1] GeneralNames OPTIONAL,
-    ///			-- the name of the claimant or role
-    ///		objectDigestInfo    [2] ObjectDigestInfo OPTIONAL
-    ///			-- used to directly authenticate the holder,
-    ///			-- for example, an executable
-    /// }
-    /// </pre>
-    /// </remarks>
-    public class AttributeCertificateHolder
-		: IEquatable<AttributeCertificateHolder>, ISelector<X509Certificate>
+	/// <remarks>
+	/// The Holder object.
+	/// <pre>
+ 	/// Holder ::= SEQUENCE {
+ 	///		baseCertificateID   [0] IssuerSerial OPTIONAL,
+ 	///			-- the issuer and serial number of
+ 	///			-- the holder's Public Key Certificate
+ 	///		entityName          [1] GeneralNames OPTIONAL,
+ 	///			-- the name of the claimant or role
+ 	///		objectDigestInfo    [2] ObjectDigestInfo OPTIONAL
+ 	///			-- used to directly authenticate the holder,
+ 	///			-- for example, an executable
+ 	/// }
+	/// </pre>
+	/// </remarks>
+	public class AttributeCertificateHolder
+		//: CertSelector, Selector
+		: IX509Selector
 	{
-		internal readonly Holder m_holder;
+		internal readonly Holder holder;
 
-		internal AttributeCertificateHolder(Asn1Sequence seq)
+		internal AttributeCertificateHolder(
+			Asn1Sequence seq)
 		{
-			m_holder = Holder.GetInstance(seq);
+			holder = Holder.GetInstance(seq);
 		}
 
-		public AttributeCertificateHolder(X509Name issuerName, BigInteger serialNumber)
+		public AttributeCertificateHolder(
+			X509Name	issuerName,
+			BigInteger	serialNumber)
 		{
-			m_holder = new Holder(
+			holder = new Holder(
 				new IssuerSerial(
 					GenerateGeneralNames(issuerName),
 					new DerInteger(serialNumber)));
 		}
 
-		public AttributeCertificateHolder(X509Certificate cert)
+		public AttributeCertificateHolder(
+			X509Certificate	cert)
 		{
-			m_holder = new Holder(
-				new IssuerSerial(
-					GenerateGeneralNames(cert.IssuerDN),
-					new DerInteger(cert.SerialNumber)));
+			X509Name name;
+			try
+			{
+				name = PrincipalUtilities.GetIssuerX509Principal(cert);
+			}
+			catch (Exception e)
+			{
+				throw new CertificateParsingException(e.Message);
+			}
+
+			holder = new Holder(new IssuerSerial(GenerateGeneralNames(name), new DerInteger(cert.SerialNumber)));
 		}
 
-		public AttributeCertificateHolder(X509Name principal)
+		public AttributeCertificateHolder(
+			X509Name principal)
 		{
-			m_holder = new Holder(GenerateGeneralNames(principal));
+			holder = new Holder(GenerateGeneralNames(principal));
 		}
 
 		/**
@@ -80,14 +93,16 @@ namespace Org.BouncyCastle.X509
 		 *            <code>otherObjectDigest</code>.
 		 * @param objectDigest The hash value.
 		 */
-		public AttributeCertificateHolder(int digestedObjectType, string digestAlgorithm, string otherObjectTypeID,
-			byte[] objectDigest)
+		public AttributeCertificateHolder(
+			int		digestedObjectType,
+			string	digestAlgorithm,
+			string	otherObjectTypeID,
+			byte[]	objectDigest)
 		{
-			var digestAlgorithmID = new AlgorithmIdentifier(new DerObjectIdentifier(digestAlgorithm));
-			var objectDigestInfo = new ObjectDigestInfo(digestedObjectType, otherObjectTypeID, digestAlgorithmID,
-				Arrays.Clone(objectDigest));
+			// TODO Allow 'objectDigest' to be null?
 
-            m_holder = new Holder(objectDigestInfo);
+			holder = new Holder(new ObjectDigestInfo(digestedObjectType, otherObjectTypeID,
+				new AlgorithmIdentifier(new DerObjectIdentifier(digestAlgorithm)), Arrays.Clone(objectDigest)));
 		}
 
 		/**
@@ -109,7 +124,7 @@ namespace Org.BouncyCastle.X509
 		{
 			get
 			{
-				ObjectDigestInfo odi = m_holder.ObjectDigestInfo;
+				ObjectDigestInfo odi = holder.ObjectDigestInfo;
 
 				return odi == null
 					?   -1
@@ -123,14 +138,31 @@ namespace Org.BouncyCastle.X509
 		 * @return The other object type ID or <code>null</code> if no object
 		 *         digest info is set.
 		 */
-		public string DigestAlgorithm => m_holder.ObjectDigestInfo?.DigestAlgorithm.Algorithm.Id;
+		public string DigestAlgorithm
+		{
+			get
+			{
+				ObjectDigestInfo odi = holder.ObjectDigestInfo;
+
+				return odi == null
+					?	null
+					:	odi.DigestAlgorithm.Algorithm.Id;
+			}
+		}
 
 		/**
 		 * Returns the hash if an object digest info is used.
 		 *
 		 * @return The hash or <code>null</code> if no object digest info is set.
 		 */
-		public byte[] GetObjectDigest() => m_holder.ObjectDigestInfo?.ObjectDigest.GetBytes();
+		public byte[] GetObjectDigest()
+		{
+			ObjectDigestInfo odi = holder.ObjectDigestInfo;
+
+			return odi == null
+				?	null
+				:	odi.ObjectDigest.GetBytes();
+		}
 
 		/**
 		 * Returns the digest algorithm ID if an object digest info is used.
@@ -138,20 +170,43 @@ namespace Org.BouncyCastle.X509
 		 * @return The digest algorithm ID or <code>null</code> if no object
 		 *         digest info is set.
 		 */
-		public string OtherObjectTypeID => m_holder.ObjectDigestInfo?.OtherObjectTypeID.Id;
-
-		private GeneralNames GenerateGeneralNames(X509Name principal) => new GeneralNames(new GeneralName(principal));
-
-		private bool MatchesDN(X509Name subject, GeneralNames targets)
+		public string OtherObjectTypeID
 		{
-			foreach (var gn in targets.GetNames())
+			get
 			{
+				ObjectDigestInfo odi = holder.ObjectDigestInfo;
+
+				return odi == null
+					?	null
+					:	odi.OtherObjectTypeID.Id;
+			}
+		}
+
+		private GeneralNames GenerateGeneralNames(
+			X509Name principal)
+		{
+//			return GeneralNames.GetInstance(new DerSequence(new GeneralName(principal)));
+			return new GeneralNames(new GeneralName(principal));
+		}
+
+		private bool MatchesDN(
+			X509Name		subject,
+			GeneralNames	targets)
+		{
+			GeneralName[] names = targets.GetNames();
+
+			for (int i = 0; i != names.Length; i++)
+			{
+				GeneralName gn = names[i];
+
 				if (gn.TagNo == GeneralName.DirectoryName)
 				{
 					try
 					{
 						if (X509Name.GetInstance(gn.Name).Equivalent(subject))
+						{
 							return true;
+						}
 					}
 					catch (Exception)
 					{
@@ -162,18 +217,59 @@ namespace Org.BouncyCastle.X509
 			return false;
 		}
 
-		private X509Name[] GetPrincipals(GeneralNames generalNames)
+		private object[] GetNames(
+			GeneralName[] names)
 		{
-			var names = generalNames.GetNames();
-			var result = new List<X509Name>(names.Length);
-			foreach (var name in names)
+            int count = 0;
+            for (int i = 0; i != names.Length; i++)
             {
-                if (GeneralName.DirectoryName == name.TagNo)
+                if (names[i].TagNo == GeneralName.DirectoryName)
                 {
-					result.Add(X509Name.GetInstance(name.Name));
+                    ++count;
                 }
+            }
+
+            object[] result = new object[count];
+
+            int pos = 0;
+            for (int i = 0; i != names.Length; i++)
+            {
+                if (names[i].TagNo == GeneralName.DirectoryName)
+                {
+                    result[pos++] = X509Name.GetInstance(names[i].Name);
+                }
+            }
+
+            return result;
+        }
+
+		private X509Name[] GetPrincipals(
+			GeneralNames names)
+		{
+			object[] p = this.GetNames(names.GetNames());
+
+            int count = 0;
+
+            for (int i = 0; i != p.Length; i++)
+			{
+				if (p[i] is X509Name)
+				{
+                    ++count;
+				}
 			}
-			return result.ToArray();
+
+            X509Name[] result = new X509Name[count];
+
+            int pos = 0;
+            for (int i = 0; i != p.Length; i++)
+            {
+                if (p[i] is X509Name)
+                {
+                    result[pos++] = (X509Name)p[i];
+                }
+            }
+
+            return result;
         }
 
 		/**
@@ -183,8 +279,12 @@ namespace Org.BouncyCastle.X509
 		 */
 		public X509Name[] GetEntityNames()
 		{
-			var entityName = m_holder.EntityName;
-			return entityName == null ? null : GetPrincipals(entityName);
+			if (holder.EntityName != null)
+			{
+				return GetPrincipals(holder.EntityName);
+			}
+
+			return null;
 		}
 
 		/**
@@ -194,8 +294,12 @@ namespace Org.BouncyCastle.X509
 		 */
 		public X509Name[] GetIssuer()
 		{
-			var baseCertificateID = m_holder.BaseCertificateID;
-			return baseCertificateID == null ? null : GetPrincipals(baseCertificateID.Issuer);
+			if (holder.BaseCertificateID != null)
+			{
+				return GetPrincipals(holder.BaseCertificateID.Issuer);
+			}
+
+			return null;
 		}
 
 		/**
@@ -203,72 +307,127 @@ namespace Org.BouncyCastle.X509
 		 *
 		 * @return the certificate serial number, null if no BaseCertificateID is set.
 		 */
-		public BigInteger SerialNumber => m_holder.BaseCertificateID?.Serial.Value;
-
-		public object Clone() => new AttributeCertificateHolder((Asn1Sequence)m_holder.ToAsn1Object());
-
-		public bool Match(X509Certificate x509Cert)
+		public BigInteger SerialNumber
 		{
-			if (x509Cert == null)
-				return false;
+			get
+			{
+				if (holder.BaseCertificateID != null)
+				{
+					return holder.BaseCertificateID.Serial.Value;
+				}
 
+				return null;
+			}
+		}
+
+		public object Clone()
+		{
+			return new AttributeCertificateHolder((Asn1Sequence)holder.ToAsn1Object());
+		}
+
+		public bool Match(
+			X509Certificate x509Cert)
+		{
 			try
 			{
-                var baseCertificateID = m_holder.BaseCertificateID;
-                if (baseCertificateID != null)
+				if (holder.BaseCertificateID != null)
 				{
-					return baseCertificateID.Serial.HasValue(x509Cert.SerialNumber)
-						&& MatchesDN(x509Cert.IssuerDN, baseCertificateID.Issuer);
+					return holder.BaseCertificateID.Serial.HasValue(x509Cert.SerialNumber)
+						&& MatchesDN(PrincipalUtilities.GetIssuerX509Principal(x509Cert), holder.BaseCertificateID.Issuer);
 				}
 
-				var entityName = m_holder.EntityName;
-				if (entityName != null)
+				if (holder.EntityName != null)
 				{
-					if (MatchesDN(x509Cert.SubjectDN, entityName))
+					if (MatchesDN(PrincipalUtilities.GetSubjectX509Principal(x509Cert), holder.EntityName))
+					{
 						return true;
+					}
 				}
 
-				var objectDigestInfo = m_holder.ObjectDigestInfo;
-				if (objectDigestInfo != null)
+				if (holder.ObjectDigestInfo != null)
 				{
-					IDigest md = DigestUtilities.GetDigest(DigestAlgorithm);
-
-					switch (objectDigestInfo.DigestedObjectType.IntValueExact)
+					IDigest md = null;
+					try
 					{
-					case ObjectDigestInfo.PublicKey:
-					{
-						// TODO: DSA Dss-parms
-						byte[] b = x509Cert.SubjectPublicKeyInfo.GetEncoded();
-						md.BlockUpdate(b, 0, b.Length);
-						break;
+						md = DigestUtilities.GetDigest(DigestAlgorithm);
 					}
-					case ObjectDigestInfo.PublicKeyCert:
+					catch (Exception)
 					{
-						byte[] b = x509Cert.GetEncoded();
-						md.BlockUpdate(b, 0, b.Length);
-						break;
-					}
-					// TODO Default handler?
+						return false;
 					}
 
-					if (Arrays.AreEqual(GetObjectDigest(), DigestUtilities.DoFinal(md)))
-						return true;
+					switch (DigestedObjectType)
+					{
+						case ObjectDigestInfo.PublicKey:
+						{
+							// TODO: DSA Dss-parms
+
+							//byte[] b = x509Cert.GetPublicKey().getEncoded();
+							// TODO Is this the right way to encode?
+							byte[] b = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(
+								x509Cert.GetPublicKey()).GetEncoded();
+							md.BlockUpdate(b, 0, b.Length);
+							break;
+						}
+
+						case ObjectDigestInfo.PublicKeyCert:
+						{
+							byte[] b = x509Cert.GetEncoded();
+							md.BlockUpdate(b, 0, b.Length);
+							break;
+						}
+
+						// TODO Default handler?
+					}
+
+					// TODO Shouldn't this be the other way around?
+					if (!Arrays.AreEqual(DigestUtilities.DoFinal(md), GetObjectDigest()))
+					{
+						return false;
+					}
 				}
 			}
-			catch (Exception)
+			catch (CertificateEncodingException)
 			{
+				return false;
 			}
 
 			return false;
 		}
 
-		public virtual bool Equals(AttributeCertificateHolder other)
+		public override bool Equals(
+			object obj)
 		{
-            return this == other || m_holder.Equals(other?.m_holder);
-        }
+			if (obj == this)
+			{
+				return true;
+			}
 
-		public override bool Equals(object obj) => Equals(obj as AttributeCertificateHolder);
+			if (!(obj is AttributeCertificateHolder))
+			{
+				return false;
+			}
 
-		public override int GetHashCode() => m_holder.GetHashCode();
+			AttributeCertificateHolder other = (AttributeCertificateHolder)obj;
+
+			return this.holder.Equals(other.holder);
+		}
+
+		public override int GetHashCode()
+		{
+			return this.holder.GetHashCode();
+		}
+
+		public bool Match(
+			object obj)
+		{
+			if (!(obj is X509Certificate))
+			{
+				return false;
+			}
+
+//			return Match((Certificate)obj);
+			return Match((X509Certificate)obj);
+		}
 	}
 }

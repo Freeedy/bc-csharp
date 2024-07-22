@@ -1,18 +1,12 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
-using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.Cryptlib;
-using Org.BouncyCastle.Asn1.EdEC;
-using Org.BouncyCastle.Asn1.Gnu;
-using Org.BouncyCastle.Asn1.Pkcs;
-using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Math.EC.Rfc8032;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 
@@ -20,7 +14,6 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 {
     /// <remarks>General class to handle a PGP secret key object.</remarks>
     public class PgpSecretKey
-        : PgpObject
     {
         private readonly SecretKeyPacket	secret;
         private readonly PgpPublicKey		pub;
@@ -60,51 +53,10 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                     secKey = new DsaSecretBcpgKey(dsK.X);
                     break;
                 case PublicKeyAlgorithmTag.ECDH:
-                {
-                    if (privKey.Key is ECPrivateKeyParameters ecdhK)
-                    {
-                        secKey = new ECSecretBcpgKey(ecdhK.D);
-                    }
-                    else
-                    {
-                        // The native format for X25519 private keys is little-endian
-                        X25519PrivateKeyParameters xK = (X25519PrivateKeyParameters)privKey.Key;
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                        secKey = new ECSecretBcpgKey(new BigInteger(1, xK.DataSpan, bigEndian: false));
-#else
-                        secKey = new ECSecretBcpgKey(new BigInteger(1, xK.GetEncoded(), bigEndian: false));
-#endif
-                    }
-                    break;
-                }
                 case PublicKeyAlgorithmTag.ECDsa:
                     ECPrivateKeyParameters ecK = (ECPrivateKeyParameters)privKey.Key;
                     secKey = new ECSecretBcpgKey(ecK.D);
                     break;
-                case PublicKeyAlgorithmTag.EdDsa_Legacy:
-                {
-                    if (privKey.Key is Ed25519PrivateKeyParameters ed25519K)
-                    {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                        secKey = new EdSecretBcpgKey(new BigInteger(1, ed25519K.DataSpan));
-#else
-                        secKey = new EdSecretBcpgKey(new BigInteger(1, ed25519K.GetEncoded()));
-#endif
-                    }
-                    else if (privKey.Key is Ed448PrivateKeyParameters ed448K)
-                    {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                        secKey = new EdSecretBcpgKey(new BigInteger(1, ed448K.DataSpan));
-#else
-                        secKey = new EdSecretBcpgKey(new BigInteger(1, ed448K.GetEncoded()));
-#endif
-                    }
-                    else
-                    {
-                        throw new PgpException("unknown EdDSA key class");
-                    }
-                    break;
-                }
                 case PublicKeyAlgorithmTag.ElGamalEncrypt:
                 case PublicKeyAlgorithmTag.ElGamalGeneral:
                     ElGamalPrivateKeyParameters esK = (ElGamalPrivateKeyParameters) privKey.Key;
@@ -166,14 +118,32 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                     }
                 }
             }
-            catch (PgpException)
+            catch (PgpException e)
             {
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
                 throw new PgpException("Exception encrypting key", e);
             }
+        }
+
+        /// <remarks>
+        /// Conversion of the passphrase characters to bytes is performed using Convert.ToByte(), which is
+        /// the historical behaviour of the library (1.7 and earlier).
+        /// </remarks>
+        [Obsolete("Use the constructor taking an explicit 'useSha1' parameter instead")]
+        public PgpSecretKey(
+            int							certificationLevel,
+            PgpKeyPair					keyPair,
+            string						id,
+            SymmetricKeyAlgorithmTag	encAlgorithm,
+            char[]						passPhrase,
+            PgpSignatureSubpacketVector	hashedPackets,
+            PgpSignatureSubpacketVector	unhashedPackets,
+            SecureRandom				rand)
+            : this(certificationLevel, keyPair, id, encAlgorithm, passPhrase, false, hashedPackets, unhashedPackets, rand)
+        {
         }
 
         /// <remarks>
@@ -453,7 +423,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                     case PublicKeyAlgorithmTag.RsaSign:
                     case PublicKeyAlgorithmTag.Dsa:
                     case PublicKeyAlgorithmTag.ECDsa:
-                    case PublicKeyAlgorithmTag.EdDsa_Legacy:
+                    case PublicKeyAlgorithmTag.EdDsa:
                     case PublicKeyAlgorithmTag.ElGamalGeneral:
                         return true;
                     default:
@@ -491,12 +461,6 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             get { return pub.KeyId; }
         }
 
-        /// <summary>The fingerprint of the public key associated with this key.</summary>
-        public byte[] GetFingerprint()
-        {
-            return pub.GetFingerprint();
-        }
-
         /// <summary>Return the S2K usage associated with this key.</summary>
         public int S2kUsage
         {
@@ -517,14 +481,14 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
         /// <summary>Allows enumeration of any user IDs associated with the key.</summary>
         /// <returns>An <c>IEnumerable</c> of <c>string</c> objects.</returns>
-        public IEnumerable<string> UserIds
+        public IEnumerable UserIds
         {
             get { return pub.GetUserIds(); }
         }
 
         /// <summary>Allows enumeration of any user attribute vectors associated with the key.</summary>
         /// <returns>An <c>IEnumerable</c> of <c>string</c> objects.</returns>
-        public IEnumerable<PgpUserAttributeSubpacketVector> UserAttributes
+        public IEnumerable UserAttributes
         {
             get { return pub.GetUserAttributes(); }
         }
@@ -617,9 +581,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
                 return data;
             }
-            catch (PgpException)
+            catch (PgpException e)
             {
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
@@ -680,7 +644,6 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                 return null;
 
             PublicKeyPacket pubPk = secret.PublicKeyPacket;
-
             try
             {
                 byte[] data = ExtractKeyData(rawPassPhrase, clearPassPhrase);
@@ -711,65 +674,11 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                     privateKey = new DsaPrivateKeyParameters(dsaPriv.X, dsaParams);
                     break;
                 case PublicKeyAlgorithmTag.ECDH:
-                {
-                    ECDHPublicBcpgKey ecdhPub = (ECDHPublicBcpgKey)pubPk.Key;
-                    ECSecretBcpgKey ecdhPriv = new ECSecretBcpgKey(bcpgIn);
-                    var curveOid = ecdhPub.CurveOid;
-
-                    if (EdECObjectIdentifiers.id_X25519.Equals(curveOid) ||
-                        CryptlibObjectIdentifiers.curvey25519.Equals(curveOid))
-                    {
-                        // 'reverse' because the native format for X25519 private keys is little-endian
-                        privateKey = PrivateKeyFactory.CreateKey(new PrivateKeyInfo(
-                            new AlgorithmIdentifier(curveOid),
-                            new DerOctetString(Arrays.ReverseInPlace(BigIntegers.AsUnsignedByteArray(ecdhPriv.X)))));
-                    }
-                    else if (EdECObjectIdentifiers.id_X448.Equals(curveOid))
-                    {
-                        // 'reverse' because the native format for X448 private keys is little-endian
-                        privateKey = PrivateKeyFactory.CreateKey(new PrivateKeyInfo(
-                            new AlgorithmIdentifier(curveOid),
-                            new DerOctetString(Arrays.ReverseInPlace(BigIntegers.AsUnsignedByteArray(ecdhPriv.X)))));
-                    }
-                    else
-                    {
-                        privateKey = new ECPrivateKeyParameters("ECDH", ecdhPriv.X, ecdhPub.CurveOid);
-                    }
+                    privateKey = GetECKey("ECDH", bcpgIn);
                     break;
-                }
                 case PublicKeyAlgorithmTag.ECDsa:
-                {
-                    ECPublicBcpgKey ecdsaPub = (ECPublicBcpgKey)pubPk.Key;
-                    ECSecretBcpgKey ecdsaPriv = new ECSecretBcpgKey(bcpgIn);
-
-                    privateKey = new ECPrivateKeyParameters("ECDSA", ecdsaPriv.X, ecdsaPub.CurveOid);
+                    privateKey = GetECKey("ECDSA", bcpgIn);
                     break;
-                }
-                case PublicKeyAlgorithmTag.EdDsa_Legacy:
-                {
-                    EdDsaPublicBcpgKey eddsaPub = (EdDsaPublicBcpgKey)pubPk.Key;
-                    EdSecretBcpgKey ecdsaPriv = new EdSecretBcpgKey(bcpgIn);
-
-                    var curveOid = eddsaPub.CurveOid;
-                    if (EdECObjectIdentifiers.id_Ed25519.Equals(curveOid) ||
-                        GnuObjectIdentifiers.Ed25519.Equals(curveOid))
-                    {
-                        privateKey = PrivateKeyFactory.CreateKey(new PrivateKeyInfo(
-                            new AlgorithmIdentifier(curveOid),
-                            new DerOctetString(BigIntegers.AsUnsignedByteArray(Ed25519.SecretKeySize, ecdsaPriv.X))));
-                    }
-                    else if (EdECObjectIdentifiers.id_Ed448.Equals(curveOid))
-                    {
-                        privateKey = PrivateKeyFactory.CreateKey(new PrivateKeyInfo(
-                            new AlgorithmIdentifier(curveOid),
-                            new DerOctetString(BigIntegers.AsUnsignedByteArray(Ed448.SecretKeySize, ecdsaPriv.X))));
-                    }
-                    else 
-                    {
-                        throw new InvalidOperationException();
-                    }
-                    break;
-                }
                 case PublicKeyAlgorithmTag.ElGamalEncrypt:
                 case PublicKeyAlgorithmTag.ElGamalGeneral:
                     ElGamalPublicBcpgKey elPub = (ElGamalPublicBcpgKey)pubPk.Key;
@@ -783,14 +692,21 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
                 return new PgpPrivateKey(KeyId, pubPk, privateKey);
             }
-            catch (PgpException)
+            catch (PgpException e)
             {
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
                 throw new PgpException("Exception constructing key", e);
             }
+        }
+
+        private ECPrivateKeyParameters GetECKey(string algorithm, BcpgInputStream bcpgIn)
+        {
+            ECPublicBcpgKey ecdsaPub = (ECPublicBcpgKey)secret.PublicKeyPacket.Key;
+            ECSecretBcpgKey ecdsaPriv = new ECSecretBcpgKey(bcpgIn);
+            return new ECPrivateKeyParameters(algorithm, ecdsaPriv.X, ecdsaPub.CurveOid);
         }
 
         private static byte[] Checksum(
@@ -802,7 +718,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             {
                 try
                 {
-                    IDigest dig = PgpUtilities.CreateDigest(HashAlgorithmTag.Sha1);
+                    IDigest dig = DigestUtilities.GetDigest("SHA1");
                     dig.BlockUpdate(bytes, 0, length);
                     return DigestUtilities.DoFinal(dig);
                 }
@@ -831,7 +747,8 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             return bOut.ToArray();
         }
 
-        public void Encode(Stream outStr)
+        public void Encode(
+            Stream outStr)
         {
             BcpgOutputStream bcpgOut = BcpgOutputStream.Wrap(outStr);
 
@@ -850,27 +767,24 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 
                 for (int i = 0; i != pub.ids.Count; i++)
                 {
-                    var pubID = pub.ids[i];
-                    if (pubID is UserIdPacket id)
+                    object pubID = pub.ids[i];
+                    if (pubID is string)
                     {
-                        bcpgOut.WritePacket(id);
-                    }
-                    else if (pubID is PgpUserAttributeSubpacketVector v)
-                    {
-                        bcpgOut.WritePacket(new UserAttributePacket(v.ToSubpacketArray()));
+                        string id = (string) pubID;
+                        bcpgOut.WritePacket(new UserIdPacket(id));
                     }
                     else
                     {
-                        throw new InvalidOperationException();
+                        PgpUserAttributeSubpacketVector v = (PgpUserAttributeSubpacketVector) pubID;
+                        bcpgOut.WritePacket(new UserAttributePacket(v.ToSubpacketArray()));
                     }
 
-                    var trustPacket = pub.idTrusts[i];
-                    if (trustPacket != null)
+                    if (pub.idTrusts[i] != null)
                     {
-                        bcpgOut.WritePacket(trustPacket);
+                        bcpgOut.WritePacket((ContainedPacket)pub.idTrusts[i]);
                     }
 
-                    foreach (PgpSignature sig in pub.idSigs[i])
+                    foreach (PgpSignature sig in (IList) pub.idSigs[i])
                     {
                         sig.Encode(bcpgOut);
                     }
@@ -1012,9 +926,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
                         keyData = EncryptKeyDataV3(rawKeyData, newEncAlgorithm, rawNewPassPhrase, clearPassPhrase, rand, out s2k, out iv);
                     }
                 }
-                catch (PgpException)
+                catch (PgpException e)
                 {
-                    throw;
+                    throw e;
                 }
                 catch (Exception e)
                 {
@@ -1381,7 +1295,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             SXprUtilities.SkipOpenParenthesis(keyIn);
             SXprUtilities.SkipOpenParenthesis(keyIn);
             SXprUtilities.SkipOpenParenthesis(keyIn);
-            string name = SXprUtilities.ReadString(keyIn, keyIn.ReadByte());
+            String name = SXprUtilities.ReadString(keyIn, keyIn.ReadByte());
             return SXprUtilities.ReadBytes(keyIn, keyIn.ReadByte());
         }
     }

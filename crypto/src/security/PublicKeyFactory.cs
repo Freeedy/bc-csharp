@@ -1,14 +1,15 @@
 using System;
+using System.Collections;
 using System.IO;
+using System.Text;
 
 using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.Cryptlib;
 using Org.BouncyCastle.Asn1.CryptoPro;
 using Org.BouncyCastle.Asn1.EdEC;
-using Org.BouncyCastle.Asn1.Gnu;
 using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Asn1.Rosstandart;
+using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
@@ -17,11 +18,16 @@ using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Utilities;
+using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Org.BouncyCastle.Security
 {
-    public static class PublicKeyFactory
+    public sealed class PublicKeyFactory
     {
+        private PublicKeyFactory()
+        {
+        }
+
         public static AsymmetricKeyParameter CreateKey(
             byte[] keyInfoData)
         {
@@ -41,7 +47,7 @@ namespace Org.BouncyCastle.Security
         public static AsymmetricKeyParameter CreateKey(
             SubjectPublicKeyInfo keyInfo)
         {
-            AlgorithmIdentifier algID = keyInfo.Algorithm;
+            AlgorithmIdentifier algID = keyInfo.AlgorithmID;
             DerObjectIdentifier algOid = algID.Algorithm;
 
             // TODO See RSAUtil.isRsaOid in Java build
@@ -102,7 +108,8 @@ namespace Org.BouncyCastle.Security
             }
             else if (algOid.Equals(OiwObjectIdentifiers.ElGamalAlgorithm))
             {
-                ElGamalParameter para = ElGamalParameter.GetInstance(algID.Parameters);
+                ElGamalParameter para = new ElGamalParameter(
+                    Asn1Sequence.GetInstance(algID.Parameters.ToAsn1Object()));
                 DerInteger derY = (DerInteger)keyInfo.ParsePublicKey();
 
                 return new ElGamalPublicKeyParameters(
@@ -138,7 +145,7 @@ namespace Org.BouncyCastle.Security
                     x9 = new X9ECParameters((Asn1Sequence)para.Parameters);
                 }
 
-                Asn1OctetString key = new DerOctetString(keyInfo.PublicKey.GetBytes());
+                Asn1OctetString key = new DerOctetString(keyInfo.PublicKeyData.GetBytes());
                 X9ECPoint derQ = new X9ECPoint(x9.Curve, key);
                 ECPoint q = derQ.Point;
 
@@ -155,7 +162,7 @@ namespace Org.BouncyCastle.Security
                 Gost3410PublicKeyAlgParameters gostParams = Gost3410PublicKeyAlgParameters.GetInstance(algID.Parameters);
                 DerObjectIdentifier publicKeyParamSet = gostParams.PublicKeyParamSet;
 
-                X9ECParameters ecP = ECGost3410NamedCurves.GetByOid(publicKeyParamSet);
+                X9ECParameters ecP = ECGost3410NamedCurves.GetByOidX9(publicKeyParamSet);
                 if (ecP == null)
                     return null;
 
@@ -202,14 +209,13 @@ namespace Org.BouncyCastle.Security
                     throw new ArgumentException("error recovering GOST3410_94 public key", e);
                 }
 
-                byte[] keyBytes = key.GetOctets();
+                byte[] keyBytes = Arrays.Reverse(key.GetOctets()); // was little endian
 
-                BigInteger y = new BigInteger(1, keyBytes, bigEndian: false);
+                BigInteger y = new BigInteger(1, keyBytes);
 
                 return new Gost3410PublicKeyParameters(y, algParams.PublicKeyParamSet);
             }
-            else if (algOid.Equals(EdECObjectIdentifiers.id_X25519)
-                || algOid.Equals(CryptlibObjectIdentifiers.curvey25519))
+            else if (algOid.Equals(EdECObjectIdentifiers.id_X25519))
             {
                 return new X25519PublicKeyParameters(GetRawKey(keyInfo));
             }
@@ -217,8 +223,7 @@ namespace Org.BouncyCastle.Security
             {
                 return new X448PublicKeyParameters(GetRawKey(keyInfo));
             }
-            else if (algOid.Equals(EdECObjectIdentifiers.id_Ed25519)
-                || algOid.Equals(GnuObjectIdentifiers.Ed25519))
+            else if (algOid.Equals(EdECObjectIdentifiers.id_Ed25519))
             {
                 return new Ed25519PublicKeyParameters(GetRawKey(keyInfo));
             }
@@ -227,15 +232,13 @@ namespace Org.BouncyCastle.Security
                 return new Ed448PublicKeyParameters(GetRawKey(keyInfo));
             }
             else if (algOid.Equals(RosstandartObjectIdentifiers.id_tc26_gost_3410_12_256)
-                ||   algOid.Equals(RosstandartObjectIdentifiers.id_tc26_gost_3410_12_512)
-                ||   algOid.Equals(RosstandartObjectIdentifiers.id_tc26_agreement_gost_3410_12_256)
-                ||   algOid.Equals(RosstandartObjectIdentifiers.id_tc26_agreement_gost_3410_12_512))
+                ||   algOid.Equals(RosstandartObjectIdentifiers.id_tc26_gost_3410_12_512))
             {
                 Gost3410PublicKeyAlgParameters gostParams = Gost3410PublicKeyAlgParameters.GetInstance(algID.Parameters);
                 DerObjectIdentifier publicKeyParamSet = gostParams.PublicKeyParamSet;
 
                 ECGost3410Parameters ecDomainParameters =new ECGost3410Parameters(
-                    new ECNamedDomainParameters(publicKeyParamSet, ECGost3410NamedCurves.GetByOid(publicKeyParamSet)),
+                    new ECNamedDomainParameters(publicKeyParamSet, ECGost3410NamedCurves.GetByOidX9(publicKeyParamSet)),
                     publicKeyParamSet,
                     gostParams.DigestParamSet,
                     gostParams.EncryptionParamSet);
@@ -279,25 +282,14 @@ namespace Org.BouncyCastle.Security
             }
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        private static ReadOnlySpan<byte> GetRawKey(SubjectPublicKeyInfo keyInfo)
-        {
-            /*
-             * TODO[RFC 8422]
-             * - Require keyInfo.Algorithm.Parameters == null?
-             */
-            return keyInfo.PublicKey.GetOctetsSpan();
-        }
-#else
         private static byte[] GetRawKey(SubjectPublicKeyInfo keyInfo)
         {
             /*
              * TODO[RFC 8422]
              * - Require keyInfo.Algorithm.Parameters == null?
              */
-            return keyInfo.PublicKey.GetOctets();
+            return keyInfo.PublicKeyData.GetOctets();
         }
-#endif
 
         private static bool IsPkcsDHParam(Asn1Sequence seq)
         {
@@ -316,7 +308,7 @@ namespace Org.BouncyCastle.Security
         private static DHPublicKeyParameters ReadPkcsDHParam(DerObjectIdentifier algOid,
             BigInteger y, Asn1Sequence seq)
         {
-            DHParameter para = DHParameter.GetInstance(seq);
+            DHParameter para = new DHParameter(seq);
 
             BigInteger lVal = para.L;
             int l = lVal == null ? 0 : lVal.IntValue;

@@ -290,5 +290,11 @@ namespace Org.BouncyCastle.Tests
             TestECDsa239BitBinary();
             TestGeneration();
         }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new ECDsa5Test());
+        }
     }
 }

@@ -22,7 +22,7 @@ namespace Org.BouncyCastle.Asn1.X509
      */
     public class V3TbsCertificateGenerator
     {
-        internal DerTaggedObject         version = new DerTaggedObject(0, DerInteger.Two);
+        internal DerTaggedObject         version = new DerTaggedObject(0, new DerInteger(2));
         internal DerInteger              serialNumber;
         internal AlgorithmIdentifier     signature;
         internal X509Name                issuer;
@@ -39,62 +39,74 @@ namespace Org.BouncyCastle.Asn1.X509
         {
         }
 
-		public void SetSerialNumber(DerInteger serialNumber)
+		public void SetSerialNumber(
+            DerInteger serialNumber)
         {
             this.serialNumber = serialNumber;
         }
 
-		public void SetSignature(AlgorithmIdentifier signature)
+		public void SetSignature(
+            AlgorithmIdentifier signature)
         {
             this.signature = signature;
         }
 
-		public void SetIssuer(X509Name issuer)
+		public void SetIssuer(
+            X509Name issuer)
         {
             this.issuer = issuer;
         }
 
-		public void SetStartDate(Asn1UtcTime startDate)
+		public void SetStartDate(
+            DerUtcTime startDate)
         {
             this.startDate = new Time(startDate);
         }
 
-		public void SetStartDate(Time startDate)
+		public void SetStartDate(
+            Time startDate)
         {
             this.startDate = startDate;
         }
 
-		public void SetEndDate(Asn1UtcTime endDate)
+		public void SetEndDate(
+            DerUtcTime endDate)
         {
             this.endDate = new Time(endDate);
         }
 
-		public void SetEndDate(Time endDate)
+		public void SetEndDate(
+            Time endDate)
         {
             this.endDate = endDate;
         }
 
-		public void SetSubject(X509Name subject)
+		public void SetSubject(
+            X509Name subject)
         {
             this.subject = subject;
         }
 
-		public void SetIssuerUniqueID(DerBitString uniqueID)
+		public void SetIssuerUniqueID(
+			DerBitString uniqueID)
 		{
 			this.issuerUniqueID = uniqueID;
 		}
 
-		public void SetSubjectUniqueID(DerBitString uniqueID)
+		public void SetSubjectUniqueID(
+			DerBitString uniqueID)
 		{
 			this.subjectUniqueID = uniqueID;
 		}
 
-		public void SetSubjectPublicKeyInfo(SubjectPublicKeyInfo pubKeyInfo)
+		public void SetSubjectPublicKeyInfo(
+            SubjectPublicKeyInfo pubKeyInfo)
         {
             this.subjectPublicKeyInfo = pubKeyInfo;
         }
 
-		public void SetExtensions(X509Extensions extensions)
+		public void SetExtensions(
+            X509Extensions extensions)
         {
             this.extensions = extensions;
 
@@ -109,62 +121,48 @@ namespace Org.BouncyCastle.Asn1.X509
 			}
 		}
 
-        public Asn1Sequence GeneratePreTbsCertificate()
-        {
-            if (signature != null)
-                throw new InvalidOperationException("signature field should not be set in PreTBSCertificate");
-
-            if ((serialNumber == null)
-                || (issuer == null) || (startDate == null) || (endDate == null)
-                || (subject == null && !altNamePresentAndCritical) || (subjectPublicKeyInfo == null))
-            {
-                throw new InvalidOperationException("not all mandatory fields set in V3 TBScertificate generator");
-            }
-
-            return GenerateTbsStructure();
-        }
-
-        public TbsCertificateStructure GenerateTbsCertificate()
+		public TbsCertificateStructure GenerateTbsCertificate()
         {
             if ((serialNumber == null) || (signature == null)
                 || (issuer == null) || (startDate == null) || (endDate == null)
-                || (subject == null && !altNamePresentAndCritical) || (subjectPublicKeyInfo == null))
+				|| (subject == null && !altNamePresentAndCritical)
+				|| (subjectPublicKeyInfo == null))
             {
                 throw new InvalidOperationException("not all mandatory fields set in V3 TBScertificate generator");
             }
 
-            return TbsCertificateStructure.GetInstance(GenerateTbsStructure());
-        }
+			DerSequence validity = new DerSequence(startDate, endDate); // before and after dates
 
-        private Asn1Sequence GenerateTbsStructure()
-        {
-            Asn1EncodableVector v = new Asn1EncodableVector(10);
+			Asn1EncodableVector v = new Asn1EncodableVector(
+				version, serialNumber, signature, issuer, validity);
 
-            v.Add(version);
-            v.Add(serialNumber);
-            v.AddOptional(signature);
-            v.Add(issuer);
+			if (subject != null)
+			{
+				v.Add(subject);
+			}
+			else
+			{
+				v.Add(DerSequence.Empty);
+			}
 
-            //
-            // before and after dates
-            //
-            v.Add(new DerSequence(startDate, endDate));
+			v.Add(subjectPublicKeyInfo);
 
-            if (subject != null)
+			if (issuerUniqueID != null)
+			{
+				v.Add(new DerTaggedObject(false, 1, issuerUniqueID));
+			}
+
+			if (subjectUniqueID != null)
+			{
+				v.Add(new DerTaggedObject(false, 2, subjectUniqueID));
+			}
+
+			if (extensions != null)
             {
-                v.Add(subject);
-            }
-            else
-            {
-                v.Add(DerSequence.Empty);
+                v.Add(new DerTaggedObject(3, extensions));
             }
 
-            v.Add(subjectPublicKeyInfo);
-            v.AddOptionalTagged(false, 1, issuerUniqueID);
-            v.AddOptionalTagged(false, 2, subjectUniqueID);
-            v.AddOptionalTagged(true, 3, extensions);
-
-            return new DerSequence(v);
+			return new TbsCertificateStructure(new DerSequence(v));
         }
     }
 }

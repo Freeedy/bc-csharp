@@ -58,7 +58,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			try
             {
-                SemanticsInformation.GetInstance(DerSequence.Empty);
+                new SemanticsInformation(DerSequence.Empty);
 
 				Fail("constructor failed to detect empty sequence.");
             }
@@ -119,6 +119,12 @@ namespace Org.BouncyCastle.Asn1.Tests
             {
                 Fail("name registration authorities found when none expected.");
             }
+        }
+
+		public static void Main(
+            string[] args)
+        {
+            RunTest(new SemanticsInformationUnitTest());
         }
 
 		[Test]

@@ -11,24 +11,24 @@ namespace Org.BouncyCastle.Crypto.Generators
      * This generates keys consistent for use with the basic algorithm for
      * Diffie-Hellman.
      */
-    // TODO[api] sealed
-    [Obsolete("Use 'DHKeyPairGenerator' instead")]
     public class DHBasicKeyPairGenerator
 		: IAsymmetricCipherKeyPairGenerator
     {
-        private DHKeyGenerationParameters m_parameters;
+        private DHKeyGenerationParameters param;
 
-        public virtual void Init(KeyGenerationParameters parameters)
+        public virtual void Init(
+			KeyGenerationParameters parameters)
         {
-            m_parameters = (DHKeyGenerationParameters)parameters;
+            this.param = (DHKeyGenerationParameters)parameters;
         }
 
         public virtual AsymmetricCipherKeyPair GenerateKeyPair()
         {
-			DHParameters dhp = m_parameters.Parameters;
+			DHKeyGeneratorHelper helper = DHKeyGeneratorHelper.Instance;
+			DHParameters dhp = param.Parameters;
 
-			BigInteger x = DHKeyGeneratorHelper.CalculatePrivate(dhp, m_parameters.Random);
-			BigInteger y = DHKeyGeneratorHelper.CalculatePublic(dhp, x);
+			BigInteger x = helper.CalculatePrivate(dhp, param.Random);
+			BigInteger y = helper.CalculatePublic(dhp, x);
 
 			return new AsymmetricCipherKeyPair(
                 new DHPublicKeyParameters(y, dhp),

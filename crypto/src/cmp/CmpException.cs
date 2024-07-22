@@ -1,14 +1,11 @@
 ﻿using System;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Cmp
 {
-    [Serializable]
     public class CmpException
         : Exception
     {
         public CmpException()
-            : base()
         {
         }
 
@@ -19,11 +16,6 @@ namespace Org.BouncyCastle.Cmp
 
         public CmpException(string message, Exception innerException)
             : base(message, innerException)
-        {
-        }
-
-        protected CmpException(SerializationInfo info, StreamingContext context)
-            : base(info, context)
         {
         }
     }

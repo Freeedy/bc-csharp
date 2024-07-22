@@ -1,7 +1,13 @@
 using System;
+using System.Collections;
+using System.IO;
 
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Nist;
 using Org.BouncyCastle.Asn1.Pkcs;
+using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Pkcs;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities.IO.Pem;
@@ -83,7 +89,10 @@ namespace Org.BouncyCastle.OpenSsl
 
 			// TODO Theoretically, the amount of salt needed depends on the algorithm
 			byte[] salt = new byte[20];
-			random = CryptoServicesRegistrar.GetSecureRandom(random);
+			if (random == null)
+			{
+				random = new SecureRandom();
+			}
 			random.NextBytes(salt);
 
 			try

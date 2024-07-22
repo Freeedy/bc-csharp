@@ -1,19 +1,27 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1.Rosstandart;
 using Org.BouncyCastle.Asn1.X9;
+using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Math.EC.Multiplier;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Org.BouncyCastle.Asn1.CryptoPro
 {
-    /// <summary>Elliptic curve registry for GOST 3410-2001 / 2012.</summary>
-    public static class ECGost3410NamedCurves
+    /// <summary>
+    /// Table of the available named parameters for GOST 3410-2001 / 2012.
+    /// </summary>
+    public sealed class ECGost3410NamedCurves
     {
+        private ECGost3410NamedCurves()
+        {
+        }
+
         private static X9ECPoint ConfigureBasepoint(ECCurve curve, BigInteger x, BigInteger y)
         {
             ECPoint G = curve.CreatePoint(x, y);
@@ -31,6 +39,9 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             return new BigInteger(1, Hex.DecodeStrict(hex));
         }
 
+        /*
+         * GostR3410-2001-CryptoPro-A (and GostR3410-2001-CryptoPro-XchA)
+         */
         internal class Holder_gostR3410_2001_CryptoPro_A
             : X9ECParametersHolder
         {
@@ -47,7 +58,7 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
                     mod_p,
                     FromHex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFD94"),
                     FromHex("A6"),
-                    mod_q, BigInteger.One, isInternal: true));
+                    mod_q, BigInteger.One, true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -63,6 +74,9 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             }
         };
 
+        /*
+         * GostR3410-2001-CryptoPro-B
+         */
         internal class Holder_gostR3410_2001_CryptoPro_B
             : X9ECParametersHolder
         {
@@ -79,7 +93,7 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
                     mod_p,
                     FromHex("8000000000000000000000000000000000000000000000000000000000000C96"),
                     FromHex("3E1AF419A269A5F866A7D3C25C3DF80AE979259373FF2B182F49D4CE7E1BBC8B"),
-                    mod_q, BigInteger.One, isInternal: true));
+                    mod_q, BigInteger.One, true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -95,6 +109,9 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             }
         };
 
+        /*
+         * GostR3410-2001-CryptoPro-C
+         */
         internal class Holder_gostR3410_2001_CryptoPro_C
             : X9ECParametersHolder
         {
@@ -111,7 +128,7 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
                     mod_p,
                     FromHex("9B9F605F5A858107AB1EC85E6B41C8AACF846E86789051D37998F7B9022D7598"),
                     FromHex("805A"),
-                    mod_q, BigInteger.One, isInternal: true));
+                    mod_q, BigInteger.One, true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -127,6 +144,44 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             }
         };
 
+        /*
+         * GostR3410-2001-CryptoPro-XchB
+         */
+        internal class Holder_gostR3410_2001_CryptoPro_XchB
+            : X9ECParametersHolder
+        {
+            private Holder_gostR3410_2001_CryptoPro_XchB() {}
+
+            internal static readonly X9ECParametersHolder Instance = new Holder_gostR3410_2001_CryptoPro_XchB();
+
+            protected override ECCurve CreateCurve()
+            {
+                BigInteger mod_p = FromHex("9B9F605F5A858107AB1EC85E6B41C8AACF846E86789051D37998F7B9022D759B");
+                BigInteger mod_q = FromHex("9B9F605F5A858107AB1EC85E6B41C8AA582CA3511EDDFB74F02F3A6598980BB9");
+
+                return ConfigureCurve(new FpCurve(
+                    mod_p,
+                    FromHex("9B9F605F5A858107AB1EC85E6B41C8AACF846E86789051D37998F7B9022D7598"),
+                    FromHex("805A"),
+                    mod_q, BigInteger.One, true));
+            }
+
+            protected override X9ECParameters CreateParameters()
+            {
+                byte[] S = null;
+                ECCurve curve = Curve;
+
+                X9ECPoint G = ConfigureBasepoint(curve,
+                    BigInteger.Zero,
+                    FromHex("41ECE55743711A8C3CBF3783CD08C0EE4D4DC440D4641A8F366E550DFDB3BB67"));
+
+                return new X9ECParameters(curve, G, curve.Order, curve.Cofactor, S);
+            }
+        };
+
+        /*
+         * Tc26-Gost-3410-12-256-paramSetA
+         */
         internal class Holder_id_tc26_gost_3410_12_256_paramSetA
             : X9ECParametersHolder
         {
@@ -143,7 +198,7 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
                     mod_p,
                     FromHex("C2173F1513981673AF4892C23035A27CE25E2013BF95AA33B22C656F277E7335"),
                     FromHex("295F9BAE7428ED9CCC20E7C359A9D41A22FCCD9108E17BF7BA9337A6F8AE9513"),
-                    mod_q, BigInteger.Four, isInternal: true));
+                    mod_q, BigInteger.Four, true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -159,6 +214,9 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             }
         };
 
+        /*
+         * Tc26-Gost-3410-12-512-paramSetA
+         */
         internal class Holder_id_tc26_gost_3410_12_512_paramSetA
             : X9ECParametersHolder
         {
@@ -175,7 +233,7 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
                     mod_p,
                     FromHex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFDC4"),
                     FromHex("E8C2505DEDFC86DDC1BD0B2B6667F1DA34B82574761CB0E879BD081CFD0B6265EE3CB090F30D27614CB4574010DA90DD862EF9D4EBEE4761503190785A71C760"),
-                    mod_q, BigInteger.One, isInternal: true));
+                    mod_q, BigInteger.One, true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -191,6 +249,9 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             }
         };
 
+        /*
+         * Tc26-Gost-3410-12-512-paramSetB
+         */
         internal class Holder_id_tc26_gost_3410_12_512_paramSetB
             : X9ECParametersHolder
         {
@@ -207,7 +268,7 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
                     mod_p,
                     FromHex("8000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000006C"),
                     FromHex("687D1B459DC841457E3E06CF6F5E2517B97C7D614AF138BCBF85DC806C4B289F3E965D2DB1416D217F8B276FAD1AB69C50F78BEE1FA3106EFB8CCBC7C5140116"),
-                    mod_q, BigInteger.One, isInternal: true));
+                    mod_q, BigInteger.One, true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -223,6 +284,9 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             }
         };
 
+        /*
+         * Tc26-Gost-3410-12-512-paramSetC
+         */
         internal class Holder_id_tc26_gost_3410_12_512_paramSetC
             : X9ECParametersHolder
         {
@@ -239,7 +303,7 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
                     mod_p,
                     FromHex("DC9203E514A721875485A529D2C722FB187BC8980EB866644DE41C68E143064546E861C0E2C9EDD92ADE71F46FCF50FF2AD97F951FDA9F2A2EB6546F39689BD3"),
                     FromHex("B4C4EE28CEBC6C2C8AC12952CF37F16AC7EFB6A9F69F4B57FFDA2E4F0DE5ADE038CBC2FFF719D2C18DE0284B8BFEF3B52B8CC7A5F5BF0A3C8D2319A5312557E1"),
-                    mod_q, BigInteger.Four, isInternal: true));
+                    mod_q, BigInteger.Four, true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -255,12 +319,10 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
             }
         };
 
-        private static readonly Dictionary<string, DerObjectIdentifier> objIds =
-            new Dictionary<string, DerObjectIdentifier>(StringComparer.OrdinalIgnoreCase);
-        private static readonly Dictionary<DerObjectIdentifier, X9ECParametersHolder> curves =
-            new Dictionary<DerObjectIdentifier, X9ECParametersHolder>();
-        private static readonly Dictionary<DerObjectIdentifier, string> names =
-            new Dictionary<DerObjectIdentifier, string>();
+
+        private static readonly IDictionary objIds = Platform.CreateHashtable();
+        private static readonly IDictionary curves = Platform.CreateHashtable();
+        private static readonly IDictionary names = Platform.CreateHashtable();
 
         private static void DefineCurve(string name, DerObjectIdentifier oid, X9ECParametersHolder holder)
         {
@@ -271,102 +333,71 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
 
         static ECGost3410NamedCurves()
         {
-            DefineCurve("GostR3410-2001-CryptoPro-A",
-                CryptoProObjectIdentifiers.GostR3410x2001CryptoProA,
+            DefineCurve("GostR3410-2001-CryptoPro-A", CryptoProObjectIdentifiers.GostR3410x2001CryptoProA,
                 Holder_gostR3410_2001_CryptoPro_A.Instance);
-            DefineCurve("GostR3410-2001-CryptoPro-B",
-                CryptoProObjectIdentifiers.GostR3410x2001CryptoProB,
+            DefineCurve("GostR3410-2001-CryptoPro-B", CryptoProObjectIdentifiers.GostR3410x2001CryptoProB,
                 Holder_gostR3410_2001_CryptoPro_B.Instance);
-            DefineCurve("GostR3410-2001-CryptoPro-C",
-                CryptoProObjectIdentifiers.GostR3410x2001CryptoProC,
+            DefineCurve("GostR3410-2001-CryptoPro-C", CryptoProObjectIdentifiers.GostR3410x2001CryptoProC,
                 Holder_gostR3410_2001_CryptoPro_C.Instance);
-            DefineCurve("GostR3410-2001-CryptoPro-XchA",
-                CryptoProObjectIdentifiers.GostR3410x2001CryptoProXchA,
+            DefineCurve("GostR3410-2001-CryptoPro-XchA", CryptoProObjectIdentifiers.GostR3410x2001CryptoProXchA,
                 Holder_gostR3410_2001_CryptoPro_A.Instance);
-            DefineCurve("GostR3410-2001-CryptoPro-XchB",
-                CryptoProObjectIdentifiers.GostR3410x2001CryptoProXchB,
-                Holder_gostR3410_2001_CryptoPro_C.Instance);
-            DefineCurve("Tc26-Gost-3410-12-256-paramSetA",
-                RosstandartObjectIdentifiers.id_tc26_gost_3410_12_256_paramSetA,
+            DefineCurve("GostR3410-2001-CryptoPro-XchB", CryptoProObjectIdentifiers.GostR3410x2001CryptoProXchB,
+                Holder_gostR3410_2001_CryptoPro_XchB.Instance);
+            DefineCurve("Tc26-Gost-3410-12-256-paramSetA", RosstandartObjectIdentifiers.id_tc26_gost_3410_12_256_paramSetA,
                 Holder_id_tc26_gost_3410_12_256_paramSetA.Instance);
-            DefineCurve("Tc26-Gost-3410-12-256-paramSetB",
-                RosstandartObjectIdentifiers.id_tc26_gost_3410_12_256_paramSetB,
-                Holder_gostR3410_2001_CryptoPro_A.Instance);
-            DefineCurve("Tc26-Gost-3410-12-256-paramSetC",
-                RosstandartObjectIdentifiers.id_tc26_gost_3410_12_256_paramSetC,
-                Holder_gostR3410_2001_CryptoPro_B.Instance);
-            DefineCurve("Tc26-Gost-3410-12-256-paramSetD",
-                RosstandartObjectIdentifiers.id_tc26_gost_3410_12_256_paramSetD,
-                Holder_gostR3410_2001_CryptoPro_C.Instance);
-            DefineCurve("Tc26-Gost-3410-12-512-paramSetA",
-                RosstandartObjectIdentifiers.id_tc26_gost_3410_12_512_paramSetA,
+            DefineCurve("Tc26-Gost-3410-12-512-paramSetA", RosstandartObjectIdentifiers.id_tc26_gost_3410_12_512_paramSetA,
                 Holder_id_tc26_gost_3410_12_512_paramSetA.Instance);
-            DefineCurve("Tc26-Gost-3410-12-512-paramSetB",
-                RosstandartObjectIdentifiers.id_tc26_gost_3410_12_512_paramSetB,
+            DefineCurve("Tc26-Gost-3410-12-512-paramSetB", RosstandartObjectIdentifiers.id_tc26_gost_3410_12_512_paramSetB,
                 Holder_id_tc26_gost_3410_12_512_paramSetB.Instance);
-            DefineCurve("Tc26-Gost-3410-12-512-paramSetC",
-                RosstandartObjectIdentifiers.id_tc26_gost_3410_12_512_paramSetC,
+            DefineCurve("Tc26-Gost-3410-12-512-paramSetC", RosstandartObjectIdentifiers.id_tc26_gost_3410_12_512_paramSetC,
                 Holder_id_tc26_gost_3410_12_512_paramSetC.Instance);
         }
 
-        /// <summary>Look up the <see cref="X9ECParameters"/> for the curve with the given name.</summary>
-        /// <param name="name">The name of the curve.</param>
-        public static X9ECParameters GetByName(string name)
+        public static X9ECParameters GetByNameX9(string name)
         {
             DerObjectIdentifier oid = GetOid(name);
-            return oid == null ? null : GetByOid(oid);
+            return oid == null ? null : GetByOidX9(oid);
         }
 
-        /// <summary>Look up an <see cref="X9ECParametersHolder"/> for the curve with the given name.</summary>
-        /// <remarks>
-        /// Allows accessing the <see cref="ECCurve">curve</see> without necessarily triggering the creation of the
-        /// full <see cref="X9ECParameters"/>.
-        /// </remarks>
-        /// <param name="name">The name of the curve.</param>
         public static X9ECParametersHolder GetByNameLazy(string name)
         {
             DerObjectIdentifier oid = GetOid(name);
             return oid == null ? null : GetByOidLazy(oid);
         }
 
-        /// <summary>Look up the <see cref="X9ECParameters"/> for the curve with the given
-        /// <see cref="DerObjectIdentifier">OID</see>.</summary>
-        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
-        public static X9ECParameters GetByOid(DerObjectIdentifier oid)
+        public static X9ECParameters GetByOidX9(DerObjectIdentifier oid)
         {
-            return GetByOidLazy(oid)?.Parameters;
+            X9ECParametersHolder holder = GetByOidLazy(oid);
+            return holder == null ? null : holder.Parameters;
         }
 
-        /// <summary>Look up an <see cref="X9ECParametersHolder"/> for the curve with the given
-        /// <see cref="DerObjectIdentifier">OID</see>.</summary>
-        /// <remarks>
-        /// Allows accessing the <see cref="ECCurve">curve</see> without necessarily triggering the creation of the
-        /// full <see cref="X9ECParameters"/>.
-        /// </remarks>
-        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
         public static X9ECParametersHolder GetByOidLazy(DerObjectIdentifier oid)
         {
-            return CollectionUtilities.GetValueOrNull(curves, oid);
+            return (X9ECParametersHolder)curves[oid];
         }
 
-        /// <summary>Look up the name of the curve with the given <see cref="DerObjectIdentifier">OID</see>.</summary>
-        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
-        public static string GetName(DerObjectIdentifier oid)
+        public static DerObjectIdentifier GetOid(
+            string name)
         {
-            return CollectionUtilities.GetValueOrNull(names, oid);
+            return (DerObjectIdentifier)objIds[name];
         }
 
-        /// <summary>Look up the <see cref="DerObjectIdentifier">OID</see> of the curve with the given name.</summary>
-        /// <param name="name">The name of the curve.</param>
-        public static DerObjectIdentifier GetOid(string name)
+        /**
+         * return the named curve name represented by the given object identifier.
+         */
+        public static string GetName(
+            DerObjectIdentifier oid)
         {
-            return CollectionUtilities.GetValueOrNull(objIds, name);
+            return (string)names[oid];
         }
 
-        /// <summary>Enumerate the available curve names in this registry.</summary>
-        public static IEnumerable<string> Names
+        /**
+         * returns an enumeration containing the name strings for curves
+         * contained in this structure.
+         */
+        public static IEnumerable Names
         {
-            get { return CollectionUtilities.Proxy(objIds.Keys); }
+            get { return new EnumerableProxy(names.Values); }
         }
     }
 }

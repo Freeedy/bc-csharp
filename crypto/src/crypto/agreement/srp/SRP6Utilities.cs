@@ -20,10 +20,7 @@ namespace Org.BouncyCastle.Crypto.Agreement.Srp
 
 		public static BigInteger CalculateX(IDigest digest, BigInteger N, byte[] salt, byte[] identity, byte[] password)
 	    {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return CalculateX(digest, N, salt.AsSpan(), identity.AsSpan(), password.AsSpan());
-#else
-            byte[] output = new byte[digest.GetDigestSize()];
+	        byte[] output = new byte[digest.GetDigestSize()];
 
 	        digest.BlockUpdate(identity, 0, identity.Length);
 	        digest.Update((byte)':');
@@ -35,32 +32,9 @@ namespace Org.BouncyCastle.Crypto.Agreement.Srp
 	        digest.DoFinal(output, 0);
 
 	        return new BigInteger(1, output);
-#endif
 	    }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public static BigInteger CalculateX(IDigest digest, BigInteger N, ReadOnlySpan<byte> salt,
-            ReadOnlySpan<byte> identity, ReadOnlySpan<byte> password)
-        {
-            int digestSize = digest.GetDigestSize();
-            Span<byte> output = digestSize <= 128
-                ? stackalloc byte[digestSize]
-                : new byte[digestSize];
-
-            digest.BlockUpdate(identity);
-            digest.Update((byte)':');
-            digest.BlockUpdate(password);
-            digest.DoFinal(output);
-
-            digest.BlockUpdate(salt);
-            digest.BlockUpdate(output);
-            digest.DoFinal(output);
-
-            return new BigInteger(1, output);
-        }
-#endif
-
-        public static BigInteger GeneratePrivateValue(IDigest digest, BigInteger N, BigInteger g, SecureRandom random)
+		public static BigInteger GeneratePrivateValue(IDigest digest, BigInteger N, BigInteger g, SecureRandom random)
 	    {
 			int minBits = System.Math.Min(256, N.BitLength / 2);
 	        BigInteger min = BigInteger.One.ShiftLeft(minBits - 1);
@@ -121,98 +95,59 @@ namespace Org.BouncyCastle.Crypto.Agreement.Srp
          */
         public static BigInteger CalculateKey(IDigest digest, BigInteger N, BigInteger S)
         {
-            int paddedLength = (N.BitLength + 7) / 8;
-            int digestSize = digest.GetDigestSize();
+            int padLength = (N.BitLength + 7) / 8;
+            byte[] _S = GetPadded(S, padLength);
+            digest.BlockUpdate(_S, 0, _S.Length);
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> bytes = paddedLength <= 512
-                ? stackalloc byte[paddedLength]
-                : new byte[paddedLength];
-            BigIntegers.AsUnsignedByteArray(S, bytes);
-            digest.BlockUpdate(bytes);
-
-            Span<byte> output = digestSize <= 128
-                ? stackalloc byte[digestSize]
-                : new byte[digestSize];
-            digest.DoFinal(output);
-#else
-            byte[] bytes = new byte[paddedLength];
-            BigIntegers.AsUnsignedByteArray(S, bytes, 0, bytes.Length);
-	        digest.BlockUpdate(bytes, 0, bytes.Length);
-
-            byte[] output = new byte[digestSize];
+            byte[] output = new byte[digest.GetDigestSize()];
             digest.DoFinal(output, 0);
-#endif
-
             return new BigInteger(1, output);
         }
 
         private static BigInteger HashPaddedTriplet(IDigest digest, BigInteger N, BigInteger n1, BigInteger n2, BigInteger n3)
         {
-            int paddedLength = (N.BitLength + 7) / 8;
-            int digestSize = digest.GetDigestSize();
+            int padLength = (N.BitLength + 7) / 8;
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> bytes = paddedLength <= 512
-                ? stackalloc byte[paddedLength]
-                : new byte[paddedLength];
-            BigIntegers.AsUnsignedByteArray(n1, bytes);
-            digest.BlockUpdate(bytes);
-            BigIntegers.AsUnsignedByteArray(n2, bytes);
-            digest.BlockUpdate(bytes);
-            BigIntegers.AsUnsignedByteArray(n3, bytes);
-            digest.BlockUpdate(bytes);
+            byte[] n1_bytes = GetPadded(n1, padLength);
+            byte[] n2_bytes = GetPadded(n2, padLength);
+            byte[] n3_bytes = GetPadded(n3, padLength);
 
-            Span<byte> output = digestSize <= 128
-                ? stackalloc byte[digestSize]
-                : new byte[digestSize];
-            digest.DoFinal(output);
-#else
-            byte[] bytes = new byte[paddedLength];
-            BigIntegers.AsUnsignedByteArray(n1, bytes, 0, bytes.Length);
-	        digest.BlockUpdate(bytes, 0, bytes.Length);
-            BigIntegers.AsUnsignedByteArray(n2, bytes, 0, bytes.Length);
-	        digest.BlockUpdate(bytes, 0, bytes.Length);
-            BigIntegers.AsUnsignedByteArray(n3, bytes, 0, bytes.Length);
-	        digest.BlockUpdate(bytes, 0, bytes.Length);
+            digest.BlockUpdate(n1_bytes, 0, n1_bytes.Length);
+            digest.BlockUpdate(n2_bytes, 0, n2_bytes.Length);
+            digest.BlockUpdate(n3_bytes, 0, n3_bytes.Length);
 
-            byte[] output = new byte[digestSize];
+            byte[] output = new byte[digest.GetDigestSize()];
             digest.DoFinal(output, 0);
-#endif
 
             return new BigInteger(1, output);
         }
 
         private static BigInteger HashPaddedPair(IDigest digest, BigInteger N, BigInteger n1, BigInteger n2)
 		{
-	    	int paddedLength = (N.BitLength + 7) / 8;
-            int digestSize = digest.GetDigestSize();
+	    	int padLength = (N.BitLength + 7) / 8;
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> bytes = paddedLength <= 512
-                ? stackalloc byte[paddedLength]
-                : new byte[paddedLength];
-            BigIntegers.AsUnsignedByteArray(n1, bytes);
-            digest.BlockUpdate(bytes);
-            BigIntegers.AsUnsignedByteArray(n2, bytes);
-            digest.BlockUpdate(bytes);
+	    	byte[] n1_bytes = GetPadded(n1, padLength);
+	    	byte[] n2_bytes = GetPadded(n2, padLength);
 
-            Span<byte> output = digestSize <= 128
-                ? stackalloc byte[digestSize]
-                : new byte[digestSize];
-            digest.DoFinal(output);
-#else
-            byte[] bytes = new byte[paddedLength];
-            BigIntegers.AsUnsignedByteArray(n1, bytes, 0, bytes.Length);
-	        digest.BlockUpdate(bytes, 0, bytes.Length);
-            BigIntegers.AsUnsignedByteArray(n2, bytes, 0, bytes.Length);
-	        digest.BlockUpdate(bytes, 0, bytes.Length);
+	        digest.BlockUpdate(n1_bytes, 0, n1_bytes.Length);
+	        digest.BlockUpdate(n2_bytes, 0, n2_bytes.Length);
 
-	        byte[] output = new byte[digestSize];
+	        byte[] output = new byte[digest.GetDigestSize()];
 	        digest.DoFinal(output, 0);
-#endif
 
-            return new BigInteger(1, output);
-        }
+	        return new BigInteger(1, output);
+		}
+
+		private static byte[] GetPadded(BigInteger n, int length)
+		{
+			byte[] bs = BigIntegers.AsUnsignedByteArray(n);
+			if (bs.Length < length)
+			{
+				byte[] tmp = new byte[length];
+				Array.Copy(bs, 0, tmp, length - bs.Length, bs.Length);
+				bs = tmp;
+			}
+			return bs;
+		}
 	}
 }

@@ -32,6 +32,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 			BitStringConstantTester.testFlagValueCorrect(8, KeyUsage.DecipherOnly);
 		}
 
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new KeyUsageTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{

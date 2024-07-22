@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using NUnit.Framework;
 
@@ -26,11 +26,11 @@ namespace Org.BouncyCastle.Crypto.Tests.Cavp
         public override void PerformTest()
         {
             string file = "KDFCTR_gen.rsp";
-            var vectors = CavpReader.ReadVectorFile(file);
+            ArrayList vectors = CavpReader.ReadVectorFile(file);
             ProcessVectors(file, vectors);
         }
 
-        private void ProcessVectors(string name, IList<Vector> vectors)
+        private void ProcessVectors(string name, ArrayList vectors)
         {
             foreach (Vector vector in vectors)
             {
@@ -43,7 +43,7 @@ namespace Org.BouncyCastle.Crypto.Tests.Cavp
                     {
                         Assert.Fail("No RLEN");
                     }
-                    r = int.Parse(rlen.Split('_')[0]);
+                    r = Int32.Parse(rlen.Split('_')[0]);
                 }
                 int count = vector.ValueAsInt("COUNT");
                 int l = vector.ValueAsInt("L");

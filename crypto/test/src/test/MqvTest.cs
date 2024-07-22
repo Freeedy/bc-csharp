@@ -76,5 +76,11 @@ namespace Org.BouncyCastle.Tests
 				Fail("Agreement failed");
 			}
 		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new MqvTest());
+		}
 	}
 }

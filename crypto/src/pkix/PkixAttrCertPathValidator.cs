@@ -37,16 +37,19 @@ namespace Org.BouncyCastle.Pkix
 		*             inappropriate for this validator.
 		* @throws CertPathValidatorException if the verification fails.
 		*/
-		public virtual PkixCertPathValidatorResult Validate(PkixCertPath certPath, PkixParameters pkixParams)
+		public virtual PkixCertPathValidatorResult Validate(
+			PkixCertPath	certPath,
+			PkixParameters	pkixParams)
 		{
-			if (!(pkixParams.GetTargetConstraintsAttrCert() is X509AttrCertStoreSelector attrCertSelector))
+			IX509Selector certSelect = pkixParams.GetTargetConstraints();
+			if (!(certSelect is X509AttrCertStoreSelector))
 			{
 				throw new ArgumentException(
 					"TargetConstraints must be an instance of " + typeof(X509AttrCertStoreSelector).FullName,
-					nameof(pkixParams));
+					"pkixParams");
 			}
+			IX509AttributeCertificate attrCert = ((X509AttrCertStoreSelector) certSelect).AttributeCert;
 
-			var attrCert = attrCertSelector.AttributeCert;
 			PkixCertPath holderCertPath = Rfc3281CertPathUtilities.ProcessAttrCert1(attrCert, pkixParams);
 			PkixCertPathValidatorResult result = Rfc3281CertPathUtilities.ProcessAttrCert2(certPath, pkixParams);
 			X509Certificate issuerCert = (X509Certificate)certPath.Certificates[0];

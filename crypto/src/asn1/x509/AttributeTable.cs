@@ -1,50 +1,73 @@
-using System.Collections.Generic;
+using System;
+using System.Collections;
 
-using Org.BouncyCastle.Utilities.Collections;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.X509
 {
     public class AttributeTable
     {
-        private readonly IDictionary<DerObjectIdentifier, AttributeX509> m_attributes;
+        private readonly IDictionary attributes;
 
-        public AttributeTable(IDictionary<DerObjectIdentifier, AttributeX509> attrs)
+        public AttributeTable(
+            IDictionary attrs)
         {
-            m_attributes = new Dictionary<DerObjectIdentifier, AttributeX509>(attrs);
+            this.attributes = Platform.CreateHashtable(attrs);
         }
 
-		public AttributeTable(Asn1EncodableVector v)
+#if !(SILVERLIGHT || PORTABLE)
+        [Obsolete]
+        public AttributeTable(
+            Hashtable attrs)
         {
-            m_attributes = new Dictionary<DerObjectIdentifier, AttributeX509>(v.Count);
+            this.attributes = Platform.CreateHashtable(attrs);
+        }
+#endif
 
-            for (int i = 0; i != v.Count; i++)
+		public AttributeTable(
+            Asn1EncodableVector v)
+        {
+            this.attributes = Platform.CreateHashtable(v.Count);
+
+			for (int i = 0; i != v.Count; i++)
             {
                 AttributeX509 a = AttributeX509.GetInstance(v[i]);
 
-				m_attributes.Add(a.AttrType, a);
+				attributes.Add(a.AttrType, a);
             }
         }
 
-		public AttributeTable(Asn1Set s)
+		public AttributeTable(
+            Asn1Set s)
         {
-            m_attributes = new Dictionary<DerObjectIdentifier, AttributeX509>(s.Count);
+            this.attributes = Platform.CreateHashtable(s.Count);
 
-            for (int i = 0; i != s.Count; i++)
+			for (int i = 0; i != s.Count; i++)
             {
                 AttributeX509 a = AttributeX509.GetInstance(s[i]);
 
-				m_attributes.Add(a.AttrType, a);
+				attributes.Add(a.AttrType, a);
             }
         }
 
-		public AttributeX509 Get(DerObjectIdentifier oid)
+		public AttributeX509 Get(
+            DerObjectIdentifier oid)
         {
-            return CollectionUtilities.GetValueOrNull(m_attributes, oid);
+            return (AttributeX509) attributes[oid];
         }
 
-        public IDictionary<DerObjectIdentifier, AttributeX509> ToDictionary()
+#if !(SILVERLIGHT || PORTABLE)
+        [Obsolete("Use 'ToDictionary' instead")]
+		public Hashtable ToHashtable()
         {
-            return new Dictionary<DerObjectIdentifier, AttributeX509>(m_attributes);
+            return new Hashtable(attributes);
+        }
+#endif
+
+        public IDictionary ToDictionary()
+        {
+            return Platform.CreateHashtable(attributes);
         }
     }
 }

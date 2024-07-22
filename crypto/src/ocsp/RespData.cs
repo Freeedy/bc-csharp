@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Ocsp;
@@ -33,12 +34,20 @@ namespace Org.BouncyCastle.Ocsp
 			get { return data.ProducedAt.ToDateTime(); }
 		}
 
-        public SingleResp[] GetResponses()
-        {
-            return data.Responses.MapElements(element => new SingleResp(SingleResponse.GetInstance(element)));
-        }
+		public SingleResp[] GetResponses()
+		{
+			Asn1Sequence s = data.Responses;
+			SingleResp[] rs = new SingleResp[s.Count];
 
-        public X509Extensions ResponseExtensions
+			for (int i = 0; i != rs.Length; i++)
+			{
+				rs[i] = new SingleResp(SingleResponse.GetInstance(s[i]));
+			}
+
+			return rs;
+		}
+
+		public X509Extensions ResponseExtensions
 		{
 			get { return data.ResponseExtensions; }
 		}

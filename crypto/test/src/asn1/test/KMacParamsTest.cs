@@ -73,6 +73,12 @@ namespace Org.BouncyCastle.Asn1.Tests
             Assert.IsTrue(Arrays.AreEqual(new byte[0], p256.CustomizationString));
         }
 
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new KMacParamsTest());
+        }
+
         [Test]
         public void TestFunction()
         {

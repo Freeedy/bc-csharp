@@ -112,15 +112,15 @@ namespace Org.BouncyCastle.Cms
 			if (resultMac == null)
 			{
 				object cryptoObject = secureReadable.CryptoObject;
-				if (cryptoObject is IMac mac)
+				if (cryptoObject is IMac)
 				{
-					resultMac = MacUtilities.DoFinal(mac);
+					resultMac = MacUtilities.DoFinal((IMac)cryptoObject);
 				}
 			}
 
 			return Arrays.Clone(resultMac);
 		}
-
+		
 		public abstract CmsTypedStream GetContentStream(ICipherParameters key);
 	}
 }

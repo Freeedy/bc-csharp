@@ -16,13 +16,7 @@ namespace Org.BouncyCastle.Crypto.Engines
     /// </summary>
     public class SM2Engine
     {
-        public enum Mode
-        {
-            C1C2C3, C1C3C2
-        }
-
         private readonly IDigest mDigest;
-        private readonly Mode mMode;
 
         private bool mForEncryption;
         private ECKeyParameters mECKey;
@@ -35,60 +29,39 @@ namespace Org.BouncyCastle.Crypto.Engines
         {
         }
 
-        public SM2Engine(Mode mode)
-            : this(new SM3Digest(), mode)
-        {
-        }
-
         public SM2Engine(IDigest digest)
-            : this(digest, Mode.C1C2C3)
         {
-        }
-
-        public SM2Engine(IDigest digest, Mode mode)
-        {
-            mDigest = digest;
-            mMode = mode;
+            this.mDigest = digest;
         }
 
         public virtual void Init(bool forEncryption, ICipherParameters param)
         {
             this.mForEncryption = forEncryption;
 
-            SecureRandom random = null;
-            if (param is ParametersWithRandom withRandom)
-            {
-                param = withRandom.Parameters;
-                random = withRandom.Random;
-            }
-
-            mECKey = (ECKeyParameters)param;
-            mECParams = mECKey.Parameters;
-
             if (forEncryption)
             {
-                mRandom = CryptoServicesRegistrar.GetSecureRandom(random);
+                ParametersWithRandom rParam = (ParametersWithRandom)param;
+
+                mECKey = (ECKeyParameters)rParam.Parameters;
+                mECParams = mECKey.Parameters;
 
                 ECPoint s = ((ECPublicKeyParameters)mECKey).Q.Multiply(mECParams.H);
                 if (s.IsInfinity)
                     throw new ArgumentException("invalid key: [h]Q at infinity");
+
+                mRandom = rParam.Random;
             }
             else
             {
-                mRandom = null;
+                mECKey = (ECKeyParameters)param;
+                mECParams = mECKey.Parameters;
             }
 
-            mCurveLength = mECParams.Curve.FieldElementEncodingLength;
+            mCurveLength = (mECParams.Curve.FieldSize + 7) / 8;
         }
 
         public virtual byte[] ProcessBlock(byte[] input, int inOff, int inLen)
         {
-            if ((inOff + inLen) > input.Length || inLen == 0)
-                throw new DataLengthException("input buffer too short");
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return ProcessBlock(input.AsSpan(inOff, inLen));
-#else
             if (mForEncryption)
             {
                 return Encrypt(input, inOff, inLen);
@@ -97,149 +70,13 @@ namespace Org.BouncyCastle.Crypto.Engines
             {
                 return Decrypt(input, inOff, inLen);
             }
-#endif
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual byte[] ProcessBlock(ReadOnlySpan<byte> input)
-        {
-            if (input.Length == 0)
-                throw new DataLengthException("input buffer too short");
-
-            if (mForEncryption)
-            {
-                return Encrypt(input);
-            }
-            else
-            {
-                return Decrypt(input);
-            }
-        }
-#endif
 
         protected virtual ECMultiplier CreateBasePointMultiplier()
         {
             return new FixedPointCombMultiplier();
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        private byte[] Encrypt(ReadOnlySpan<byte> input)
-        {
-            byte[] c2 = input.ToArray();
-
-            ECMultiplier multiplier = CreateBasePointMultiplier();
-
-            BigInteger k;
-            ECPoint kPB;
-            do
-            {
-                k = NextK();
-                kPB = ((ECPublicKeyParameters)mECKey).Q.Multiply(k).Normalize();
-
-                Kdf(mDigest, kPB, c2);
-            }
-            while (NotEncrypted(c2, input));
-
-            ECPoint c1P = multiplier.Multiply(mECParams.G, k).Normalize();
-
-            int c1PEncodedLength = c1P.GetEncodedLength(false);
-            Span<byte> c1 = c1PEncodedLength <= 512
-                ? stackalloc byte[c1PEncodedLength]
-                : new byte[c1PEncodedLength];
-            c1P.EncodeTo(false, c1);
-
-            AddFieldElement(mDigest, kPB.AffineXCoord);
-            mDigest.BlockUpdate(input);
-            AddFieldElement(mDigest, kPB.AffineYCoord);
-
-            int digestSize = mDigest.GetDigestSize();
-            Span<byte> c3 = digestSize <= 128
-                ? stackalloc byte[digestSize]
-                : new byte[digestSize];
-            mDigest.DoFinal(c3);
-
-            switch (mMode)
-            {
-            case Mode.C1C3C2:
-                return Arrays.Concatenate(c1, c3, c2);
-            default:
-                return Arrays.Concatenate(c1, c2, c3);
-            }
-        }
-
-        private byte[] Decrypt(ReadOnlySpan<byte> input)
-        {
-            int c1Length = mCurveLength * 2 + 1;
-            ECPoint c1P = mECParams.Curve.DecodePoint(input[..c1Length]);
-
-            ECPoint s = c1P.Multiply(mECParams.H);
-            if (s.IsInfinity)
-                throw new InvalidCipherTextException("[h]C1 at infinity");
-
-            c1P = c1P.Multiply(((ECPrivateKeyParameters)mECKey).D).Normalize();
-
-            int digestSize = mDigest.GetDigestSize();
-            int c2Length = input.Length - c1Length - digestSize;
-            byte[] c2 = new byte[c2Length];
-
-            if (mMode == Mode.C1C3C2)
-            {
-                input[(c1Length + digestSize)..].CopyTo(c2);
-            }
-            else
-            {
-                input[c1Length..(c1Length + c2Length)].CopyTo(c2);
-            }
-
-            Kdf(mDigest, c1P, c2);
-
-            AddFieldElement(mDigest, c1P.AffineXCoord);
-            mDigest.BlockUpdate(c2);
-            AddFieldElement(mDigest, c1P.AffineYCoord);
-
-            Span<byte> c3 = digestSize <= 128
-                ? stackalloc byte[digestSize]
-                : new byte[digestSize];
-            mDigest.DoFinal(c3);
-
-            int check = 0;
-            if (mMode == Mode.C1C3C2)
-            {
-                for (int i = 0; i != c3.Length; i++)
-                {
-                    check |= c3[i] ^ input[c1Length + i];
-                }
-            }
-            else
-            {
-                for (int i = 0; i != c3.Length; i++)
-                {
-                    check |= c3[i] ^ input[c1Length + c2.Length + i];
-                }
-            }
-
-            c3.Fill(0);
-
-            if (check != 0)
-            {
-                Arrays.Fill(c2, 0);
-                throw new InvalidCipherTextException("invalid cipher text");
-            }
-
-            return c2;
-        }
-
-        private bool NotEncrypted(ReadOnlySpan<byte> encData, ReadOnlySpan<byte> input)
-        {
-            for (int i = 0; i != encData.Length; i++)
-            {
-                if (encData[i] != input[i])
-                    return false;
-            }
-
-            return true;
-        }
-#else
         private byte[] Encrypt(byte[] input, int inOff, int inLen)
         {
             byte[] c2 = new byte[inLen];
@@ -248,20 +85,21 @@ namespace Org.BouncyCastle.Crypto.Engines
 
             ECMultiplier multiplier = CreateBasePointMultiplier();
 
-            BigInteger k;
+            byte[] c1;
             ECPoint kPB;
             do
             {
-                k = NextK();
+                BigInteger k = NextK();
+
+                ECPoint c1P = multiplier.Multiply(mECParams.G, k).Normalize();
+
+                c1 = c1P.GetEncoded(false);
+
                 kPB = ((ECPublicKeyParameters)mECKey).Q.Multiply(k).Normalize();
 
                 Kdf(mDigest, kPB, c2);
             }
             while (NotEncrypted(c2, input, inOff));
-
-            ECPoint c1P = multiplier.Multiply(mECParams.G, k).Normalize();
-
-            byte[] c1 = c1P.GetEncoded(false);
 
             AddFieldElement(mDigest, kPB.AffineXCoord);
             mDigest.BlockUpdate(input, inOff, inLen);
@@ -269,13 +107,7 @@ namespace Org.BouncyCastle.Crypto.Engines
 
             byte[] c3 = DigestUtilities.DoFinal(mDigest);
 
-            switch (mMode)
-            {
-            case Mode.C1C3C2:
-                return Arrays.ConcatenateAll(c1, c3, c2);
-            default:
-                return Arrays.ConcatenateAll(c1, c2, c3);
-            }
+            return Arrays.ConcatenateAll(c1, c2, c3);
         }
 
         private byte[] Decrypt(byte[] input, int inOff, int inLen)
@@ -292,17 +124,9 @@ namespace Org.BouncyCastle.Crypto.Engines
 
             c1P = c1P.Multiply(((ECPrivateKeyParameters)mECKey).D).Normalize();
 
-            int digestSize = mDigest.GetDigestSize();
-            byte[] c2 = new byte[inLen - c1.Length - digestSize];
+            byte[] c2 = new byte[inLen - c1.Length - mDigest.GetDigestSize()];
 
-            if (mMode == Mode.C1C3C2)
-            {
-                Array.Copy(input, inOff + c1.Length + digestSize, c2, 0, c2.Length);
-            }
-            else
-            {
-                Array.Copy(input, inOff + c1.Length, c2, 0, c2.Length);
-            }
+            Array.Copy(input, inOff + c1.Length, c2, 0, c2.Length);
 
             Kdf(mDigest, c1P, c2);
 
@@ -313,19 +137,9 @@ namespace Org.BouncyCastle.Crypto.Engines
             byte[] c3 = DigestUtilities.DoFinal(mDigest);
 
             int check = 0;
-            if (mMode == Mode.C1C3C2)
+            for (int i = 0; i != c3.Length; i++)
             {
-                for (int i = 0; i != c3.Length; i++)
-                {
-                    check |= c3[i] ^ input[inOff + c1.Length + i];
-                }
-            }
-            else
-            {
-                for (int i = 0; i != c3.Length; i++)
-                {
-                    check |= c3[i] ^ input[inOff + c1.Length + c2.Length + i];
-                }
+                check |= c3[i] ^ input[inOff + c1.Length + c2.Length + i];
             }
 
             Arrays.Fill(c1, 0);
@@ -345,24 +159,18 @@ namespace Org.BouncyCastle.Crypto.Engines
             for (int i = 0; i != encData.Length; i++)
             {
                 if (encData[i] != input[inOff + i])
+                {
                     return false;
+                }
             }
 
             return true;
         }
-#endif
 
         private void Kdf(IDigest digest, ECPoint c1, byte[] encData)
         {
             int digestSize = digest.GetDigestSize();
-            int bufSize = System.Math.Max(4, digestSize);
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> buf = bufSize <= 128
-                ? stackalloc byte[bufSize]
-                : new byte[bufSize];
-#else
-            byte[] buf = new byte[bufSize];
-#endif
+            byte[] buf = new byte[System.Math.Max(4, digestSize)];
             int off = 0;
 
             IMemoable memo = digest as IMemoable;
@@ -389,20 +197,21 @@ namespace Org.BouncyCastle.Crypto.Engines
                     AddFieldElement(digest, c1.AffineYCoord);
                 }
 
-                int xorLen = System.Math.Min(digestSize, encData.Length - off);
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                Pack.UInt32_To_BE(++ct, buf);
-                digest.BlockUpdate(buf[..4]);
-                digest.DoFinal(buf);
-                Bytes.XorTo(xorLen, buf, encData.AsSpan(off));
-#else
                 Pack.UInt32_To_BE(++ct, buf, 0);
                 digest.BlockUpdate(buf, 0, 4);
                 digest.DoFinal(buf, 0);
-                Bytes.XorTo(xorLen, buf, 0, encData, off);
-#endif
+
+                int xorLen = System.Math.Min(digestSize, encData.Length - off);
+                Xor(encData, buf, off, xorLen);
                 off += xorLen;
+            }
+        }
+
+        private void Xor(byte[] data, byte[] kdfOut, int dOff, int dRemaining)
+        {
+            for (int i = 0; i != dRemaining; i++)
+            {
+                data[dOff + i] ^= kdfOut[i];
             }
         }
 
@@ -422,17 +231,8 @@ namespace Org.BouncyCastle.Crypto.Engines
 
         private void AddFieldElement(IDigest digest, ECFieldElement v)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            int encodedLength = v.GetEncodedLength();
-            Span<byte> p = encodedLength <= 128
-                ? stackalloc byte[encodedLength]
-                : new byte[encodedLength];
-            v.EncodeTo(p);
-            digest.BlockUpdate(p);
-#else
             byte[] p = v.GetEncoded();
             digest.BlockUpdate(p, 0, p.Length);
-#endif
         }
     }
 }

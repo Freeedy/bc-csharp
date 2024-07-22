@@ -1,19 +1,24 @@
+using System;
+
+using Org.BouncyCastle.Crypto;
+
 namespace Org.BouncyCastle.Crypto.Parameters
 {
-	public class ParametersWithSBox
-		: ICipherParameters
+	public class ParametersWithSBox : ICipherParameters
 	{
-		private readonly ICipherParameters m_parameters;
-		private readonly byte[] m_sBox;
+		private ICipherParameters  parameters;
+		private byte[] sBox;
 
-		public ParametersWithSBox(ICipherParameters parameters, byte[] sBox)
+		public ParametersWithSBox(
+			ICipherParameters parameters,
+			byte[] sBox)
 		{
-			this.m_parameters = parameters;
-			this.m_sBox = sBox;
+			this.parameters = parameters;
+			this.sBox = sBox;
 		}
 
-		public byte[] GetSBox() => m_sBox;
+		public byte[] GetSBox() { return sBox; }
 
-		public ICipherParameters Parameters => m_parameters;
+		public ICipherParameters Parameters { get { return parameters; } }
 	}
 }

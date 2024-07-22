@@ -1,9 +1,10 @@
 using System;
 
+using Org.BouncyCastle.Asn1;
+
 namespace Org.BouncyCastle.Asn1.Eac
 {
-    // TODO[api] Make static
-    public abstract class EacObjectIdentifiers
+	public abstract class EacObjectIdentifiers
 	{
 		// bsi-de OBJECT IDENTIFIER ::= {
 		//         itu-t(0) identified-organization(4) etsi(0)

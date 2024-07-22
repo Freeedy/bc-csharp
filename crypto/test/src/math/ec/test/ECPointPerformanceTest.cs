@@ -1,13 +1,17 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Text;
 
 using NUnit.Framework;
 
 using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto.EC;
+using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.Utilities.Date;
 
@@ -29,7 +33,7 @@ namespace Org.BouncyCastle.Math.EC.Tests
         private static string[] COORD_NAMES = new string[]{ "AFFINE", "HOMOGENEOUS", "JACOBIAN", "JACOBIAN-CHUDNOVSKY",
             "JACOBIAN-MODIFIED", "LAMBDA-AFFINE", "LAMBDA-PROJECTIVE", "SKEWED" };
 
-        private static void RandMult(string curveName)
+        private void RandMult(string curveName)
         {
             X9ECParameters spec = ECNamedCurveTable.GetByName(curveName);
             if (spec != null)
@@ -44,13 +48,13 @@ namespace Org.BouncyCastle.Math.EC.Tests
             }
         }
 
-        private static void RandMult(string label, X9ECParameters spec)
+        private void RandMult(string label, X9ECParameters spec)
         {
             ECCurve C = spec.Curve;
-            ECPoint G = spec.G;
+            ECPoint G = (ECPoint)spec.G;
             BigInteger n = spec.N;
 
-            var random = new SecureRandom();
+            SecureRandom random = new SecureRandom();
             random.SetSeed(DateTimeUtilities.CurrentUnixMs());
 
             Console.WriteLine(label);
@@ -94,11 +98,9 @@ namespace Org.BouncyCastle.Math.EC.Tests
                     Console.WriteLine(sb.ToString());
                 }
             }
-
-            Console.Out.Flush();
         }
 
-        private static double RandMult(SecureRandom random, ECPoint g, BigInteger n)
+        private double RandMult(SecureRandom random, ECPoint g, BigInteger n)
         {
             BigInteger[] ks = new BigInteger[128];
             for (int i = 0; i < ks.Length; ++i)
@@ -107,7 +109,7 @@ namespace Org.BouncyCastle.Math.EC.Tests
             }
 
             int ki = 0;
-            ECPoint p;
+            ECPoint p = g;
 
             {
                 long startTime = DateTimeUtilities.CurrentUnixMs();
@@ -129,7 +131,7 @@ namespace Org.BouncyCastle.Math.EC.Tests
                 while (DateTimeUtilities.CurrentUnixMs() < goalTime);
             }
 
-            double minRate = double.MaxValue, maxRate = double.MinValue, totalRate = 0.0;
+            double minRate = Double.MaxValue, maxRate = Double.MinValue, totalRate = 0.0;
 
             for (int i = 1; i <= NUM_ROUNDS; i++)
             {
@@ -170,16 +172,16 @@ namespace Org.BouncyCastle.Math.EC.Tests
             return (totalRate - minRate - maxRate) / (NUM_ROUNDS - 2);
         }
 
-        [Test, Explicit]
+        [Test, Ignore]
         public void TestMultiply()
         {
-            var names = new List<string>();
-            names.AddRange(ECNamedCurveTable.Names);
-            names.AddRange(CustomNamedCurves.Names);
+            ArrayList nameList = new ArrayList();
+            CollectionUtilities.AddRange(nameList, ECNamedCurveTable.Names);
+            CollectionUtilities.AddRange(nameList, CustomNamedCurves.Names);
 
-            names.Sort();
-
-            var oids = new HashSet<DerObjectIdentifier>();
+            string[] names = (string[])nameList.ToArray(typeof(string));
+            Array.Sort(names);
+            ISet oids = new HashSet();
             foreach (string name in names)
             {
                 DerObjectIdentifier oid = ECNamedCurveTable.GetOid(name);
@@ -197,6 +199,11 @@ namespace Org.BouncyCastle.Math.EC.Tests
 
                 RandMult(name);
             }
+        }
+
+        public static void Main(string[] args)
+        {
+            new ECPointPerformanceTest().TestMultiply();
         }
     }
 }

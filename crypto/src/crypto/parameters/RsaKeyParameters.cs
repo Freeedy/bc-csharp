@@ -17,30 +17,21 @@ namespace Org.BouncyCastle.Crypto.Parameters
                 + "f3cfd51e474afb6bc6974f78db8aba8e9e517fded658591ab7502bd41849462f",
             16);
 
-        private static bool HasAnySmallFactors(BigInteger modulus)
-        {
-            BigInteger M = modulus, X = SmallPrimesProduct;
-            if (modulus.BitLength < SmallPrimesProduct.BitLength)
-            {
-                M = SmallPrimesProduct;
-                X = modulus;
-            }
-
-            return !BigIntegers.ModOddIsCoprimeVar(M, X);
-        }
-
         private static BigInteger Validate(BigInteger modulus)
         {
             if ((modulus.IntValue & 1) == 0)
-                throw new ArgumentException("RSA modulus is even", nameof(modulus));
+                throw new ArgumentException("RSA modulus is even", "modulus");
+            if (!modulus.Gcd(SmallPrimesProduct).Equals(BigInteger.One))
+                throw new ArgumentException("RSA modulus has a small prime factor");
 
-            int maxBitLength = ImplGetInteger("Org.BouncyCastle.Rsa.MaxSize", 16384);
-            if (modulus.BitLength > maxBitLength)
-                throw new ArgumentException("RSA modulus out of range", nameof(modulus));
+            int maxBitLength = AsInteger("Org.BouncyCastle.Rsa.MaxSize", 15360);
 
-            if (HasAnySmallFactors(modulus))
-                throw new ArgumentException("RSA modulus has a small prime factor", nameof(modulus));
-
+            int modBitLength = modulus.BitLength;
+            if (maxBitLength < modBitLength)
+            {
+                throw new ArgumentException("modulus value out of range");
+            }
+        
             // TODO: add additional primePower/Composite test - expensive!!
 
             return modulus;
@@ -100,11 +91,16 @@ namespace Org.BouncyCastle.Crypto.Parameters
             return modulus.GetHashCode() ^ exponent.GetHashCode() ^ IsPrivate.GetHashCode();
         }
 
-        private static int ImplGetInteger(string envVariable, int defaultValue)
+        internal static int AsInteger(string envVariable, int defaultValue)
         {
-            string property = Platform.GetEnvironmentVariable(envVariable);
+            String v = Platform.GetEnvironmentVariable(envVariable);
 
-            return int.TryParse(property, out int value) ? value : defaultValue;
+            if (v == null)
+            {
+                return defaultValue;
+            }
+
+            return Int32.Parse(v);
         }
     }
 }

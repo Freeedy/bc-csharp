@@ -1,97 +1,175 @@
 using System;
+using System.Collections;
+using System.IO;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Tsp
 {
-    public class TstInfo
+	public class TstInfo
 		: Asn1Encodable
 	{
-        public static TstInfo GetInstance(object obj)
-        {
+		private readonly DerInteger				version;
+		private readonly DerObjectIdentifier	tsaPolicyId;
+		private readonly MessageImprint			messageImprint;
+		private readonly DerInteger				serialNumber;
+		private readonly DerGeneralizedTime		genTime;
+		private readonly Accuracy				accuracy;
+		private readonly DerBoolean				ordering;
+		private readonly DerInteger				nonce;
+		private readonly GeneralName			tsa;
+		private readonly X509Extensions			extensions;
+
+		public static TstInfo GetInstance(object obj)
+		{
+            if (obj is TstInfo)
+                return (TstInfo)obj;
             if (obj == null)
                 return null;
-            if (obj is TstInfo tstInfo)
-                return tstInfo;
             return new TstInfo(Asn1Sequence.GetInstance(obj));
-        }
+		}
 
-        public static TstInfo GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new TstInfo(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-
-        public static TstInfo GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new TstInfo(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
-
-        private readonly DerInteger m_version;
-		private readonly DerObjectIdentifier m_policy;
-		private readonly MessageImprint m_messageImprint;
-		private readonly DerInteger m_serialNumber;
-		private readonly Asn1GeneralizedTime m_genTime;
-		private readonly Accuracy m_accuracy;
-		private readonly DerBoolean m_ordering;
-		private readonly DerInteger m_nonce;
-		private readonly GeneralName m_tsa;
-		private readonly X509Extensions m_extensions;
-
-		private TstInfo(Asn1Sequence seq)
+		private TstInfo(
+			Asn1Sequence seq)
 		{
-            int count = seq.Count, pos = 0;
-            if (count < 5 || count > 10)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			IEnumerator e = seq.GetEnumerator();
 
-            m_version = DerInteger.GetInstance(seq[pos++]);
-            m_policy = DerObjectIdentifier.GetInstance(seq[pos++]);
-            m_messageImprint = MessageImprint.GetInstance(seq[pos++]);
-            m_serialNumber = DerInteger.GetInstance(seq[pos++]);
-            m_genTime = Asn1GeneralizedTime.GetInstance(seq[pos++]);
-            m_accuracy = Asn1Utilities.ReadOptional(seq, ref pos, Accuracy.GetOptional);
-            m_ordering = Asn1Utilities.ReadOptional(seq, ref pos, DerBoolean.GetOptional) ?? DerBoolean.False;
-            m_nonce = Asn1Utilities.ReadOptional(seq, ref pos, DerInteger.GetOptional);
-            m_tsa = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, GeneralName.GetTagged); // CHOICE
-            m_extensions = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, false, X509Extensions.GetTagged);
+			// version
+			e.MoveNext();
+			version = DerInteger.GetInstance(e.Current);
 
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
-        }
+			// tsaPolicy
+			e.MoveNext();
+			tsaPolicyId = DerObjectIdentifier.GetInstance(e.Current);
 
-        // TODO[api] 'tsaPolicyId' => 'policy'
-        public TstInfo(DerObjectIdentifier tsaPolicyId, MessageImprint messageImprint, DerInteger serialNumber,
-            Asn1GeneralizedTime genTime, Accuracy accuracy, DerBoolean ordering, DerInteger nonce, GeneralName tsa,
-            X509Extensions extensions)
+			// messageImprint
+			e.MoveNext();
+			messageImprint = MessageImprint.GetInstance(e.Current);
+
+			// serialNumber
+			e.MoveNext();
+			serialNumber = DerInteger.GetInstance(e.Current);
+
+			// genTime
+			e.MoveNext();
+			genTime = DerGeneralizedTime.GetInstance(e.Current);
+
+			// default for ordering
+			ordering = DerBoolean.False;
+
+			while (e.MoveNext())
+			{
+				Asn1Object o = (Asn1Object) e.Current;
+
+				if (o is Asn1TaggedObject)
+				{
+					DerTaggedObject tagged = (DerTaggedObject) o;
+
+					switch (tagged.TagNo)
+					{
+						case 0:
+							tsa = GeneralName.GetInstance(tagged, true);
+							break;
+						case 1:
+							extensions = X509Extensions.GetInstance(tagged, false);
+							break;
+						default:
+							throw new ArgumentException("Unknown tag value " + tagged.TagNo);
+					}
+				}
+
+				if (o is DerSequence)
+				{
+					accuracy = Accuracy.GetInstance(o);
+				}
+
+				if (o is DerBoolean)
+				{
+					ordering = DerBoolean.GetInstance(o);
+				}
+
+				if (o is DerInteger)
+				{
+					nonce = DerInteger.GetInstance(o);
+				}
+			}
+		}
+
+		public TstInfo(
+			DerObjectIdentifier	tsaPolicyId,
+			MessageImprint		messageImprint,
+			DerInteger			serialNumber,
+			DerGeneralizedTime	genTime,
+			Accuracy			accuracy,
+			DerBoolean			ordering,
+			DerInteger			nonce,
+			GeneralName			tsa,
+			X509Extensions		extensions)
+		{
+			this.version = new DerInteger(1);
+			this.tsaPolicyId = tsaPolicyId;
+			this.messageImprint = messageImprint;
+			this.serialNumber = serialNumber;
+			this.genTime = genTime;
+			this.accuracy = accuracy;
+			this.ordering = ordering;
+			this.nonce = nonce;
+			this.tsa = tsa;
+			this.extensions = extensions;
+		}
+
+        public DerInteger Version
         {
-            m_version = DerInteger.One;
-            m_policy = tsaPolicyId ?? throw new ArgumentNullException(nameof(tsaPolicyId));
-            m_messageImprint = messageImprint ?? throw new ArgumentNullException(nameof(messageImprint));
-            m_serialNumber = serialNumber ?? throw new ArgumentNullException(nameof(serialNumber));
-            m_genTime = genTime ?? throw new ArgumentNullException(nameof(genTime));
-            m_accuracy = accuracy;
-            m_ordering = ordering ?? DerBoolean.False;
-            m_nonce = nonce;
-            m_tsa = tsa;
-            m_extensions = extensions;
+            get { return version; }
         }
 
-        public DerInteger Version => m_version;
+		public MessageImprint MessageImprint
+		{
+			get { return messageImprint; }
+		}
 
-        public MessageImprint MessageImprint => m_messageImprint;
+		public DerObjectIdentifier Policy
+		{
+			get { return tsaPolicyId; }
+		}
 
-        public DerObjectIdentifier Policy => m_policy;
+		public DerInteger SerialNumber
+		{
+			get { return serialNumber; }
+		}
 
-        public DerInteger SerialNumber => m_serialNumber;
+		public Accuracy Accuracy
+		{
+			get { return accuracy; }
+		}
 
-        public Accuracy Accuracy => m_accuracy;
+		public DerGeneralizedTime GenTime
+		{
+			get { return genTime; }
+		}
 
-        public Asn1GeneralizedTime GenTime => m_genTime;
+		public DerBoolean Ordering
+		{
+			get { return ordering; }
+		}
 
-        public DerBoolean Ordering => m_ordering;
+		public DerInteger Nonce
+		{
+			get { return nonce; }
+		}
 
-        public DerInteger Nonce => m_nonce;
+		public GeneralName Tsa
+		{
+			get { return tsa; }
+		}
 
-        public GeneralName Tsa => m_tsa;
+		public X509Extensions Extensions
+		{
+			get { return extensions; }
+		}
 
-        public X509Extensions Extensions => m_extensions;
-
-        /**
+		/**
 		 * <pre>
 		 *
 		 *     TstInfo ::= SEQUENCE  {
@@ -116,19 +194,18 @@ namespace Org.BouncyCastle.Asn1.Tsp
 		 */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(10);
-            v.Add(m_version, m_policy, m_messageImprint, m_serialNumber, m_genTime);
-            v.AddOptional(m_accuracy);
+            Asn1EncodableVector v = new Asn1EncodableVector(version, tsaPolicyId, messageImprint, serialNumber, genTime);
+            v.AddOptional(accuracy);
 
-            if (m_ordering.IsTrue)
+            if (ordering != null && ordering.IsTrue)
             {
-                v.Add(m_ordering);
+                v.Add(ordering);
             }
 
-            v.AddOptional(m_nonce);
-            v.AddOptionalTagged(true, 0, m_tsa); // CHOICE
-            v.AddOptionalTagged(false, 1, m_extensions);
+            v.AddOptional(nonce);
+            v.AddOptionalTagged(true, 0, tsa);
+            v.AddOptionalTagged(false, 1, extensions);
             return new DerSequence(v);
         }
-    }
+	}
 }

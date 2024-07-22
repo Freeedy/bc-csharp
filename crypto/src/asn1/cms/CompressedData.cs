@@ -1,6 +1,7 @@
 using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cms
 {
@@ -17,54 +18,79 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class CompressedData
         : Asn1Encodable
     {
-        public static CompressedData GetInstance(object obj)
+        private DerInteger			version;
+        private AlgorithmIdentifier	compressionAlgorithm;
+        private ContentInfo			encapContentInfo;
+
+		public CompressedData(
+            AlgorithmIdentifier	compressionAlgorithm,
+            ContentInfo			encapContentInfo)
         {
-            if (obj == null)
-                return null;
-            if (obj is CompressedData compressedData)
-                return compressedData;
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new CompressedData(Asn1Sequence.GetInstance(obj));
-#pragma warning restore CS0618 // Type or member is obsolete
+            this.version = new DerInteger(0);
+            this.compressionAlgorithm = compressionAlgorithm;
+            this.encapContentInfo = encapContentInfo;
         }
 
-        public static CompressedData GetInstance(Asn1TaggedObject ato, bool explicitly)
+		public CompressedData(
+            Asn1Sequence seq)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new CompressedData(Asn1Sequence.GetInstance(ato, explicitly));
-#pragma warning restore CS0618 // Type or member is obsolete
+            this.version = (DerInteger) seq[0];
+            this.compressionAlgorithm = AlgorithmIdentifier.GetInstance(seq[1]);
+            this.encapContentInfo = ContentInfo.GetInstance(seq[2]);
         }
 
-        private readonly DerInteger m_version;
-        private readonly AlgorithmIdentifier m_compressionAlgorithm;
-        private readonly ContentInfo m_encapContentInfo;
-
-        public CompressedData(AlgorithmIdentifier compressionAlgorithm, ContentInfo encapContentInfo)
+		/**
+         * return a CompressedData object from a tagged object.
+         *
+         * @param ato the tagged object holding the object we want.
+         * @param explicitly true if the object is meant to be explicitly
+         *              tagged false otherwise.
+         * @exception ArgumentException if the object held by the
+         *          tagged object cannot be converted.
+         */
+        public static CompressedData GetInstance(
+            Asn1TaggedObject ato,
+            bool explicitly)
         {
-            m_version = DerInteger.Zero;
-            m_compressionAlgorithm = compressionAlgorithm ?? throw new ArgumentNullException(nameof(compressionAlgorithm));
-            m_encapContentInfo = encapContentInfo ?? throw new ArgumentNullException(nameof(encapContentInfo));
+            return GetInstance(Asn1Sequence.GetInstance(ato, explicitly));
         }
 
-        [Obsolete("Use 'GetInstance' instead")]
-        public CompressedData(Asn1Sequence seq)
+        /**
+         * return a CompressedData object from the given object.
+         *
+         * @param _obj the object we want converted.
+         * @exception ArgumentException if the object cannot be converted.
+         */
+        public static CompressedData GetInstance(
+            object obj)
         {
-            int count = seq.Count;
-            if (count != 3)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+            if (obj == null || obj is CompressedData)
+                return (CompressedData)obj;
 
-            m_version = DerInteger.GetInstance(seq[0]);
-            m_compressionAlgorithm = AlgorithmIdentifier.GetInstance(seq[1]);
-            m_encapContentInfo = ContentInfo.GetInstance(seq[2]);
+			if (obj is Asn1Sequence)
+                return new CompressedData((Asn1Sequence) obj);
+
+            throw new ArgumentException("Invalid CompressedData: " + Platform.GetTypeName(obj));
         }
 
-        public DerInteger Version => m_version;
+		public DerInteger Version
+		{
+			get { return version; }
+		}
 
-        public AlgorithmIdentifier CompressionAlgorithmIdentifier => m_compressionAlgorithm;
+		public AlgorithmIdentifier CompressionAlgorithmIdentifier
+		{
+			get { return compressionAlgorithm; }
+		}
 
-        public ContentInfo EncapContentInfo => m_encapContentInfo;
+		public ContentInfo EncapContentInfo
+		{
+			get { return encapContentInfo; }
+		}
 
-		public override Asn1Object ToAsn1Object() =>
-            new BerSequence(m_version, m_compressionAlgorithm, m_encapContentInfo);
+		public override Asn1Object ToAsn1Object()
+        {
+			return new BerSequence(version, compressionAlgorithm, encapContentInfo);
+        }
     }
 }

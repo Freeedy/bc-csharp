@@ -1,77 +1,76 @@
 using System;
 
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Security;
 
 namespace Org.BouncyCastle.Crypto.Paddings
 {
-    /// <summary>A padder that adds PKCS7/PKCS5 padding to a block.</summary>
+    /**
+    * A padder that adds Pkcs7/Pkcs5 padding to a block.
+    */
     public class Pkcs7Padding
         : IBlockCipherPadding
     {
-        public void Init(SecureRandom random)
+        /**
+        * Initialise the padder.
+        *
+        * @param random - a SecureRandom if available.
+        */
+        public void Init(
+            SecureRandom random)
         {
             // nothing to do.
         }
 
-        public string PaddingName => "PKCS7";
-
-        public int AddPadding(byte[] input, int inOff)
+        /**
+        * Return the name of the algorithm the cipher implements.
+        *
+        * @return the name of the algorithm the cipher implements.
+        */
+        public string PaddingName
         {
-            int count = input.Length - inOff;
-            byte padValue = (byte)count;
+            get { return "PKCS7"; }
+        }
+
+        /**
+        * add the pad bytes to the passed in block, returning the
+        * number of bytes added.
+        */
+        public int AddPadding(
+            byte[]  input,
+            int     inOff)
+        {
+            byte code = (byte)(input.Length - inOff);
 
             while (inOff < input.Length)
             {
-                input[inOff++] = padValue;
+                input[inOff] = code;
+                inOff++;
             }
 
-            return count;
+            return code;
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int AddPadding(Span<byte> block, int position)
+        /**
+        * return the number of pad bytes present in the block.
+        */
+        public int PadCount(
+            byte[] input)
         {
-            int count = block.Length - position;
-            byte padValue = (byte)count;
-            block[position..].Fill(padValue);
-            return count;
-        }
-#endif
+            byte countAsByte = input[input.Length - 1];
+            int count = countAsByte;
 
-        public int PadCount(byte[] input)
-        {
-            byte padValue = input[input.Length - 1];
-            int count = padValue;
-            int position = input.Length - count;
-
-            int failed = (position | (count - 1)) >> 31;
-            for (int i = 0; i < input.Length; ++i)
-            {
-                failed |= (input[i] ^ padValue) & ~((i - position) >> 31);
-            }
-            if (failed != 0)
+            if (count < 1 || count > input.Length)
                 throw new InvalidCipherTextException("pad block corrupted");
 
-            return count;
-        }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int PadCount(ReadOnlySpan<byte> block)
-        {
-            byte padValue = block[block.Length - 1];
-            int count = padValue;
-            int position = block.Length - count;
-
-            int failed = (position | (count - 1)) >> 31;
-            for (int i = 0; i < block.Length; ++i)
+            for (int i = 2; i <= count; i++)
             {
-                failed |= (block[i] ^ padValue) & ~((i - position) >> 31);
+                if (input[input.Length - i] != countAsByte)
+                    throw new InvalidCipherTextException("pad block corrupted");
             }
-            if (failed != 0)
-                throw new InvalidCipherTextException("pad block corrupted");
 
             return count;
         }
-#endif
     }
+
 }

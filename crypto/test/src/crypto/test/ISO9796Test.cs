@@ -951,5 +951,11 @@ namespace Org.BouncyCastle.Crypto.Tests
             DoShortPartialTest();
             DoFullMessageTest();
         }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new ISO9796Test());
+        }
     }
 }

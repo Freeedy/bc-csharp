@@ -1,9 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tls.Tests
@@ -12,7 +13,7 @@ namespace Org.BouncyCastle.Tls.Tests
         : AbstractTlsServer
     {
         internal MockPskTls13Server()
-            : base(new BcTlsCrypto())
+            : base(new BcTlsCrypto(new SecureRandom()))
         {
         }
 
@@ -21,9 +22,9 @@ namespace Org.BouncyCastle.Tls.Tests
             return null;
         }
 
-        protected override IList<ProtocolName> GetProtocolNames()
+        protected override IList GetProtocolNames()
         {
-            var protocolNames = new List<ProtocolName>();
+            IList protocolNames = new ArrayList();
             protocolNames.Add(ProtocolName.Http_2_Tls);
             protocolNames.Add(ProtocolName.Http_1_1);
             return protocolNames;
@@ -50,7 +51,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return serverVersion;
         }
 
-        public override TlsPskExternal GetExternalPsk(IList<PskIdentity> identities)
+        public override TlsPskExternal GetExternalPsk(IList identities)
         {
             byte[] identity = Strings.ToUtf8ByteArray("client");
             long obfuscatedTicketAge = 0L;
@@ -104,7 +105,7 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
-        public override void ProcessClientExtensions(IDictionary<int, byte[]> clientExtensions)
+        public override void ProcessClientExtensions(IDictionary clientExtensions)
         {
             if (m_context.SecurityParameters.ClientRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -112,7 +113,7 @@ namespace Org.BouncyCastle.Tls.Tests
             base.ProcessClientExtensions(clientExtensions);
         }
 
-        public override IDictionary<int, byte[]> GetServerExtensions()
+        public override IDictionary GetServerExtensions()
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -120,7 +121,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return base.GetServerExtensions();
         }
 
-        public override void GetServerExtensionsForConnection(IDictionary<int, byte[]> serverExtensions)
+        public override void GetServerExtensionsForConnection(IDictionary serverExtensions)
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
