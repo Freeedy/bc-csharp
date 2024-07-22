@@ -1,6 +1,5 @@
 using System;
-using System.Collections;
-using System.IO;
+using System.Collections.Generic;
 
 using NUnit.Framework;
 
@@ -15,6 +14,7 @@ namespace Org.BouncyCastle.Asn1.Tests
     public class X509NameTest
         : SimpleTest
     {
+        // TODO Fix commented cases
         private static readonly string[] subjects =
         {
             "C=AU,ST=Victoria,L=South Melbourne,O=Connect 4 Pty Ltd,OU=Webserver Team,CN=www2.connect4.com.au,E=webmaster@connect4.com.au",
@@ -23,28 +23,38 @@ namespace Org.BouncyCastle.Asn1.Tests
             "C=US,O=National Aeronautics and Space Administration,SERIALNUMBER=16+CN=Steve Schoch",
             "E=cooke@issl.atl.hp.com,C=US,OU=Hewlett Packard Company (ISSL),CN=Paul A. Cooke",
             "O=Sun Microsystems Inc,CN=store.sun.com",
-            "unstructuredAddress=192.168.1.33,unstructuredName=pixfirewall.ciscopix.com,CN=pixfirewall.ciscopix.com"
+            "unstructuredAddress=192.168.1.33,unstructuredName=pixfirewall.ciscopix.com,CN=pixfirewall.ciscopix.com",
+            //"CN=*.canal-plus.com,OU=Provided by TBS INTERNET https://www.tbs-certificats.com/,OU=\\ CANAL \\+,O=CANAL\\+DISTRIBUTION,L=issy les moulineaux,ST=Hauts de Seine,C=FR",
+            //"O=Bouncy Castle,CN=www.bouncycastle.org\\ ",
+            //"O=Bouncy Castle,CN=c:\\\\fred\\\\bob",
+            //"C=0,O=1,OU=2,T=3,CN=4,SERIALNUMBER=5,STREET=6,SERIALNUMBER=7,L=8,ST=9,SURNAME=10,GIVENNAME=11,INITIALS=12," +
+            //"GENERATION=13,UniqueIdentifier=14,BusinessCategory=15,PostalCode=16,DN=17,Pseudonym=18,PlaceOfBirth=19," +
+            //"Gender=20,CountryOfCitizenship=21,CountryOfResidence=22,NameAtBirth=23,PostalAddress=24,2.5.4.54=25," +
+            //"TelephoneNumber=26,Name=27,E=28,unstructuredName=29,unstructuredAddress=30,E=31,DC=32,UID=33",
+            "C=DE,L=Berlin,O=Wohnungsbaugenossenschaft \\\"Humboldt-Universität\\\" eG,CN=transfer.wbg-hub.de",
         };
 
-        public override string Name
+        // TODO Fix commented cases
+        private static readonly string[] hexSubjects =
         {
-            get { return "X509Name"; }
-        }
+            //"CN=\\20Test\\20X,O=\\20Test,C=GB",         // input
+            //"CN=\\ Test X,O=\\ Test,C=GB",              // expected
+            //"CN=\\20Test\\20X\\20,O=\\20Test,C=GB",     // input
+            //"CN=\\ Test X\\ ,O=\\ Test,C=GB",           // expected
+        };
 
-        private static X509Name FromBytes(
-            byte[] bytes)
-        {
-            return X509Name.GetInstance(Asn1Object.FromByteArray(bytes));
-        }
+        public override string Name => "X509Name";
+
+        private static X509Name FromBytes(byte[] bytes) => X509Name.GetInstance(bytes);
 
         private IAsn1Convertible createEntryValue(
             DerObjectIdentifier	oid,
             string				value)
         {
-            IDictionary attrs = new Hashtable();
+            var attrs = new Dictionary<DerObjectIdentifier, string>();
             attrs.Add(oid, value);
 
-            IList ord = new ArrayList();
+            var ord = new List<DerObjectIdentifier>();
             ord.Add(oid);
 
             X509Name name = new X509Name(ord, attrs);
@@ -60,10 +70,10 @@ namespace Org.BouncyCastle.Asn1.Tests
             DerObjectIdentifier	oid,
             string				val)
         {
-            IDictionary attrs = new Hashtable();
+            var attrs = new Dictionary<DerObjectIdentifier, string>();
             attrs.Add(oid, val);
 
-            IList ord = new ArrayList(attrs.Keys);
+            var ord = new List<DerObjectIdentifier>(attrs.Keys);
 
             X509Name name = new X509Name(new X509Name(ord, attrs).ToString());
 
@@ -101,12 +111,12 @@ namespace Org.BouncyCastle.Asn1.Tests
             string				val)
         {
             IAsn1Convertible converted = createEntryValue(oid, val);
-            if (!(converted is DerGeneralizedTime))
+            if (!(converted is Asn1GeneralizedTime))
             {
                 Fail("encoding for " + oid + " not GeneralizedTime");
             }
             converted = createEntryValueFromString(oid, val);
-            if (!(converted is DerGeneralizedTime))
+            if (!(converted is Asn1GeneralizedTime))
             {
                 Fail("encoding for " + oid + " not GeneralizedTime");
             }
@@ -127,14 +137,14 @@ namespace Org.BouncyCastle.Asn1.Tests
             //
             // composite
             //
-            IDictionary attrs = new Hashtable();
+            var attrs = new Dictionary<DerObjectIdentifier, string>();
             attrs.Add(X509Name.C, "AU");
             attrs.Add(X509Name.O, "The Legion of the Bouncy Castle");
             attrs.Add(X509Name.L, "Melbourne");
             attrs.Add(X509Name.ST, "Victoria");
             attrs.Add(X509Name.E, "feedback-crypto@bouncycastle.org");
 
-            IList order = new ArrayList();
+            var order = new List<DerObjectIdentifier>();
             order.Add(X509Name.C);
             order.Add(X509Name.O);
             order.Add(X509Name.L);
@@ -170,7 +180,7 @@ namespace Org.BouncyCastle.Asn1.Tests
                 Fail("Failed same name test - in Order");
             }
 
-            IList ord1 = new ArrayList();
+            var ord1 = new List<DerObjectIdentifier>();
 
             ord1.Add(X509Name.C);
             ord1.Add(X509Name.O);
@@ -178,7 +188,7 @@ namespace Org.BouncyCastle.Asn1.Tests
             ord1.Add(X509Name.ST);
             ord1.Add(X509Name.E);
 
-            IList ord2 = new ArrayList();
+            var ord2 = new List<DerObjectIdentifier>();
 
             ord2.Add(X509Name.E);
             ord2.Add(X509Name.ST);
@@ -210,13 +220,13 @@ namespace Org.BouncyCastle.Asn1.Tests
                 Fail("Failed reverse name test - in Order false");
             }
 
-            IList oids = name1.GetOidList();
+            var oids = name1.GetOidList();
             if (!CompareVectors(oids, ord1))
             {
                 Fail("oid comparison test");
             }
 
-            IList val1 = new ArrayList();
+            var val1 = new List<string>();
 
             val1.Add("AU");
             val1.Add("The Legion of the Bouncy Castle");
@@ -226,13 +236,13 @@ namespace Org.BouncyCastle.Asn1.Tests
 
             name1 = new X509Name(ord1, val1);
 
-            IList values = name1.GetValueList();
+            var values = name1.GetValueList();
             if (!CompareVectors(values, val1))
             {
                 Fail("value comparison test");
             }
 
-            ord2 = new ArrayList();
+            ord2 = new List<DerObjectIdentifier>();
 
             ord2.Add(X509Name.ST);
             ord2.Add(X509Name.ST);
@@ -248,7 +258,7 @@ namespace Org.BouncyCastle.Asn1.Tests
                 Fail("Failed different name test");
             }
 
-            ord2 = new ArrayList();
+            ord2 = new List<DerObjectIdentifier>();
 
             ord2.Add(X509Name.ST);
             ord2.Add(X509Name.L);
@@ -270,14 +280,14 @@ namespace Org.BouncyCastle.Asn1.Tests
             //
             // getValues test
             //
-            IList v1 = name1.GetValueList(X509Name.O);
+            var v1 = name1.GetValueList(X509Name.O);
 
             if (v1.Count != 1 || !v1[0].Equals("The Legion of the Bouncy Castle"))
             {
                 Fail("O test failed");
             }
 
-            IList v2 = name1.GetValueList(X509Name.L);
+            var v2 = name1.GetValueList(X509Name.L);
 
             if (v2.Count != 1 || !v2[0].Equals("Melbourne"))
             {
@@ -289,13 +299,30 @@ namespace Org.BouncyCastle.Asn1.Tests
             //
             for (int i = 0; i != subjects.Length; i++)
             {
-                X509Name name = new X509Name(subjects[i]);
-                byte[] encodedName = name.GetEncoded();
-                name = X509Name.GetInstance(Asn1Object.FromByteArray(encodedName));
+                var subject = subjects[i];
+                var name = new X509Name(subject);
 
-                if (!name.ToString().Equals(subjects[i]))
+                var decodedName = FromBytes(name.GetEncoded());
+                var decodedSubject = decodedName.ToString();
+
+                if (!subject.Equals(decodedSubject))
                 {
-                    Fail("Failed regeneration test " + i);
+                    Fail("Failed regeneration test " + i + " got: " + decodedSubject + " expected " + subject);
+                }
+            }
+
+            for (int i = 0; i < hexSubjects.Length; i += 2)
+            {
+                var subject = hexSubjects[i];
+                var name = new X509Name(subject);
+
+                var decodedName = FromBytes(name.GetEncoded());
+                var decodedSubject = decodedName.ToString();
+
+                string expected = hexSubjects[i + 1];
+                if (!expected.Equals(decodedSubject))
+                {
+                    Fail("Failed hex regeneration test " + i + " got: " + decodedSubject + " expected " + expected);
                 }
             }
 
@@ -390,7 +417,7 @@ namespace Org.BouncyCastle.Asn1.Tests
                 new DerObjectIdentifier("1.1"),
                 new DerObjectIdentifier("1.1"));
 
-            if (name1.Equals(new DerSequence(new DerSet(new DerSet(v)))))
+            if (name1.Equals(new DerSequence(new DerSet(DerSet.FromVector(v)))))
             {
                 Fail("inequality test with sequence and bad set");
             }
@@ -401,7 +428,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 //			}
             try
             {
-                X509Name.GetInstance(new DerSequence(new DerSet(new DerSet(v))));
+                X509Name.GetInstance(new DerSequence(new DerSet(DerSet.FromVector(v))));
                 Fail("GetInstance should reject bad sequence");
             }
             catch (ArgumentException)
@@ -505,7 +532,7 @@ namespace Org.BouncyCastle.Asn1.Tests
                 Fail("# string not properly escaped.");
             }
 
-            IList vls = n.GetValueList(X509Name.CN);
+            var vls = n.GetValueList(X509Name.CN);
             if (vls.Count != 1 || !vls[0].Equals("#nothex#string"))
             {
                 Fail("Escaped # not reduced properly");
@@ -583,7 +610,7 @@ namespace Org.BouncyCastle.Asn1.Tests
                 Fail("Failed composite to string test got: " + n.ToString());
             }
 
-            IDictionary symbols = X509Name.DefaultSymbols;
+            var symbols = X509Name.DefaultSymbols;
             if (!n.ToString(true, symbols).Equals("L=Melbourne+OU=Ascot Vale,O=The Legion of the Bouncy Castle,C=AU"))
             {
                 Fail("Failed composite to string test got: " + n.ToString(true, symbols));
@@ -633,29 +660,18 @@ namespace Org.BouncyCastle.Asn1.Tests
             }
         }
 
-        private bool CompareVectors(
-            IList	one,
-            IList	two)
+        private bool CompareVectors<T>(IList<T> one, IList<T> two)
         {
             if (one.Count != two.Count)
                 return false;
 
             for (int i = 0; i < one.Count; ++i)
             {
-                if (!one[i].Equals(two[i]))
+                if (!Equals(one[i], two[i]))
                     return false;
             }
 
             return true;
-        }
-
-        public static void Main(
-            string[] args)
-        {
-            ITest test = new X509NameTest();
-            ITestResult result = test.Perform();
-
-            Console.WriteLine(result);
         }
 
         [Test]

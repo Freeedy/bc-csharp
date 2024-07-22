@@ -2,82 +2,63 @@ using System;
 
 using Org.BouncyCastle.Asn1.Crmf;
 using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cmp
 {
+	/**
+     * <pre>
+     * RevRepContent ::= SEQUENCE {
+     *          status       SEQUENCE SIZE (1..MAX) OF PKIStatusInfo,
+     *          -- in same order as was sent in RevReqContent
+     *          revCerts [0] SEQUENCE SIZE (1..MAX) OF CertId
+     *                                              OPTIONAL,
+     *          -- IDs for which revocation was requested
+     *          -- (same order as status)
+     *          crls     [1] SEQUENCE SIZE (1..MAX) OF CertificateList OPTIONAL
+     *          -- the resulting CRLs (there may be more than one)
+     *      }
+     *</pre>
+     */
 	public class RevRepContent
 		: Asn1Encodable
 	{
-		private readonly Asn1Sequence status;
-		private readonly Asn1Sequence revCerts;
-		private readonly Asn1Sequence crls;
+        public static RevRepContent GetInstance(object obj)
+        {
+            if (obj == null)
+                return null;
+            if (obj is RevRepContent revRepContent)
+                return revRepContent;
+            return new RevRepContent(Asn1Sequence.GetInstance(obj));
+        }
+
+        public static RevRepContent GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        {
+            return new RevRepContent(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+        }
+
+        private readonly Asn1Sequence m_status;
+		private readonly Asn1Sequence m_revCerts;
+		private readonly Asn1Sequence m_crls;
 
 		private RevRepContent(Asn1Sequence seq)
 		{
-			status = Asn1Sequence.GetInstance(seq[0]);
+            int count = seq.Count, pos = 0;
+            if (count < 1 || count > 3)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
 
-			for (int pos = 1; pos < seq.Count; ++pos)
-			{
-				Asn1TaggedObject tObj = Asn1TaggedObject.GetInstance(seq[pos]);
+            m_status = Asn1Sequence.GetInstance(seq[pos++]);
+			m_revCerts = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, Asn1Sequence.GetTagged);
+            m_crls = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, Asn1Sequence.GetTagged);
 
-				if (tObj.TagNo == 0)
-				{
-					revCerts = Asn1Sequence.GetInstance(tObj, true);
-				}
-				else
-				{
-					crls = Asn1Sequence.GetInstance(tObj, true);
-				}
-			}
+            if (pos != count)
+                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
 		}
 
-		public static RevRepContent GetInstance(object obj)
-		{
-			if (obj is RevRepContent)
-				return (RevRepContent)obj;
+        public virtual PkiStatusInfo[] GetStatus() => m_status.MapElements(PkiStatusInfo.GetInstance);
 
-			if (obj is Asn1Sequence)
-				return new RevRepContent((Asn1Sequence)obj);
+		public virtual CertId[] GetRevCerts() => m_revCerts?.MapElements(CertId.GetInstance);
 
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
-		}
-		
-		public virtual PkiStatusInfo[] GetStatus()
-		{
-			PkiStatusInfo[] results = new PkiStatusInfo[status.Count];
-			for (int i = 0; i != results.Length; ++i)
-			{
-				results[i] = PkiStatusInfo.GetInstance(status[i]);
-			}
-			return results;
-		}
-
-		public virtual CertId[] GetRevCerts()
-		{
-			if (revCerts == null)
-				return null;
-
-			CertId[] results = new CertId[revCerts.Count];
-			for (int i = 0; i != results.Length; ++i)
-			{
-				results[i] = CertId.GetInstance(revCerts[i]);
-			}
-			return results;
-		}
-
-		public virtual CertificateList[] GetCrls()
-		{
-			if (crls == null)
-				return null;
-
-			CertificateList[] results = new CertificateList[crls.Count];
-			for (int i = 0; i != results.Length; ++i)
-			{
-				results[i] = CertificateList.GetInstance(crls[i]);
-			}
-			return results;
-		}
+		public virtual CertificateList[] GetCrls() => m_crls?.MapElements(CertificateList.GetInstance);
 
 		/**
 		 * <pre>
@@ -95,9 +76,10 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		 */
 		public override Asn1Object ToAsn1Object()
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(status);
-            v.AddOptionalTagged(true, 0, revCerts);
-            v.AddOptionalTagged(true, 1, crls);
+			Asn1EncodableVector v = new Asn1EncodableVector(3);
+			v.Add(m_status);
+            v.AddOptionalTagged(true, 0, m_revCerts);
+            v.AddOptionalTagged(true, 1, m_crls);
 			return new DerSequence(v);
 		}
 	}

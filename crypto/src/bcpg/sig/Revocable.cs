@@ -1,5 +1,3 @@
-using System;
-
 namespace Org.BouncyCastle.Bcpg.Sig
 {
     /**
@@ -8,40 +6,16 @@ namespace Org.BouncyCastle.Bcpg.Sig
     public class Revocable
         : SignatureSubpacket
     {
-        private static byte[] BooleanToByteArray(
-            bool    value)
-        {
-            byte[]    data = new byte[1];
-
-            if (value)
-            {
-                data[0] = 1;
-                return data;
-            }
-            else
-            {
-                return data;
-            }
-        }
-
-        public Revocable(
-            bool    critical,
-            bool    isLongLength,
-            byte[]  data)
+        public Revocable(bool critical, bool isLongLength, byte[] data)
             : base(SignatureSubpacketTag.Revocable, critical, isLongLength, data)
         {
         }
 
-        public Revocable(
-            bool    critical,
-            bool    isRevocable)
-            : base(SignatureSubpacketTag.Revocable, critical, false, BooleanToByteArray(isRevocable))
+        public Revocable(bool critical, bool isRevocable)
+            : base(SignatureSubpacketTag.Revocable, critical, false, Utilities.BooleanToBytes(isRevocable))
         {
         }
 
-        public bool IsRevocable()
-        {
-            return data[0] != 0;
-        }
+        public bool IsRevocable() => Utilities.BooleanFromBytes(data);
     }
 }

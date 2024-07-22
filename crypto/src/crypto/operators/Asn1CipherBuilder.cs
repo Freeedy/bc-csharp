@@ -1,17 +1,12 @@
 ﻿using System;
-using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.Nist;
-using Org.BouncyCastle.Asn1.Ntt;
 using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Crypto.IO;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Operators
 {
@@ -22,15 +17,12 @@ namespace Org.BouncyCastle.Crypto.Operators
 
         public Asn1CipherBuilderWithKey(DerObjectIdentifier encryptionOID, int keySize, SecureRandom random)
         {
-            if (random == null)
-            {
-                random = new SecureRandom();
-            }
+            random = CryptoServicesRegistrar.GetSecureRandom(random);
 
             CipherKeyGenerator keyGen = CipherKeyGeneratorFactory.CreateKeyGenerator(encryptionOID, random);
 
-            encKey = new KeyParameter(keyGen.GenerateKey());
-            algorithmIdentifier = AlgorithmIdentifierFactory.GenerateEncryptionAlgID(encryptionOID, encKey.GetKey().Length * 8, random);
+            encKey = keyGen.GenerateKeyParameter();
+            algorithmIdentifier = AlgorithmIdentifierFactory.GenerateEncryptionAlgID(encryptionOID, encKey.KeyLength * 8, random);
         }
 
         public object AlgorithmDetails
@@ -45,7 +37,7 @@ namespace Org.BouncyCastle.Crypto.Operators
 
         public ICipher BuildCipher(Stream stream)
         {
-            object cipher = EnvelopedDataHelper.CreateContentCipher(true, encKey, algorithmIdentifier);
+            object cipher = CipherFactory.CreateContentCipher(true, encKey, algorithmIdentifier);
 
             //
             // BufferedBlockCipher

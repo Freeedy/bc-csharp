@@ -1,9 +1,7 @@
 ﻿using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.IO;
-#if !PORTABLE || DOTNET
 using System.Net.Sockets;
-#endif
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Bsi;
@@ -18,6 +16,7 @@ using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Utilities;
+using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Utilities.IO;
@@ -29,24 +28,24 @@ namespace Org.BouncyCastle.Tls
         private static readonly byte[] DowngradeTlsV11 = Hex.DecodeStrict("444F574E47524400");
         private static readonly byte[] DowngradeTlsV12 = Hex.DecodeStrict("444F574E47524401");
 
-        private static readonly IDictionary CertSigAlgOids = CreateCertSigAlgOids();
-        private static readonly IList DefaultSupportedSigAlgs = CreateDefaultSupportedSigAlgs();
+        private static readonly IDictionary<string, SignatureAndHashAlgorithm> CertSigAlgOids = CreateCertSigAlgOids();
+        private static readonly IList<SignatureAndHashAlgorithm> DefaultSupportedSigAlgs = CreateDefaultSupportedSigAlgs();
 
-        private static void AddCertSigAlgOid(IDictionary d, DerObjectIdentifier oid,
+        private static void AddCertSigAlgOid(IDictionary<string, SignatureAndHashAlgorithm> d, DerObjectIdentifier oid,
             SignatureAndHashAlgorithm sigAndHash)
         {
             d[oid.Id] = sigAndHash;
         }
 
-        private static void AddCertSigAlgOid(IDictionary d, DerObjectIdentifier oid, short hashAlgorithm,
-            short signatureAlgorithm)
+        private static void AddCertSigAlgOid(IDictionary<string, SignatureAndHashAlgorithm> d, DerObjectIdentifier oid,
+            short hashAlgorithm, short signatureAlgorithm)
         {
             AddCertSigAlgOid(d, oid, SignatureAndHashAlgorithm.GetInstance(hashAlgorithm, signatureAlgorithm));
         }
 
-        private static IDictionary CreateCertSigAlgOids()
+        private static IDictionary<string, SignatureAndHashAlgorithm> CreateCertSigAlgOids()
         {
-            IDictionary d = Platform.CreateHashtable();
+            var d = new Dictionary<string, SignatureAndHashAlgorithm>();
 
             AddCertSigAlgOid(d, NistObjectIdentifiers.DsaWithSha224, HashAlgorithm.sha224, SignatureAlgorithm.dsa);
             AddCertSigAlgOid(d, NistObjectIdentifiers.DsaWithSha256, HashAlgorithm.sha256, SignatureAlgorithm.dsa);
@@ -97,9 +96,9 @@ namespace Org.BouncyCastle.Tls
             return d;
         }
 
-        private static IList CreateDefaultSupportedSigAlgs()
+        private static IList<SignatureAndHashAlgorithm> CreateDefaultSupportedSigAlgs()
         {
-            IList result = Platform.CreateArrayList();
+            var result = new List<SignatureAndHashAlgorithm>();
             result.Add(SignatureAndHashAlgorithm.ed25519);
             result.Add(SignatureAndHashAlgorithm.ed448);
             result.Add(SignatureAndHashAlgorithm.GetInstance(HashAlgorithm.sha256, SignatureAlgorithm.ecdsa));
@@ -310,6 +309,13 @@ namespace Org.BouncyCastle.Tls
             buf[offset] = (byte)i;
         }
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static void WriteUint8(int i, Span<byte> buf)
+        {
+            buf[0] = (byte)i;
+        }
+#endif
+
         public static void WriteUint16(int i, Stream output)
         {
             output.WriteByte((byte)(i >> 8));
@@ -321,6 +327,14 @@ namespace Org.BouncyCastle.Tls
             buf[offset    ] = (byte)(i >> 8);
             buf[offset + 1] = (byte)i;
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static void WriteUint16(int i, Span<byte> buf)
+        {
+            buf[0] = (byte)(i >> 8);
+            buf[1] = (byte)i;
+        }
+#endif
 
         public static void WriteUint24(int i, Stream output)
         {
@@ -409,6 +423,15 @@ namespace Org.BouncyCastle.Tls
             WriteUint8(data.Length, buf, off);
             Array.Copy(data, 0, buf, off + 1, data.Length);
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static void WriteOpaque8(ReadOnlySpan<byte> data, Span<byte> buf)
+        {
+            CheckUint8(data.Length);
+            WriteUint8(data.Length, buf);
+            data.CopyTo(buf[1..]);
+        }
+#endif
 
         public static void WriteOpaque16(byte[] buf, Stream output)
         {
@@ -562,6 +585,8 @@ namespace Org.BouncyCastle.Tls
         {
             if (buf == null)
                 throw new ArgumentNullException("buf");
+            if (buf.Length < 1)
+                throw new TlsFatalAlert(AlertDescription.decode_error);
 
             int count = ReadUint8(buf, 0);
             if (buf.Length != (count + 1))
@@ -724,8 +749,15 @@ namespace Org.BouncyCastle.Tls
 
         public static short ReadUint8(byte[] buf, int offset)
         {
-            return (short)(buf[offset] & 0xff);
+            return (short)buf[offset];
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static short ReadUint8(ReadOnlySpan<byte> buffer)
+        {
+            return (short)buffer[0];
+        }
+#endif
 
         public static int ReadUint16(Stream input)
         {
@@ -738,10 +770,19 @@ namespace Org.BouncyCastle.Tls
 
         public static int ReadUint16(byte[] buf, int offset)
         {
-            int n = (buf[offset] & 0xff) << 8;
-            n |= (buf[++offset] & 0xff);
+            int n = buf[offset] << 8;
+            n |= buf[++offset];
             return n;
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static int ReadUint16(ReadOnlySpan<byte> buffer)
+        {
+            int n = buffer[0] << 8;
+            n |= buffer[1];
+            return n;
+        }
+#endif
 
         public static int ReadUint24(Stream input)
         {
@@ -826,6 +867,15 @@ namespace Org.BouncyCastle.Tls
             if (length > 0 && length != Streams.ReadFully(input, buf))
                 throw new EndOfStreamException();
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static void ReadFully(Span<byte> buf, Stream input)
+        {
+            int length = buf.Length;
+            if (length > 0 && length != Streams.ReadFully(input, buf))
+                throw new EndOfStreamException();
+        }
+#endif
 
         public static byte[] ReadOpaque8(Stream input)
         {
@@ -927,27 +977,15 @@ namespace Org.BouncyCastle.Tls
 
         public static Asn1Object ReadAsn1Object(byte[] encoding)
         {
-            Asn1InputStream asn1 = new Asn1InputStream(encoding);
-            Asn1Object result = asn1.ReadObject();
-            if (null == result)
-                throw new TlsFatalAlert(AlertDescription.decode_error);
-            if (null != asn1.ReadObject())
-                throw new TlsFatalAlert(AlertDescription.decode_error);
-
-            return result;
-        }
-
-        /// <exception cref="IOException"/>
-        [Obsolete("Will be removed. Use ReadAsn1Object in combination with RequireDerEncoding instead")]
-        public static Asn1Object ReadDerObject(byte[] encoding)
-        {
-            /*
-             * NOTE: The current ASN.1 parsing code can't enforce DER-only parsing, but since DER is
-             * canonical, we can check it by re-encoding the result and comparing to the original.
-             */
-            Asn1Object result = ReadAsn1Object(encoding);
-            RequireDerEncoding(result, encoding);
-            return result;
+            using (var asn1In = new Asn1InputStream(encoding))
+            {
+                Asn1Object result = asn1In.ReadObject();
+                if (null == result)
+                    throw new TlsFatalAlert(AlertDescription.decode_error);
+                if (encoding.Length != asn1In.Position)
+                    throw new TlsFatalAlert(AlertDescription.decode_error);
+                return result;
+            }
         }
 
         /// <exception cref="IOException"/>
@@ -983,7 +1021,8 @@ namespace Org.BouncyCastle.Tls
             buf[offset + 1] = (byte)version.MinorVersion;
         }
 
-        public static void AddIfSupported(IList supportedAlgs, TlsCrypto crypto, SignatureAndHashAlgorithm alg)
+        public static void AddIfSupported(IList<SignatureAndHashAlgorithm> supportedAlgs, TlsCrypto crypto,
+            SignatureAndHashAlgorithm alg)
         {
             if (crypto.HasSignatureAndHashAlgorithm(alg))
             {
@@ -991,7 +1030,7 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        public static void AddIfSupported(IList supportedGroups, TlsCrypto crypto, int namedGroup)
+        public static void AddIfSupported(IList<int> supportedGroups, TlsCrypto crypto, int namedGroup)
         {
             if (crypto.HasNamedGroup(namedGroup))
             {
@@ -999,7 +1038,7 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        public static void AddIfSupported(IList supportedGroups, TlsCrypto crypto, int[] namedGroups)
+        public static void AddIfSupported(IList<int> supportedGroups, TlsCrypto crypto, int[] namedGroups)
         {
             for (int i = 0; i < namedGroups.Length; ++i)
             {
@@ -1007,7 +1046,7 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        public static bool AddToSet(IList s, int i)
+        public static bool AddToSet<T>(IList<T> s, T i)
         {
             bool result = !s.Contains(i);
             if (result)
@@ -1017,17 +1056,17 @@ namespace Org.BouncyCastle.Tls
             return result;
         }
 
-        public static IList GetDefaultDssSignatureAlgorithms()
+        public static IList<SignatureAndHashAlgorithm> GetDefaultDssSignatureAlgorithms()
         {
             return GetDefaultSignatureAlgorithms(SignatureAlgorithm.dsa);
         }
 
-        public static IList GetDefaultECDsaSignatureAlgorithms()
+        public static IList<SignatureAndHashAlgorithm> GetDefaultECDsaSignatureAlgorithms()
         {
             return GetDefaultSignatureAlgorithms(SignatureAlgorithm.ecdsa);
         }
 
-        public static IList GetDefaultRsaSignatureAlgorithms()
+        public static IList<SignatureAndHashAlgorithm> GetDefaultRsaSignatureAlgorithms()
         {
             return GetDefaultSignatureAlgorithms(SignatureAlgorithm.rsa);
         }
@@ -1059,35 +1098,29 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        public static IList GetDefaultSignatureAlgorithms(short signatureAlgorithm)
+        public static IList<SignatureAndHashAlgorithm> GetDefaultSignatureAlgorithms(short signatureAlgorithm)
         {
             SignatureAndHashAlgorithm sigAndHashAlg = GetDefaultSignatureAlgorithm(signatureAlgorithm);
 
-            return null == sigAndHashAlg ? Platform.CreateArrayList() : VectorOfOne(sigAndHashAlg);
+            return null == sigAndHashAlg ? new List<SignatureAndHashAlgorithm>() : VectorOfOne(sigAndHashAlg);
         }
 
-        public static IList GetDefaultSupportedSignatureAlgorithms(TlsContext context)
+        public static IList<SignatureAndHashAlgorithm> GetDefaultSupportedSignatureAlgorithms(TlsContext context)
         {
             return GetSupportedSignatureAlgorithms(context, DefaultSupportedSigAlgs);
         }
 
-        public static IList GetSupportedSignatureAlgorithms(TlsContext context, IList candidates)
+        public static IList<SignatureAndHashAlgorithm> GetSupportedSignatureAlgorithms(TlsContext context,
+            IList<SignatureAndHashAlgorithm> candidates)
         {
             TlsCrypto crypto = context.Crypto;
 
-            IList result = Platform.CreateArrayList(DefaultSupportedSigAlgs.Count);
+            var result = new List<SignatureAndHashAlgorithm>(candidates.Count);
             foreach (SignatureAndHashAlgorithm sigAndHashAlg in candidates)
             {
                 AddIfSupported(result, crypto, sigAndHashAlg);
             }
             return result;
-        }
-
-        [Obsolete("Will be removed")]
-        public static SignatureAndHashAlgorithm GetSignatureAndHashAlgorithm(TlsContext context,
-            TlsCredentialedSigner signerCredentials)
-        {
-            return GetSignatureAndHashAlgorithm(context.ServerVersion, signerCredentials);
         }
 
         internal static SignatureAndHashAlgorithm GetSignatureAndHashAlgorithm(ProtocolVersion negotiatedVersion,
@@ -1108,14 +1141,15 @@ namespace Org.BouncyCastle.Tls
             return signatureAndHashAlgorithm;
         }
 
-        public static byte[] GetExtensionData(IDictionary extensions, int extensionType)
+        public static byte[] GetExtensionData(IDictionary<int, byte[]> extensions, int extensionType)
         {
-            return extensions == null || !extensions.Contains(extensionType)
-                ? null
-                : (byte[])extensions[extensionType];
+            if (extensions == null || !extensions.TryGetValue(extensionType, out var extensionData))
+                return null;
+
+            return extensionData;
         }
 
-        public static bool HasExpectedEmptyExtensionData(IDictionary extensions, int extensionType,
+        public static bool HasExpectedEmptyExtensionData(IDictionary<int, byte[]> extensions, int extensionType,
             short alertDescription)
         {
             byte[] extension_data = GetExtensionData(extensions, extensionType);
@@ -1133,17 +1167,26 @@ namespace Org.BouncyCastle.Tls
             return new TlsSessionImpl(sessionID, sessionParameters);
         }
 
-        internal static bool IsExtendedMasterSecretOptionalDtls(ProtocolVersion[] activeProtocolVersions)
+        internal static bool IsExtendedMasterSecretOptional(ProtocolVersion protocolVersion)
         {
-            return ProtocolVersion.Contains(activeProtocolVersions, ProtocolVersion.DTLSv12)
-                || ProtocolVersion.Contains(activeProtocolVersions, ProtocolVersion.DTLSv10);
+            ProtocolVersion tlsVersion = protocolVersion.GetEquivalentTlsVersion();
+
+            return ProtocolVersion.TLSv12.Equals(tlsVersion)
+                || ProtocolVersion.TLSv11.Equals(tlsVersion)
+                || ProtocolVersion.TLSv10.Equals(tlsVersion);
         }
 
-        internal static bool IsExtendedMasterSecretOptionalTls(ProtocolVersion[] activeProtocolVersions)
+        internal static bool IsExtendedMasterSecretOptional(ProtocolVersion[] protocolVersions)
         {
-            return ProtocolVersion.Contains(activeProtocolVersions, ProtocolVersion.TLSv12)
-                || ProtocolVersion.Contains(activeProtocolVersions, ProtocolVersion.TLSv11)
-                || ProtocolVersion.Contains(activeProtocolVersions, ProtocolVersion.TLSv10);
+            if (protocolVersions != null)
+            {
+                for (int i = 0; i < protocolVersions.Length; ++i)
+                {
+                    if (IsExtendedMasterSecretOptional(protocolVersions[i]))
+                        return true;
+                }
+            }
+            return false;
         }
 
         public static bool IsNullOrContainsNull(object[] array)
@@ -1160,22 +1203,7 @@ namespace Org.BouncyCastle.Tls
             return false;
         }
 
-        public static bool IsNullOrEmpty(byte[] array)
-        {
-            return null == array || array.Length < 1;
-        }
-
-        public static bool IsNullOrEmpty(short[] array)
-        {
-            return null == array || array.Length < 1;
-        }
-
-        public static bool IsNullOrEmpty(int[] array)
-        {
-            return null == array || array.Length < 1;
-        }
-
-        public static bool IsNullOrEmpty(object[] array)
+        public static bool IsNullOrEmpty<T>(T[] array)
         {
             return null == array || array.Length < 1;
         }
@@ -1185,7 +1213,7 @@ namespace Org.BouncyCastle.Tls
             return null == s || s.Length < 1;
         }
 
-        public static bool IsNullOrEmpty(IList v)
+        public static bool IsNullOrEmpty<T>(IList<T> v)
         {
             return null == v || v.Count < 1;
         }
@@ -1295,9 +1323,9 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        public static IList GetLegacySupportedSignatureAlgorithms()
+        public static IList<SignatureAndHashAlgorithm> GetLegacySupportedSignatureAlgorithms()
         {
-            IList result = Platform.CreateArrayList(3);
+            var result = new List<SignatureAndHashAlgorithm>(3);
             result.Add(SignatureAndHashAlgorithm.GetInstance(HashAlgorithm.sha1, SignatureAlgorithm.dsa));
             result.Add(SignatureAndHashAlgorithm.GetInstance(HashAlgorithm.sha1, SignatureAlgorithm.ecdsa));
             result.Add(SignatureAndHashAlgorithm.GetInstance(HashAlgorithm.sha1, SignatureAlgorithm.rsa));
@@ -1305,10 +1333,12 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public static void EncodeSupportedSignatureAlgorithms(IList supportedSignatureAlgorithms, Stream output)
+        public static void EncodeSupportedSignatureAlgorithms(
+            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms, Stream output)
         {
-            if (supportedSignatureAlgorithms == null || supportedSignatureAlgorithms.Count < 1
-                || supportedSignatureAlgorithms.Count >= (1 << 15))
+            if (supportedSignatureAlgorithms == null ||
+                supportedSignatureAlgorithms.Count < 1 ||
+                supportedSignatureAlgorithms.Count >= (1 << 15))
             {
                 throw new ArgumentException("must have length from 1 to (2^15 - 1)", "supportedSignatureAlgorithms");
             }
@@ -1333,7 +1363,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public static IList ParseSupportedSignatureAlgorithms(Stream input)
+        public static IList<SignatureAndHashAlgorithm> ParseSupportedSignatureAlgorithms(Stream input)
         {
             // supported_signature_algorithms
             int length = ReadUint16(input);
@@ -1341,7 +1371,7 @@ namespace Org.BouncyCastle.Tls
                 throw new TlsFatalAlert(AlertDescription.decode_error);
 
             int count = length / 2;
-            IList supportedSignatureAlgorithms = Platform.CreateArrayList(count);
+            var supportedSignatureAlgorithms = new List<SignatureAndHashAlgorithm>(count);
             for (int i = 0; i < count; ++i)
             {
                 SignatureAndHashAlgorithm sigAndHashAlg = SignatureAndHashAlgorithm.Parse(input);
@@ -1355,16 +1385,17 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public static void VerifySupportedSignatureAlgorithm(IList supportedSignatureAlgorithms,
-            SignatureAndHashAlgorithm signatureAlgorithm)
+        public static void VerifySupportedSignatureAlgorithm(
+            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms, SignatureAndHashAlgorithm signatureAlgorithm)
         {
             VerifySupportedSignatureAlgorithm(supportedSignatureAlgorithms, signatureAlgorithm,
                 AlertDescription.illegal_parameter);
         }
 
         /// <exception cref="IOException"/>
-        internal static void VerifySupportedSignatureAlgorithm(IList supportedSignatureAlgorithms,
-            SignatureAndHashAlgorithm signatureAlgorithm, short alertDescription)
+        internal static void VerifySupportedSignatureAlgorithm(
+            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms, SignatureAndHashAlgorithm signatureAlgorithm,
+            short alertDescription)
         {
             if (supportedSignatureAlgorithms == null || supportedSignatureAlgorithms.Count < 1
                 || supportedSignatureAlgorithms.Count >= (1 << 15))
@@ -1382,7 +1413,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public static bool ContainsSignatureAlgorithm(IList supportedSignatureAlgorithms,
+        public static bool ContainsSignatureAlgorithm(IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms,
             SignatureAndHashAlgorithm signatureAlgorithm)
         {
             foreach (SignatureAndHashAlgorithm entry in supportedSignatureAlgorithms)
@@ -1394,7 +1425,8 @@ namespace Org.BouncyCastle.Tls
             return false;
         }
 
-        public static bool ContainsAnySignatureAlgorithm(IList supportedSignatureAlgorithms, short signatureAlgorithm)
+        public static bool ContainsAnySignatureAlgorithm(IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms,
+            short signatureAlgorithm)
         {
             foreach (SignatureAndHashAlgorithm entry in supportedSignatureAlgorithms)
             {
@@ -1410,6 +1442,14 @@ namespace Org.BouncyCastle.Tls
         {
             return secret.DeriveUsingPrf(securityParameters.PrfAlgorithm, asciiLabel, seed, length);
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static TlsSecret Prf(SecurityParameters securityParameters, TlsSecret secret,
+            ReadOnlySpan<char> asciiLabel, ReadOnlySpan<byte> seed, int length)
+        {
+            return secret.DeriveUsingPrf(securityParameters.PrfAlgorithm, asciiLabel, seed, length);
+        }
+#endif
 
         public static byte[] Clone(byte[] data)
         {
@@ -1484,9 +1524,9 @@ namespace Org.BouncyCastle.Tls
                 }
                 else
                 {
-                    if (CertSigAlgOids.Contains(sigAlgOid))
+                    if (CertSigAlgOids.TryGetValue(sigAlgOid, out var algorithm))
                     {
-                        hashAlgorithm = ((SignatureAndHashAlgorithm)CertSigAlgOids[sigAlgOid]).Hash;
+                        hashAlgorithm = algorithm.Hash;
                     }
                 }
             }
@@ -2019,6 +2059,16 @@ namespace Org.BouncyCastle.Tls
                 throw new TlsFatalAlert(AlertDescription.illegal_parameter);
             }
 
+            case CipherSuite.TLS_GOSTR341112_256_WITH_28147_CNT_IMIT:
+            case CipherSuite.TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC:
+            case CipherSuite.TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC:
+            {
+                if (isTlsV12Exactly)
+                    return PrfAlgorithm.tls_prf_gostr3411_2012_256;
+
+                throw new TlsFatalAlert(AlertDescription.illegal_parameter);
+            }
+
             case CipherSuite.TLS_DHE_PSK_WITH_AES_256_CBC_SHA384:
             case CipherSuite.TLS_DHE_PSK_WITH_CAMELLIA_256_CBC_SHA384:
             case CipherSuite.TLS_DHE_PSK_WITH_NULL_SHA384:
@@ -2138,8 +2188,6 @@ namespace Org.BouncyCastle.Tls
             }
 
             buf.CopyInputTo(output);
-
-            Platform.Dispose(output);
         }
 
         internal static DigitallySigned GenerateCertificateVerifyClient(TlsClientContext clientContext,
@@ -2270,9 +2318,9 @@ namespace Org.BouncyCastle.Tls
                     verified = verifier.VerifyRawSignature(certificateVerify, hash);
                 }
             }
-            catch (TlsFatalAlert e)
+            catch (TlsFatalAlert )
             {
-                throw e;
+                throw;
             }
             catch (Exception e)
             {
@@ -2291,7 +2339,7 @@ namespace Org.BouncyCastle.Tls
         {
             SecurityParameters securityParameters = serverContext.SecurityParameters;
 
-            IList supportedAlgorithms = securityParameters.ServerSigAlgs;
+            var supportedAlgorithms = securityParameters.ServerSigAlgs;
             TlsCertificate certificate = securityParameters.PeerCertificate.GetCertificateAt(0);
 
             Verify13CertificateVerify(supportedAlgorithms, "TLS 1.3, client CertificateVerify", handshakeHash,
@@ -2304,7 +2352,7 @@ namespace Org.BouncyCastle.Tls
         {
             SecurityParameters securityParameters = clientContext.SecurityParameters;
 
-            IList supportedAlgorithms = securityParameters.ClientSigAlgs;
+            var supportedAlgorithms = securityParameters.ClientSigAlgs;
             TlsCertificate certificate = securityParameters.PeerCertificate.GetCertificateAt(0);
 
             Verify13CertificateVerify(supportedAlgorithms, "TLS 1.3, server CertificateVerify", handshakeHash,
@@ -2312,8 +2360,9 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        private static void Verify13CertificateVerify(IList supportedAlgorithms, string contextString,
-            TlsHandshakeHash handshakeHash, TlsCertificate certificate, CertificateVerify certificateVerify)
+        private static void Verify13CertificateVerify(IList<SignatureAndHashAlgorithm> supportedAlgorithms,
+            string contextString, TlsHandshakeHash handshakeHash, TlsCertificate certificate,
+            CertificateVerify certificateVerify)
         {
             // Verify the CertificateVerify message contains a correct signature.
             bool verified;
@@ -2334,9 +2383,9 @@ namespace Org.BouncyCastle.Tls
                 output.Write(prfHash, 0, prfHash.Length);
                 verified = verifier.VerifySignature(certificateVerify.Signature);
             }
-            catch (TlsFatalAlert e)
+            catch (TlsFatalAlert)
             {
-                throw e;
+                throw;
             }
             catch (Exception e)
             {
@@ -2379,7 +2428,10 @@ namespace Org.BouncyCastle.Tls
             byte[] signature;
             if (streamSigner != null)
             {
-                SendSignatureInput(context, extraSignatureInput, digestBuffer, streamSigner.Stream);
+                using (var output = streamSigner.Stream)
+                {
+                    SendSignatureInput(context, extraSignatureInput, digestBuffer, output);
+                }
                 signature = streamSigner.GetSignature();
             }
             else
@@ -2425,7 +2477,10 @@ namespace Org.BouncyCastle.Tls
             bool verified;
             if (streamVerifier != null)
             {
-                SendSignatureInput(context, null, digestBuffer, streamVerifier.Stream);
+                using (var output = streamVerifier.Stream)
+                {
+                    SendSignatureInput(context, null, digestBuffer, output);
+                }
                 verified = streamVerifier.IsVerified();
             }
             else
@@ -2450,7 +2505,8 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        internal static void TrackHashAlgorithms(TlsHandshakeHash handshakeHash, IList supportedSignatureAlgorithms)
+        internal static void TrackHashAlgorithms(TlsHandshakeHash handshakeHash,
+            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms)
         {
             foreach (SignatureAndHashAlgorithm signatureAndHashAlgorithm in supportedSignatureAlgorithms)
             {
@@ -2479,9 +2535,9 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        public static IList VectorOfOne(object obj)
+        public static IList<T> VectorOfOne<T>(T obj)
         {
-            IList v = Platform.CreateArrayList(1);
+            var v = new List<T>(1);
             v.Add(obj);
             return v;
         }
@@ -2497,6 +2553,9 @@ namespace Org.BouncyCastle.Tls
         {
             switch (cipherSuite)
             {
+            case CipherSuite.TLS_GOSTR341112_256_WITH_28147_CNT_IMIT:
+                return EncryptionAlgorithm.cls_28147_CNT_IMIT;
+
             case CipherSuite.TLS_DH_anon_WITH_3DES_EDE_CBC_SHA:
             case CipherSuite.TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA:
             case CipherSuite.TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA:
@@ -2797,6 +2856,12 @@ namespace Org.BouncyCastle.Tls
             case CipherSuite.TLS_RSA_PSK_WITH_CHACHA20_POLY1305_SHA256:
                 return EncryptionAlgorithm.CHACHA20_POLY1305;
 
+            case CipherSuite.TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC:
+                return EncryptionAlgorithm.KUZNYECHIK_CTR_OMAC;
+
+            case CipherSuite.TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC:
+                return EncryptionAlgorithm.MAGMA_CTR_OMAC;
+
             case CipherSuite.TLS_DHE_PSK_WITH_NULL_SHA:
             case CipherSuite.TLS_ECDH_anon_WITH_NULL_SHA:
             case CipherSuite.TLS_ECDH_ECDSA_WITH_NULL_SHA:
@@ -2821,6 +2886,10 @@ namespace Org.BouncyCastle.Tls
             case CipherSuite.TLS_PSK_WITH_NULL_SHA384:
             case CipherSuite.TLS_RSA_PSK_WITH_NULL_SHA384:
                 return EncryptionAlgorithm.NULL;
+
+            case CipherSuite.TLS_RSA_WITH_RC4_128_MD5:
+            case CipherSuite.TLS_RSA_WITH_RC4_128_SHA:
+                return EncryptionAlgorithm.RC4_128;
 
             case CipherSuite.TLS_DH_anon_WITH_SEED_CBC_SHA:
             case CipherSuite.TLS_DH_DSS_WITH_SEED_CBC_SHA:
@@ -2875,6 +2944,9 @@ namespace Org.BouncyCastle.Tls
             case EncryptionAlgorithm.SM4_CBC:
                 return CipherType.block;
 
+            case EncryptionAlgorithm.cls_28147_CNT_IMIT:
+            case EncryptionAlgorithm.KUZNYECHIK_CTR_OMAC:
+            case EncryptionAlgorithm.MAGMA_CTR_OMAC:
             case EncryptionAlgorithm.NULL:
             case EncryptionAlgorithm.RC4_40:
             case EncryptionAlgorithm.RC4_128:
@@ -3122,6 +3194,11 @@ namespace Org.BouncyCastle.Tls
             case CipherSuite.TLS_ECDHE_RSA_WITH_NULL_SHA:
                 return KeyExchangeAlgorithm.ECDHE_RSA;
 
+            case CipherSuite.TLS_GOSTR341112_256_WITH_28147_CNT_IMIT:
+            case CipherSuite.TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC:
+            case CipherSuite.TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC:
+                return KeyExchangeAlgorithm.GOSTR341112_256;
+
             case CipherSuite.TLS_AES_128_CCM_8_SHA256:
             case CipherSuite.TLS_AES_128_CCM_SHA256:
             case CipherSuite.TLS_AES_128_GCM_SHA256:
@@ -3179,6 +3256,8 @@ namespace Org.BouncyCastle.Tls
             case CipherSuite.TLS_RSA_WITH_CAMELLIA_256_GCM_SHA384:
             case CipherSuite.TLS_RSA_WITH_NULL_SHA:
             case CipherSuite.TLS_RSA_WITH_NULL_SHA256:
+            case CipherSuite.TLS_RSA_WITH_RC4_128_MD5:
+            case CipherSuite.TLS_RSA_WITH_RC4_128_SHA:
             case CipherSuite.TLS_RSA_WITH_SEED_CBC_SHA:
                 return KeyExchangeAlgorithm.RSA;
 
@@ -3223,9 +3302,9 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        public static IList GetKeyExchangeAlgorithms(int[] cipherSuites)
+        public static IList<int> GetKeyExchangeAlgorithms(int[] cipherSuites)
         {
-            IList result = Platform.CreateArrayList();
+            var result = new List<int>();
             if (null != cipherSuites)
             {
                 for (int i = 0; i < cipherSuites.Length; ++i)
@@ -3359,6 +3438,9 @@ namespace Org.BouncyCastle.Tls
             case CipherSuite.TLS_SM4_GCM_SM3:
                 return MacAlgorithm.cls_null;
 
+            case CipherSuite.TLS_RSA_WITH_RC4_128_MD5:
+                return MacAlgorithm.hmac_md5;
+
             case CipherSuite.TLS_DH_anon_WITH_3DES_EDE_CBC_SHA:
             case CipherSuite.TLS_DH_anon_WITH_AES_128_CBC_SHA:
             case CipherSuite.TLS_DH_anon_WITH_AES_256_CBC_SHA:
@@ -3431,6 +3513,7 @@ namespace Org.BouncyCastle.Tls
             case CipherSuite.TLS_RSA_WITH_CAMELLIA_128_CBC_SHA:
             case CipherSuite.TLS_RSA_WITH_CAMELLIA_256_CBC_SHA:
             case CipherSuite.TLS_RSA_WITH_NULL_SHA:
+            case CipherSuite.TLS_RSA_WITH_RC4_128_SHA:
             case CipherSuite.TLS_RSA_WITH_SEED_CBC_SHA:
             case CipherSuite.TLS_SRP_SHA_DSS_WITH_3DES_EDE_CBC_SHA:
             case CipherSuite.TLS_SRP_SHA_DSS_WITH_AES_128_CBC_SHA:
@@ -3695,6 +3778,9 @@ namespace Org.BouncyCastle.Tls
             case CipherSuite.TLS_ECDHE_RSA_WITH_CAMELLIA_256_CBC_SHA384:
             case CipherSuite.TLS_ECDHE_RSA_WITH_CAMELLIA_256_GCM_SHA384:
             case CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256:
+            case CipherSuite.TLS_GOSTR341112_256_WITH_28147_CNT_IMIT:
+            case CipherSuite.TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC:
+            case CipherSuite.TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC:
             case CipherSuite.TLS_PSK_DHE_WITH_AES_128_CCM_8:
             case CipherSuite.TLS_PSK_DHE_WITH_AES_256_CCM_8:
             case CipherSuite.TLS_PSK_WITH_AES_128_CCM:
@@ -3743,14 +3829,14 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        public static IList GetNamedGroupRoles(int[] cipherSuites)
+        public static IList<int> GetNamedGroupRoles(int[] cipherSuites)
         {
             return GetNamedGroupRoles(GetKeyExchangeAlgorithms(cipherSuites));
         }
 
-        public static IList GetNamedGroupRoles(IList keyExchangeAlgorithms)
+        public static IList<int> GetNamedGroupRoles(IList<int> keyExchangeAlgorithms)
         {
-            IList result = Platform.CreateArrayList();
+            var result = new List<int>();
             foreach (int keyExchangeAlgorithm in keyExchangeAlgorithms)
             {
                 switch (keyExchangeAlgorithm)
@@ -3815,7 +3901,7 @@ namespace Org.BouncyCastle.Tls
 
         /// <returns>Whether a server can select the specified cipher suite given the available signature algorithms
         /// for ServerKeyExchange.</returns>
-        public static bool IsValidCipherSuiteForSignatureAlgorithms(int cipherSuite, IList sigAlgs)
+        public static bool IsValidCipherSuiteForSignatureAlgorithms(int cipherSuite, IList<short> sigAlgs)
         {
             int keyExchangeAlgorithm = GetKeyExchangeAlgorithm(cipherSuite);
 
@@ -3852,19 +3938,17 @@ namespace Org.BouncyCastle.Tls
         }
 
         internal static bool IsValidKeyShareSelection(ProtocolVersion negotiatedVersion, int[] clientSupportedGroups,
-            IDictionary clientAgreements, int keyShareGroup)
+            IDictionary<int, TlsAgreement> clientAgreements, int keyShareGroup)
         {
             return null != clientSupportedGroups
                 && Arrays.Contains(clientSupportedGroups, keyShareGroup)
-                && !clientAgreements.Contains(keyShareGroup)
+                && !clientAgreements.ContainsKey(keyShareGroup)
                 && NamedGroup.CanBeNegotiated(keyShareGroup, negotiatedVersion);
         }
 
         internal static bool IsValidSignatureAlgorithmForServerKeyExchange(short signatureAlgorithm,
             int keyExchangeAlgorithm)
         {
-            // TODO[tls13]
-
             switch (keyExchangeAlgorithm)
             {
             case KeyExchangeAlgorithm.DHE_RSA:
@@ -3902,6 +3986,7 @@ namespace Org.BouncyCastle.Tls
             case KeyExchangeAlgorithm.NULL:
                 return SignatureAlgorithm.anonymous != signatureAlgorithm;
 
+            case KeyExchangeAlgorithm.GOSTR341112_256:
             default:
                 return false;
             }
@@ -3930,19 +4015,18 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        public static SignatureAndHashAlgorithm ChooseSignatureAndHashAlgorithm(TlsContext context, IList sigHashAlgs,
-            short signatureAlgorithm)
+        public static SignatureAndHashAlgorithm ChooseSignatureAndHashAlgorithm(TlsContext context,
+            IList<SignatureAndHashAlgorithm> sigHashAlgs, short signatureAlgorithm)
         {
             return ChooseSignatureAndHashAlgorithm(context.ServerVersion, sigHashAlgs, signatureAlgorithm);
         }
 
         /// <exception cref="IOException"/>
         public static SignatureAndHashAlgorithm ChooseSignatureAndHashAlgorithm(ProtocolVersion negotiatedVersion,
-            IList sigHashAlgs, short signatureAlgorithm)
+            IList<SignatureAndHashAlgorithm> sigHashAlgs, short signatureAlgorithm)
         {
             if (!IsTlsV12(negotiatedVersion))
                 return null;
-
 
             if (sigHashAlgs == null)
             {
@@ -3992,33 +4076,25 @@ namespace Org.BouncyCastle.Tls
             return result;
         }
 
-        public static IList GetUsableSignatureAlgorithms(IList sigHashAlgs)
+        public static IList<short> GetUsableSignatureAlgorithms(IList<SignatureAndHashAlgorithm> sigHashAlgs)
         {
             if (sigHashAlgs == null)
+                return new List<short>(){ SignatureAlgorithm.rsa, SignatureAlgorithm.dsa, SignatureAlgorithm.ecdsa };
+
+            var v = new List<short>();
+            foreach (SignatureAndHashAlgorithm sigHashAlg in sigHashAlgs)
             {
-                IList v = Platform.CreateArrayList(3);
-                v.Add(SignatureAlgorithm.rsa);
-                v.Add(SignatureAlgorithm.dsa);
-                v.Add(SignatureAlgorithm.ecdsa);
-                return v;
-            }
-            else
-            {
-                IList v = Platform.CreateArrayList();
-                foreach (SignatureAndHashAlgorithm sigHashAlg in sigHashAlgs)
+                if (sigHashAlg.Hash >= MinimumHashStrict)
                 {
-                    if (sigHashAlg.Hash >= MinimumHashStrict)
+                    short sigAlg = sigHashAlg.Signature;
+                    if (!v.Contains(sigAlg))
                     {
-                        short sigAlg = sigHashAlg.Signature;
-                        if (!v.Contains(sigAlg))
-                        {
-                            // TODO Check for crypto support before choosing (or pass in cached list?)
-                            v.Add(sigAlg);
-                        }
+                        // TODO Check for crypto support before choosing (or pass in cached list?)
+                        v.Add(sigAlg);
                     }
                 }
-                return v;
             }
+            return v;
         }
 
         public static int GetCommonCipherSuite13(ProtocolVersion negotiatedVersion, int[] peerCipherSuites,
@@ -4172,6 +4248,9 @@ namespace Org.BouncyCastle.Tls
             case KeyExchangeAlgorithm.SRP_RSA:
                 return crypto.HasSrpAuthentication()
                     && HasAnyRsaSigAlgs(crypto);
+
+            // TODO[RFC 9189]
+            case KeyExchangeAlgorithm.GOSTR341112_256:
 
             default:
                 return false;
@@ -4375,7 +4454,7 @@ namespace Org.BouncyCastle.Tls
         {
             SecurityParameters securityParameters = context.SecurityParameters;
             short[] clientCertTypes = securityParameters.ClientCertTypes;
-            IList serverSigAlgsCert = securityParameters.ServerSigAlgsCert;
+            var serverSigAlgsCert = securityParameters.ServerSigAlgsCert;
 
             int trustAnchorPos = clientCertPath.Length - 1;
             for (int i = 0; i < trustAnchorPos; ++i)
@@ -4425,8 +4504,8 @@ namespace Org.BouncyCastle.Tls
         private static void CheckSigAlgOfServerCerts(TlsContext context, TlsCertificate[] serverCertPath)
         {
             SecurityParameters securityParameters = context.SecurityParameters;
-            IList clientSigAlgsCert = securityParameters.ClientSigAlgsCert;
-            IList clientSigAlgs = securityParameters.ClientSigAlgs;
+            var clientSigAlgsCert = securityParameters.ClientSigAlgsCert;
+            var clientSigAlgs = securityParameters.ClientSigAlgs;
 
             /*
              * NOTE: For TLS 1.2, we'll check 'signature_algorithms' too (if it's distinct), since
@@ -4477,8 +4556,8 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        internal static void CheckTlsFeatures(Certificate serverCertificate, IDictionary clientExtensions,
-            IDictionary serverExtensions)
+        internal static void CheckTlsFeatures(Certificate serverCertificate, IDictionary<int, byte[]> clientExtensions,
+            IDictionary<int, byte[]> serverExtensions)
         {
             /*
              * RFC 7633 4.3.3. A client MUST treat a certificate with a TLS feature extension as an
@@ -4505,7 +4584,7 @@ namespace Org.BouncyCastle.Tls
                     {
                         int extensionType = tlsExtension.IntValueExact;
 
-                        if (clientExtensions.Contains(extensionType) && !serverExtensions.Contains(extensionType))
+                        if (clientExtensions.ContainsKey(extensionType) && !serverExtensions.ContainsKey(extensionType))
                             throw new TlsFatalAlert(AlertDescription.certificate_unknown);
                     }
                 }
@@ -4553,7 +4632,8 @@ namespace Org.BouncyCastle.Tls
 
         internal static void ProcessServerCertificate(TlsClientContext clientContext,
             CertificateStatus serverCertificateStatus, TlsKeyExchange keyExchange,
-            TlsAuthentication clientAuthentication, IDictionary clientExtensions, IDictionary serverExtensions)
+            TlsAuthentication clientAuthentication, IDictionary<int, byte[]> clientExtensions,
+            IDictionary<int, byte[]> serverExtensions)
         {
             SecurityParameters securityParameters = clientContext.SecurityParameters;
             bool isTlsV13 = IsTlsV13(securityParameters.NegotiatedVersion);
@@ -4589,12 +4669,7 @@ namespace Org.BouncyCastle.Tls
             if (null != sigAlgOid)
             {
                 if (!PkcsObjectIdentifiers.IdRsassaPss.Id.Equals(sigAlgOid))
-                {
-                    if (!CertSigAlgOids.Contains(sigAlgOid))
-                        return null;
-
-                    return (SignatureAndHashAlgorithm)CertSigAlgOids[sigAlgOid];
-                }
+                    return CollectionUtilities.GetValueOrNull(CertSigAlgOids, sigAlgOid);
 
                 RsassaPssParameters pssParams = RsassaPssParameters.GetInstance(subjectCert.GetSigAlgParams());
                 if (null != pssParams)
@@ -4677,6 +4752,16 @@ namespace Org.BouncyCastle.Tls
                     return false;
             }
             return true;
+        }
+
+        internal static bool ContainsNot(short[] buf, int off, int len, short value)
+        {
+            for (int i = 0; i < len; ++i)
+            {
+                if (value != buf[off + i])
+                    return true;
+            }
+            return false;
         }
 
         internal static short[] RetainAll(short[] retainer, short[] elements)
@@ -4796,7 +4881,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         internal static TlsAuthentication ReceiveServerCertificate(TlsClientContext clientContext, TlsClient client,
-            MemoryStream buf)
+            MemoryStream buf, IDictionary<int, byte[]> serverExtensions)
         {
             SecurityParameters securityParameters = clientContext.SecurityParameters;
             if (KeyExchangeAlgorithm.IsAnonymous(securityParameters.KeyExchangeAlgorithm)
@@ -4808,7 +4893,10 @@ namespace Org.BouncyCastle.Tls
             MemoryStream endPointHash = new MemoryStream();
 
             Certificate.ParseOptions options = new Certificate.ParseOptions()
-                .SetMaxChainLength(client.GetMaxCertificateChainLength());
+            {
+                CertificateType = securityParameters.ServerCertificateType,
+                MaxChainLength = client.GetMaxCertificateChainLength(),
+            };
 
             Certificate serverCertificate = Certificate.Parse(options, clientContext, buf, endPointHash);
 
@@ -4828,14 +4916,17 @@ namespace Org.BouncyCastle.Tls
         }
 
         internal static TlsAuthentication Receive13ServerCertificate(TlsClientContext clientContext, TlsClient client,
-            MemoryStream buf)
+            MemoryStream buf, IDictionary<int, byte[]> serverExtensions)
         {
             SecurityParameters securityParameters = clientContext.SecurityParameters;
             if (null != securityParameters.PeerCertificate)
                 throw new TlsFatalAlert(AlertDescription.unexpected_message);
 
             Certificate.ParseOptions options = new Certificate.ParseOptions()
-                .SetMaxChainLength(client.GetMaxCertificateChainLength());
+            {
+                CertificateType = securityParameters.ServerCertificateType,
+                MaxChainLength = client.GetMaxCertificateChainLength(),
+            };
 
             Certificate serverCertificate = Certificate.Parse(options, clientContext, buf, null);
 
@@ -4891,8 +4982,8 @@ namespace Org.BouncyCastle.Tls
             return false;
         }
 
-        internal static IDictionary AddKeyShareToClientHello(TlsClientContext clientContext, TlsClient client,
-            IDictionary clientExtensions)
+        internal static IDictionary<int, TlsAgreement> AddKeyShareToClientHello(TlsClientContext clientContext,
+            TlsClient client, IDictionary<int, byte[]> clientExtensions)
         {
             /*
              * RFC 8446 9.2. If containing a "supported_groups" extension, it MUST also contain a
@@ -4900,15 +4991,15 @@ namespace Org.BouncyCastle.Tls
              * permitted.
              */
             if (!IsTlsV13(clientContext.ClientVersion)
-                || !clientExtensions.Contains(ExtensionType.supported_groups))
+                || !clientExtensions.ContainsKey(ExtensionType.supported_groups))
             {
                 return null;
             }
 
-            int[] supportedGroups = TlsExtensionsUtilities.GetSupportedGroupsExtension(clientExtensions);
-            IList keyShareGroups = client.GetEarlyKeyShareGroups();
-            IDictionary clientAgreements = Platform.CreateHashtable(3);
-            IList clientShares = Platform.CreateArrayList(2);
+            var supportedGroups = TlsExtensionsUtilities.GetSupportedGroupsExtension(clientExtensions);
+            var keyShareGroups = client.GetEarlyKeyShareGroups();
+            var clientAgreements = new Dictionary<int, TlsAgreement>(3);
+            var clientShares = new List<KeyShareEntry>(2);
 
             CollectKeyShares(clientContext.Crypto, supportedGroups, keyShareGroups, clientAgreements, clientShares);
 
@@ -4918,13 +5009,13 @@ namespace Org.BouncyCastle.Tls
             return clientAgreements;
         }
 
-        internal static IDictionary AddKeyShareToClientHelloRetry(TlsClientContext clientContext,
-            IDictionary clientExtensions, int keyShareGroup)
+        internal static IDictionary<int, TlsAgreement> AddKeyShareToClientHelloRetry(TlsClientContext clientContext,
+            IDictionary<int, byte[]> clientExtensions, int keyShareGroup)
         {
             int[] supportedGroups = new int[]{ keyShareGroup };
-            IList keyShareGroups = VectorOfOne(keyShareGroup);
-            IDictionary clientAgreements = Platform.CreateHashtable(1);
-            IList clientShares = Platform.CreateArrayList(1);
+            var keyShareGroups = VectorOfOne(keyShareGroup);
+            var clientAgreements = new Dictionary<int, TlsAgreement>(1);
+            var clientShares = new List<KeyShareEntry>(1);
 
             CollectKeyShares(clientContext.Crypto, supportedGroups, keyShareGroups, clientAgreements, clientShares);
 
@@ -4939,8 +5030,8 @@ namespace Org.BouncyCastle.Tls
             return clientAgreements;
         }
 
-        private static void CollectKeyShares(TlsCrypto crypto, int[] supportedGroups, IList keyShareGroups,
-            IDictionary clientAgreements, IList clientShares)
+        private static void CollectKeyShares(TlsCrypto crypto, int[] supportedGroups, IList<int> keyShareGroups,
+            IDictionary<int, TlsAgreement> clientAgreements, IList<KeyShareEntry> clientShares)
         {
             if (IsNullOrEmpty(supportedGroups))
                 return;
@@ -4953,14 +5044,14 @@ namespace Org.BouncyCastle.Tls
                 int supportedGroup = supportedGroups[i];
 
                 if (!keyShareGroups.Contains(supportedGroup)
-                    || clientAgreements.Contains(supportedGroup)
+                    || clientAgreements.ContainsKey(supportedGroup)
                     || !crypto.HasNamedGroup(supportedGroup))
                 {
                     continue;
                 }
 
                 TlsAgreement agreement = null;
-                if (NamedGroup.RefersToASpecificCurve(supportedGroup))
+                if (NamedGroup.RefersToAnECDHCurve(supportedGroup))
                 {
                     if (crypto.HasECDHAgreement())
                     {
@@ -4986,11 +5077,11 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        internal static KeyShareEntry SelectKeyShare(IList clientShares, int keyShareGroup)
+        internal static KeyShareEntry SelectKeyShare(IList<KeyShareEntry> clientShares, int keyShareGroup)
         {
             if (null != clientShares && 1 == clientShares.Count)
             {
-                KeyShareEntry clientShare = (KeyShareEntry)clientShares[0];
+                KeyShareEntry clientShare = clientShares[0];
                 if (null != clientShare && clientShare.NamedGroup == keyShareGroup)
                 {
                     return clientShare;
@@ -5000,7 +5091,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         internal static KeyShareEntry SelectKeyShare(TlsCrypto crypto, ProtocolVersion negotiatedVersion,
-            IList clientShares, int[] clientSupportedGroups, int[] serverSupportedGroups)
+            IList<KeyShareEntry> clientShares, int[] clientSupportedGroups, int[] serverSupportedGroups)
         {
             if (null != clientShares && !IsNullOrEmpty(clientSupportedGroups) && !IsNullOrEmpty(serverSupportedGroups))
             {
@@ -5020,7 +5111,7 @@ namespace Org.BouncyCastle.Tls
                     if (!crypto.HasNamedGroup(group))
                         continue;
 
-                    if ((NamedGroup.RefersToASpecificCurve(group) && !crypto.HasECDHAgreement()) ||
+                    if ((NamedGroup.RefersToAnECDHCurve(group) && !crypto.HasECDHAgreement()) ||
                         (NamedGroup.RefersToASpecificFiniteField(group) && !crypto.HasDHAgreement())) 
                     {
                         continue;
@@ -5048,7 +5139,7 @@ namespace Org.BouncyCastle.Tls
                     if (!crypto.HasNamedGroup(group))
                         continue;
 
-                    if ((NamedGroup.RefersToASpecificCurve(group) && !crypto.HasECDHAgreement()) ||
+                    if ((NamedGroup.RefersToAnECDHCurve(group) && !crypto.HasECDHAgreement()) ||
                         (NamedGroup.RefersToASpecificFiniteField(group) && !crypto.HasDHAgreement())) 
                     {
                         continue;
@@ -5124,7 +5215,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         internal static void EstablishClientSigAlgs(SecurityParameters securityParameters,
-            IDictionary clientExtensions)
+            IDictionary<int, byte[]> clientExtensions)
         {
             securityParameters.m_clientSigAlgs = TlsExtensionsUtilities.GetSignatureAlgorithmsExtension(
                 clientExtensions);
@@ -5216,9 +5307,32 @@ namespace Org.BouncyCastle.Tls
             {
                 securityParameters.m_verifyDataLength = securityParameters.PrfHashLength;
             }
+            else if (negotiatedVersion.IsSsl)
+            {
+                securityParameters.m_verifyDataLength = 36;
+            }
             else
             {
-                securityParameters.m_verifyDataLength = negotiatedVersion.IsSsl ? 36 : 12;
+                /*
+                 * RFC 9189 4.2.6. The verify_data_length value is equal to 32 for the CTR_OMAC cipher
+                 * suites and is equal to 12 for the CNT_IMIT cipher suite.
+                 */
+                switch (cipherSuite)
+                {
+                case CipherSuite.TLS_GOSTR341112_256_WITH_KUZNYECHIK_CTR_OMAC:
+                case CipherSuite.TLS_GOSTR341112_256_WITH_MAGMA_CTR_OMAC:
+                {
+                    securityParameters.m_verifyDataLength = 32;
+                    break;
+                }
+
+                case CipherSuite.TLS_GOSTR341112_256_WITH_28147_CNT_IMIT:
+                default:
+                {
+                    securityParameters.m_verifyDataLength = 12;
+                    break;
+                }
+                }
             }
         }
 
@@ -5449,7 +5563,8 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static void CheckExtensionData13(IDictionary extensions, int handshakeType, short alertDescription)
+        internal static void CheckExtensionData13(IDictionary<int, byte[]> extensions, int handshakeType,
+            short alertDescription)
         {
             foreach (int extensionType in extensions.Keys)
             {
@@ -5471,21 +5586,15 @@ namespace Org.BouncyCastle.Tls
             return preMasterSecret;
         }
 
-#if !PORTABLE || DOTNET
         public static bool IsTimeout(SocketException e)
         {
-#if NET_1_1
-            return 10060 == e.ErrorCode;
-#else
             return SocketError.TimedOut == e.SocketErrorCode;
-#endif
         }
-#endif
 
         /// <exception cref="IOException"/>
-        internal static void AddPreSharedKeyToClientExtensions(TlsPsk[] psks, IDictionary clientExtensions)
+        internal static void AddPreSharedKeyToClientExtensions(TlsPsk[] psks, IDictionary<int, byte[]> clientExtensions)
         {
-            IList identities = Platform.CreateArrayList(psks.Length);
+            var identities = new List<PskIdentity>(psks.Length);
             for (int i = 0; i < psks.Length; ++i)
             {
                 TlsPsk psk = psks[i];
@@ -5499,7 +5608,7 @@ namespace Org.BouncyCastle.Tls
 
         /// <exception cref="IOException"/>
         internal static OfferedPsks.BindersConfig AddPreSharedKeyToClientHello(TlsClientContext clientContext,
-            TlsClient client, IDictionary clientExtensions, int[] offeredCipherSuites)
+            TlsClient client, IDictionary<int, byte[]> clientExtensions, int[] offeredCipherSuites)
         {
             if (!IsTlsV13(clientContext.ClientVersion))
                 return null;
@@ -5525,13 +5634,13 @@ namespace Org.BouncyCastle.Tls
 
         /// <exception cref="IOException"/>
         internal static OfferedPsks.BindersConfig AddPreSharedKeyToClientHelloRetry(TlsClientContext clientContext,
-            OfferedPsks.BindersConfig clientBinders, IDictionary clientExtensions)
+            OfferedPsks.BindersConfig clientBinders, IDictionary<int, byte[]> clientExtensions)
         {
             SecurityParameters securityParameters = clientContext.SecurityParameters;
 
             int prfAlgorithm = GetPrfAlgorithm13(securityParameters.CipherSuite);
 
-            IList pskIndices = GetPskIndices(clientBinders.m_psks, prfAlgorithm);
+            var pskIndices = GetPskIndices(clientBinders.m_psks, prfAlgorithm);
             if (pskIndices.Count < 1)
                 return null;
 
@@ -5564,8 +5673,8 @@ namespace Org.BouncyCastle.Tls
         }
 
         internal static OfferedPsks.SelectedConfig SelectPreSharedKey(TlsServerContext serverContext, TlsServer server,
-            IDictionary clientHelloExtensions, HandshakeMessageInput clientHelloMessage, TlsHandshakeHash handshakeHash,
-            bool afterHelloRetryRequest)
+            IDictionary<int, byte[]> clientHelloExtensions, HandshakeMessageInput clientHelloMessage,
+            TlsHandshakeHash handshakeHash, bool afterHelloRetryRequest)
         {
             bool handshakeHashUpdated = false;
 
@@ -5587,7 +5696,7 @@ namespace Org.BouncyCastle.Tls
                         int index = offeredPsks.GetIndexOfIdentity(new PskIdentity(psk.Identity, 0L));
                         if (index >= 0)
                         {
-                            byte[] binder = (byte[])offeredPsks.Binders[index];
+                            byte[] binder = offeredPsks.Binders[index];
 
                             TlsCrypto crypto = serverContext.Crypto;
                             TlsSecret earlySecret = GetPskEarlySecret(crypto, psk);
@@ -5619,7 +5728,7 @@ namespace Org.BouncyCastle.Tls
                             byte[] calculatedBinder = CalculatePskBinder(crypto, isExternalPsk, pskCryptoHashAlgorithm,
                                 earlySecret, transcriptHash);
 
-                            if (Arrays.ConstantTimeAreEqual(calculatedBinder, binder))
+                            if (Arrays.FixedTimeEquals(calculatedBinder, binder))
                                 return new OfferedPsks.SelectedConfig(index, psk, pskKeyExchangeModes, earlySecret);
                         }
                     }
@@ -5657,7 +5766,7 @@ namespace Org.BouncyCastle.Tls
         /// <exception cref="IOException"/>
         internal static TlsPskExternal[] GetPskExternalsClient(TlsClient client, int[] offeredCipherSuites)
         {
-            IList externalPsks = client.GetExternalPsks();
+            var externalPsks = client.GetExternalPsks();
             if (IsNullOrEmpty(externalPsks))
                 return null;
 
@@ -5683,9 +5792,9 @@ namespace Org.BouncyCastle.Tls
             return result;
         }
 
-        internal static IList GetPskIndices(TlsPsk[] psks, int prfAlgorithm)
+        internal static IList<int> GetPskIndices(TlsPsk[] psks, int prfAlgorithm)
         {
-            IList v = Platform.CreateArrayList(psks.Length);
+            var v = new List<int>(psks.Length);
             for (int i = 0; i < psks.Length; ++i)
             {
                 if (psks[i].PrfAlgorithm == prfAlgorithm)
@@ -5694,6 +5803,115 @@ namespace Org.BouncyCastle.Tls
                 }
             }
             return v;
+        }
+
+        /// <exception cref="IOException"/>
+        internal static short ProcessMaxFragmentLengthExtension(IDictionary<int, byte[]> clientExtensions,
+            IDictionary<int, byte[]> serverExtensions, short alertDescription)
+        {
+            short maxFragmentLength = TlsExtensionsUtilities.GetMaxFragmentLengthExtension(serverExtensions);
+            if (maxFragmentLength >= 0)
+            {
+                if (!MaxFragmentLength.IsValid(maxFragmentLength) ||
+                    (clientExtensions != null &&
+                        maxFragmentLength != TlsExtensionsUtilities.GetMaxFragmentLengthExtension(clientExtensions)))
+                {
+                    throw new TlsFatalAlert(alertDescription);
+                }
+            }
+            return maxFragmentLength;
+        }
+
+        /// <exception cref="IOException"/>
+        internal static short ProcessClientCertificateTypeExtension(IDictionary<int, byte[]> clientExtensions,
+            IDictionary<int, byte[]> serverExtensions, short alertDescription)
+        {
+            short serverValue = TlsExtensionsUtilities.GetClientCertificateTypeExtensionServer(serverExtensions);
+            if (serverValue < 0)
+                return CertificateType.X509;
+
+            if (!CertificateType.IsValid(serverValue))
+                throw new TlsFatalAlert(alertDescription, "Unknown value for client_certificate_type");
+
+            short[] clientValues = TlsExtensionsUtilities.GetClientCertificateTypeExtensionClient(clientExtensions);
+            if (clientValues == null || !Arrays.Contains(clientValues, serverValue))
+                throw new TlsFatalAlert(alertDescription, "Invalid selection for client_certificate_type");
+
+            return serverValue;
+        }
+
+        /// <exception cref="IOException"/>
+        internal static short ProcessClientCertificateTypeExtension13(IDictionary<int, byte[]> clientExtensions,
+            IDictionary<int, byte[]> serverExtensions, short alertDescription)
+        {
+            short certificateType = ProcessClientCertificateTypeExtension(clientExtensions, serverExtensions,
+                alertDescription);
+
+            return ValidateCertificateType13(certificateType, alertDescription);
+        }
+
+        /// <exception cref="IOException"/>
+        internal static short ProcessServerCertificateTypeExtension(IDictionary<int, byte[]> clientExtensions,
+            IDictionary<int, byte[]> serverExtensions, short alertDescription)
+        {
+            short serverValue = TlsExtensionsUtilities.GetServerCertificateTypeExtensionServer(serverExtensions);
+            if (serverValue < 0)
+                return CertificateType.X509;
+
+            if (!CertificateType.IsValid(serverValue))
+                throw new TlsFatalAlert(alertDescription, "Unknown value for server_certificate_type");
+
+            short[] clientValues = TlsExtensionsUtilities.GetServerCertificateTypeExtensionClient(clientExtensions);
+            if (clientValues == null || !Arrays.Contains(clientValues, serverValue))
+                throw new TlsFatalAlert(alertDescription, "Invalid selection for server_certificate_type");
+
+            return serverValue;
+        }
+
+        /// <exception cref="IOException"/>
+        internal static short ProcessServerCertificateTypeExtension13(IDictionary<int, byte[]> clientExtensions,
+            IDictionary<int, byte[]> serverExtensions, short alertDescription)
+        {
+            short certificateType = ProcessServerCertificateTypeExtension(clientExtensions, serverExtensions,
+                alertDescription);
+
+            return ValidateCertificateType13(certificateType, alertDescription);
+        }
+
+        /// <exception cref="IOException"/>
+        private static short ValidateCertificateType13(short certificateType, short alertDescription)
+        {
+            if (CertificateType.OpenPGP == certificateType)
+                throw new TlsFatalAlert(alertDescription, "The OpenPGP certificate type MUST NOT be used with TLS 1.3");
+
+            return certificateType;
+        }
+
+        // TODO[api] Not needed once GetHandshakeResendTimeMillis() has been added to TlsPeer
+        internal static int GetHandshakeResendTimeMillis(TlsPeer tlsPeer)
+        {
+            if (tlsPeer is AbstractTlsPeer abstractTlsPeer)
+                return abstractTlsPeer.GetHandshakeResendTimeMillis();
+
+            return 1000;
+        }
+
+        // TODO[api] Not needed once NotifyConnectionClosed() has been added to TlsPeer
+        internal static void NotifyConnectionClosed(TlsPeer tlsPeer)
+        {
+            if (tlsPeer is AbstractTlsPeer abstractTlsPeer)
+            {
+                abstractTlsPeer.NotifyConnectionClosed();
+            }
+        }
+
+        // TODO[api] Not needed once ShouldUseCompatibilityMode() has been added to TlsClient
+        internal static bool ShouldUseCompatibilityMode(TlsClient tlsClient)
+        {
+            if (tlsClient is AbstractTlsClient abstractTlsClient)
+                return abstractTlsClient.ShouldUseCompatibilityMode();
+
+            return true;
         }
     }
 }

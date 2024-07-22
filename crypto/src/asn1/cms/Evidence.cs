@@ -1,5 +1,6 @@
 using System;
 
+using Org.BouncyCastle.Asn1.Tsp;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cms
@@ -7,67 +8,69 @@ namespace Org.BouncyCastle.Asn1.Cms
 	public class Evidence
 		: Asn1Encodable, IAsn1Choice
 	{
-		private TimeStampTokenEvidence tstEvidence;
-        private Asn1Sequence otherEvidence;
+        public static Evidence GetInstance(object obj)
+        {
+            if (obj == null)
+                return null;
+            if (obj is Evidence evidence)
+                return evidence;
+            if (obj is Asn1TaggedObject taggedObject)
+                return new Evidence(Asn1Utilities.CheckContextTagClass(taggedObject));
 
-		public Evidence(TimeStampTokenEvidence tstEvidence)
+            throw new ArgumentException("Unknown object in GetInstance: " + Platform.GetTypeName(obj), nameof(obj));
+        }
+
+        public static Evidence GetInstance(Asn1TaggedObject obj, bool isExplicit) =>
+            Asn1Utilities.GetInstanceChoice(obj, isExplicit, GetInstance);
+
+        public static Evidence GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
+
+        private readonly TimeStampTokenEvidence m_tstEvidence;
+        private readonly EvidenceRecord m_ersEvidence;
+        private readonly Asn1Sequence m_otherEvidence;
+
+        public Evidence(TimeStampTokenEvidence tstEvidence)
 		{
-			this.tstEvidence = tstEvidence;
+			m_tstEvidence = tstEvidence ?? throw new ArgumentNullException(nameof(tstEvidence));
 		}
 
-		private Evidence(Asn1TaggedObject tagged)
+        public Evidence(EvidenceRecord ersEvidence)
+        {
+            m_ersEvidence = ersEvidence ?? throw new ArgumentNullException(nameof(ersEvidence));
+        }
+
+        private Evidence(Asn1TaggedObject tagged)
 		{
             if (tagged.TagNo == 0)
             {
-                this.tstEvidence = TimeStampTokenEvidence.GetInstance(tagged, false);
+                m_tstEvidence = TimeStampTokenEvidence.GetInstance(tagged, false);
             }
-            //else if (tagged.TagNo == 1)
-            //{
-            //    this.ersEvidence = EvidenceRecord.GetInstance(tagged, false);
-            //}
+            else if (tagged.TagNo == 1)
+            {
+                m_ersEvidence = EvidenceRecord.GetInstance(tagged, false);
+            }
             else if (tagged.TagNo == 2)
             {
-                this.otherEvidence = Asn1Sequence.GetInstance(tagged, false);
+                m_otherEvidence = Asn1Sequence.GetInstance(tagged, false);
             }
             else
             {
-                throw new ArgumentException("unknown tag in Evidence", "tagged");
+                throw new ArgumentException("unknown tag in Evidence", nameof(tagged));
             }
         }
 
-		public static Evidence GetInstance(object obj)
-		{
-			if (obj is Evidence)
-				return (Evidence)obj;
+        public virtual TimeStampTokenEvidence TstEvidence => m_tstEvidence;
 
-			if (obj is Asn1TaggedObject)
-				return new Evidence(Asn1TaggedObject.GetInstance(obj));
+        public virtual EvidenceRecord ErsEvidence => m_ersEvidence;
 
-			throw new ArgumentException("Unknown object in GetInstance: " + Platform.GetTypeName(obj), "obj");
-		}
-
-        public static Evidence GetInstance(Asn1TaggedObject obj, bool isExplicit)
+        public override Asn1Object ToAsn1Object()
         {
-            return GetInstance(obj.GetObject()); // must be explicitly tagged
+            if (m_tstEvidence != null)
+                return new DerTaggedObject(false, 0, m_tstEvidence);
+            if (m_ersEvidence != null)
+                return new DerTaggedObject(false, 1, m_ersEvidence);
+            return new DerTaggedObject(false, 2, m_otherEvidence);
         }
-
-		public virtual TimeStampTokenEvidence TstEvidence
-		{
-			get { return tstEvidence; }
-		}
-
-        //public EvidenceRecord ErsEvidence
-        //{
-        //    get { return ersEvidence; }
-        //}
-
-		public override Asn1Object ToAsn1Object()
-		{
-			if (tstEvidence != null)
-				return new DerTaggedObject(false, 0, tstEvidence);
-            //if (ersEvidence != null)
-            //    return new DerTaggedObject(false, 1, ersEvidence);
-            return new DerTaggedObject(false, 2, otherEvidence);
-		}
-	}
+    }
 }

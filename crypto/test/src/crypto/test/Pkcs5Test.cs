@@ -94,7 +94,7 @@ namespace Org.BouncyCastle.Crypto.Tests
                 EncryptedPrivateKeyInfo info = null;
                 try
                 {
-                    info = EncryptedPrivateKeyInfo.GetInstance(Asn1Object.FromByteArray(sample));
+                    info = EncryptedPrivateKeyInfo.GetInstance(sample);
                 }
                 catch (System.Exception e)
                 {
@@ -216,12 +216,6 @@ namespace Org.BouncyCastle.Crypto.Tests
             {
                 Fail("192 (60000) test failed");
             }
-        }
-
-        public static void Main(
-            string[] args)
-        {
-            RunTest(new Pkcs5Test());
         }
 
         [Test]

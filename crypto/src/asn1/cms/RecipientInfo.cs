@@ -7,126 +7,123 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class RecipientInfo
         : Asn1Encodable, IAsn1Choice
     {
-        internal Asn1Encodable info;
-
-		public RecipientInfo(
-            KeyTransRecipientInfo info)
+        public static RecipientInfo GetInstance(object o)
         {
-            this.info = info;
+            if (o == null)
+                return null;
+
+            if (o is RecipientInfo recipientInfo)
+                return recipientInfo;
+
+            if (o is Asn1Sequence sequence)
+                return new RecipientInfo(sequence);
+
+            if (o is Asn1TaggedObject taggedObject)
+                return new RecipientInfo(taggedObject);
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(o), nameof(o));
         }
 
-		public RecipientInfo(
-            KeyAgreeRecipientInfo info)
+        public static RecipientInfo GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
+
+        public static RecipientInfo GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
+
+        private readonly Asn1Encodable m_info;
+
+		public RecipientInfo(KeyTransRecipientInfo info)
         {
-            this.info = new DerTaggedObject(false, 1, info);
+            m_info = info ?? throw new ArgumentNullException(nameof(info));
         }
 
-		public RecipientInfo(
-            KekRecipientInfo info)
+		public RecipientInfo(KeyAgreeRecipientInfo info)
         {
-            this.info = new DerTaggedObject(false, 2, info);
+            m_info = new DerTaggedObject(false, 1, info);
         }
 
-		public RecipientInfo(
-            PasswordRecipientInfo info)
+		public RecipientInfo(KekRecipientInfo info)
         {
-            this.info = new DerTaggedObject(false, 3, info);
+            m_info = new DerTaggedObject(false, 2, info);
         }
 
-		public RecipientInfo(
-            OtherRecipientInfo info)
+		public RecipientInfo(PasswordRecipientInfo info)
         {
-            this.info = new DerTaggedObject(false, 4, info);
+            m_info = new DerTaggedObject(false, 3, info);
         }
 
-		public RecipientInfo(
-            Asn1Object   info)
+		public RecipientInfo(OtherRecipientInfo info)
         {
-            this.info = info;
+            m_info = new DerTaggedObject(false, 4, info);
         }
 
-		public static RecipientInfo GetInstance(
-            object o)
+		public RecipientInfo(Asn1Object info)
         {
-            if (o == null || o is RecipientInfo)
-                return (RecipientInfo) o;
-
-			if (o is Asn1Sequence)
-                return new RecipientInfo((Asn1Sequence) o);
-
-			if (o is Asn1TaggedObject)
-                return new RecipientInfo((Asn1TaggedObject) o);
-
-            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(o));
+            m_info = info ?? throw new ArgumentNullException(nameof(info));
         }
 
+        [Obsolete("Will be removed")]
 		public DerInteger Version
         {
 			get
 			{
-				if (info is Asn1TaggedObject)
-				{
-					Asn1TaggedObject o = (Asn1TaggedObject) info;
+				if (!(m_info is Asn1TaggedObject tagged))
+                    return KeyTransRecipientInfo.GetInstance(m_info).Version;
 
-					switch (o.TagNo)
-					{
-						case 1:
-							return KeyAgreeRecipientInfo.GetInstance(o, false).Version;
-						case 2:
-							return GetKekInfo(o).Version;
-						case 3:
-							return PasswordRecipientInfo.GetInstance(o, false).Version;
-						case 4:
-							return new DerInteger(0);    // no syntax version for OtherRecipientInfo
-						default:
-							throw new InvalidOperationException("unknown tag");
-					}
-				}
-
-				return KeyTransRecipientInfo.GetInstance(info).Version;
+                if (tagged.HasContextTag())
+                {
+                    switch (tagged.TagNo)
+                    {
+                    case 1:
+                        return KeyAgreeRecipientInfo.GetInstance(tagged, false).Version;
+                    case 2:
+                        return GetKekInfo(tagged).Version;
+                    case 3:
+                        return PasswordRecipientInfo.GetInstance(tagged, false).Version;
+                    case 4:
+                        return DerInteger.Zero;    // no syntax version for OtherRecipientInfo
+                    }
+                }
+                throw new InvalidOperationException("unknown tag");
 			}
         }
 
-		public bool IsTagged
-		{
-			get { return info is Asn1TaggedObject; }
-		}
+		public bool IsTagged => m_info is Asn1TaggedObject;
 
 		public Asn1Encodable Info
         {
 			get
 			{
-				if (info is Asn1TaggedObject)
-				{
-					Asn1TaggedObject o = (Asn1TaggedObject) info;
+				if (!(m_info is Asn1TaggedObject tagged))
+                    return KeyTransRecipientInfo.GetInstance(m_info);
 
-					switch (o.TagNo)
+                if (tagged.HasContextTag())
+                {
+                    switch (tagged.TagNo)
 					{
-						case 1:
-							return KeyAgreeRecipientInfo.GetInstance(o, false);
-						case 2:
-							return GetKekInfo(o);
-						case 3:
-							return PasswordRecipientInfo.GetInstance(o, false);
-						case 4:
-							return OtherRecipientInfo.GetInstance(o, false);
-						default:
-							throw new InvalidOperationException("unknown tag");
+					case 1:
+						return KeyAgreeRecipientInfo.GetInstance(tagged, false);
+					case 2:
+						return GetKekInfo(tagged);
+					case 3:
+						return PasswordRecipientInfo.GetInstance(tagged, false);
+					case 4:
+						return OtherRecipientInfo.GetInstance(tagged, false);
 					}
-				}
-
-				return KeyTransRecipientInfo.GetInstance(info);
+                }
+                throw new InvalidOperationException("unknown tag");
 			}
         }
 
-		private KekRecipientInfo GetKekInfo(
-			Asn1TaggedObject o)
-		{
-			// For compatibility with erroneous version, we don't always pass 'false' here
-			return KekRecipientInfo.GetInstance(o, o.IsExplicit());
-		}
+        private KekRecipientInfo GetKekInfo(Asn1TaggedObject tagged)
+        {
+            // For compatibility with erroneous version, we don't always pass 'false' here
+            bool declaredExplicit = tagged.IsExplicit();
 
-		/**
+            return KekRecipientInfo.GetInstance(tagged, declaredExplicit);
+        }
+
+        /**
          * Produce an object suitable for an Asn1OutputStream.
          * <pre>
          * RecipientInfo ::= CHOICE {
@@ -137,9 +134,30 @@ namespace Org.BouncyCastle.Asn1.Cms
          *     ori [4] OtherRecipientInfo }
          * </pre>
          */
-        public override Asn1Object ToAsn1Object()
+        public override Asn1Object ToAsn1Object() => m_info.ToAsn1Object();
+
+        internal bool IsKeyTransV0()
         {
-            return info.ToAsn1Object();
+            if (m_info is Asn1TaggedObject)
+                return false;
+
+            var ktri = KeyTransRecipientInfo.GetInstance(m_info);
+
+            return ktri.Version.HasValue(0);
+        }
+
+        internal bool IsPasswordOrOther()
+        {
+            if (m_info is Asn1TaggedObject tagged && tagged.HasContextTag())
+            {
+                switch (tagged.TagNo)
+                {
+                case 3:
+                case 4:
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

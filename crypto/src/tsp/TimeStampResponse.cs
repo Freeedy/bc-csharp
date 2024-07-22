@@ -10,10 +10,10 @@ using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tsp
 {
-	/**
+    /**
 	 * Base class for an RFC 3161 Time Stamp Response object.
 	 */
-	public class TimeStampResponse
+    public class TimeStampResponse
 	{
 		private TimeStampResp	resp;
 		private TimeStampToken	timeStampToken;
@@ -136,7 +136,7 @@ namespace Org.BouncyCastle.Tsp
 					throw new TspValidationException("time stamp token found in failed request.");
 				}
 
-				if (!Arrays.ConstantTimeAreEqual(request.GetMessageImprintDigest(), tstInfo.GetMessageImprintDigest()))
+				if (!Arrays.FixedTimeEquals(request.GetMessageImprintDigest(), tstInfo.GetMessageImprintDigest()))
 				{
 					throw new TspValidationException("response for different message imprint digest.");
 				}
@@ -179,6 +179,23 @@ namespace Org.BouncyCastle.Tsp
 		public byte[] GetEncoded()
 		{
 			return resp.GetEncoded();
+		}
+
+        /**
+         * return the ASN.1 encoded representation of this object for the specific encoding type.
+         *
+         * @param encoding encoding style ("DER", "DL", "BER")
+         */
+        public byte[] GetEncoded(string encoding)
+        {
+            if (Asn1Encodable.DL.Equals(encoding))
+            {
+                if (timeStampToken == null)
+                    return new DLSequence(resp.Status).GetEncoded(encoding);
+
+                return new DLSequence(resp.Status, timeStampToken.ToCmsSignedData().ContentInfo).GetEncoded(encoding);
+            }
+            return resp.GetEncoded(encoding);
 		}
 	}
 }

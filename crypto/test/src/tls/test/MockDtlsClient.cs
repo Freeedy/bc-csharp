@@ -1,13 +1,12 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
-using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Encoders;
-using System.Collections;
 
 namespace Org.BouncyCastle.Tls.Tests
 {
@@ -16,8 +15,10 @@ namespace Org.BouncyCastle.Tls.Tests
     {
         internal TlsSession m_session;
 
+        private int m_handshakeTimeoutMillis = 0;
+
         internal MockDtlsClient(TlsSession session)
-            : base(new BcTlsCrypto(new SecureRandom()))
+            : base(new BcTlsCrypto())
         {
             this.m_session = session;
         }
@@ -26,6 +27,10 @@ namespace Org.BouncyCastle.Tls.Tests
         {
             return this.m_session;
         }
+
+        public override int GetHandshakeTimeoutMillis() => m_handshakeTimeoutMillis;
+
+        public void SetHandshakeTimeoutMillis(int millis) => m_handshakeTimeoutMillis = millis;
 
         public override void NotifyAlertRaised(short alertLevel, short alertDescription, string message,
             Exception cause)
@@ -103,7 +108,7 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
-        public override IDictionary GetClientExtensions()
+        public override IDictionary<int, byte[]> GetClientExtensions()
         {
             if (m_context.SecurityParameters.ClientRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -111,7 +116,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return base.GetClientExtensions();
         }
 
-        public override void ProcessServerExtensions(IDictionary serverExtensions)
+        public override void ProcessServerExtensions(IDictionary<int, byte[]> serverExtensions)
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -158,7 +163,7 @@ namespace Org.BouncyCastle.Tls.Tests
                 if (isEmpty)
                     throw new TlsFatalAlert(AlertDescription.bad_certificate);
 
-                string[] trustedCertResources = new String[]{ "x509-server-dsa.pem", "x509-server-ecdh.pem",
+                string[] trustedCertResources = new string[]{ "x509-server-dsa.pem", "x509-server-ecdh.pem",
                     "x509-server-ecdsa.pem", "x509-server-ed25519.pem", "x509-server-ed448.pem",
                     "x509-server-rsa_pss_256.pem", "x509-server-rsa_pss_384.pem", "x509-server-rsa_pss_512.pem",
                     "x509-server-rsa-enc.pem", "x509-server-rsa-sign.pem" };

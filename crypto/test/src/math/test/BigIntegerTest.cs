@@ -1,8 +1,9 @@
 using System;
+using System.IO;
+using System.Runtime.Serialization.Formatters.Binary;
 
 using NUnit.Framework;
 
-using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Encoders;
 
@@ -764,6 +765,29 @@ namespace Org.BouncyCastle.Math.Tests
             }
         }
 
+#if !NET8_0_OR_GREATER
+        [Test]
+        public void TestSerialization()
+        {
+            using (var buf = new MemoryStream())
+            {
+                BigInteger x = new BigInteger(128, random);
+                object y;
+
+#pragma warning disable SYSLIB0011 // Type or member is obsolete
+                var formatter = new BinaryFormatter();
+                formatter.Serialize(buf, x);
+
+                buf.Position = 0;
+                y = formatter.Deserialize(buf);
+#pragma warning restore SYSLIB0011 // Type or member is obsolete
+
+                Assert.AreEqual(buf.Length, buf.Position);
+                Assert.AreEqual(x, y);
+            }
+        }
+#endif
+
         [Test]
         public void TestSetBit()
         {
@@ -917,7 +941,7 @@ namespace Org.BouncyCastle.Math.Tests
 
             for (int i = 16; i <= 48; ++i)
             {
-                BigInteger x = BigInteger.ProbablePrime(i, random);
+                BigInteger x = new BigInteger(i, random).SetBit(i - 1);
                 byte[] b = x.ToByteArray();
                 Assert.AreEqual((i / 8 + 1), b.Length);
                 BigInteger y = new BigInteger(b);
@@ -939,7 +963,7 @@ namespace Org.BouncyCastle.Math.Tests
 
             for (int i = 16; i <= 48; ++i)
             {
-                BigInteger x = BigInteger.ProbablePrime(i, random);
+                BigInteger x = new BigInteger(i, random).SetBit(i - 1);
                 byte[] b = x.ToByteArrayUnsigned();
                 Assert.AreEqual((i + 7) / 8, b.Length);
                 BigInteger y = new BigInteger(1, b);

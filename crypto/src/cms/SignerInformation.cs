@@ -1,5 +1,5 @@
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
@@ -15,13 +15,11 @@ using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Cms
 {
-	/**
+    /**
 	* an expanded SignerInfo block from a CMS Signed message
 	*/
-	public class SignerInformation
+    public class SignerInformation
 	{
-		private static readonly CmsSignedHelper Helper = CmsSignedHelper.Instance;
-
 		private SignerID			sid;
 
 		private CmsProcessable		content;
@@ -45,7 +43,7 @@ namespace Org.BouncyCastle.Cms
 			SignerInfo			info,
 			DerObjectIdentifier	contentType,
 			CmsProcessable		content,
-			IDigestCalculator	digestCalculator)
+			byte[]				calculatedDigest)
 		{
 			this.info = info;
 			this.sid = new SignerID();
@@ -60,7 +58,7 @@ namespace Org.BouncyCastle.Cms
 				{
 					Asn1OctetString octs = Asn1OctetString.GetInstance(s.ID);
 
-					sid.SubjectKeyIdentifier = octs.GetEncoded();
+					sid.SubjectKeyIdentifier = octs.GetEncoded(Asn1Encodable.Der);
 				}
 				else
 				{
@@ -83,8 +81,9 @@ namespace Org.BouncyCastle.Cms
 			this.signature = (byte[])info.EncryptedDigest.GetOctets().Clone();
 
 			this.content = content;
-			this.calculatedDigest = (digestCalculator != null) ? digestCalculator.GetDigest() : null;
-		}
+			this.calculatedDigest = calculatedDigest;
+
+        }
 
         /**
          * Protected constructor. In some cases clients have their own idea about how to encode
@@ -256,10 +255,10 @@ namespace Org.BouncyCastle.Cms
 			Asn1.Cms.AttributeTable unsignedAttributeTable = UnsignedAttributes;
 			if (unsignedAttributeTable == null)
 			{
-                return new SignerInformationStore(Platform.CreateArrayList(0));
+                return new SignerInformationStore(new List<SignerInformation>(0));
 			}
 
-            IList counterSignatures = Platform.CreateArrayList();
+            var counterSignatures = new List<SignerInformation>();
 
 			/*
 			The UnsignedAttributes syntax is defined as a SET OF Attributes.  The
@@ -299,9 +298,11 @@ namespace Org.BouncyCastle.Cms
 					*/
 					SignerInfo si = SignerInfo.GetInstance(asn1Obj.ToAsn1Object());
 
-                    string digestName = CmsSignedHelper.Instance.GetDigestAlgName(si.DigestAlgorithm.Algorithm.Id);
+                    string digestName = CmsSignedHelper.GetDigestAlgName(si.DigestAlgorithm.Algorithm);
+                    IDigest digest = CmsSignedHelper.GetDigestInstance(digestName);
+                    byte[] hash = DigestUtilities.DoFinal(digest, GetSignature());
 
-					counterSignatures.Add(new SignerInformation(si, null, null, new CounterSignatureDigestCalculator(digestName, GetSignature())));
+					counterSignatures.Add(new SignerInformation(si, null, null, hash));
 				}
 			}
 
@@ -314,27 +315,24 @@ namespace Org.BouncyCastle.Cms
 		*/
 		public virtual byte[] GetEncodedSignedAttributes()
 		{
-			return signedAttributeSet == null
-				?	null
-				:	signedAttributeSet.GetEncoded(Asn1Encodable.Der);
+			return signedAttributeSet?.GetEncoded(Asn1Encodable.Der);
 		}
 
-		private bool DoVerify(
-			AsymmetricKeyParameter	key)
+		private bool DoVerify(AsymmetricKeyParameter publicKey)
 		{
 			DerObjectIdentifier sigAlgOid = this.encryptionAlgorithm.Algorithm;
 			Asn1Encodable sigParams = this.encryptionAlgorithm.Parameters;
-			string digestName = Helper.GetDigestAlgName(this.EncryptionAlgOid);
+			string digestName = CmsSignedHelper.GetDigestAlgName(sigAlgOid);
 
 			if (digestName.Equals(sigAlgOid.Id))
 			{
-				digestName = Helper.GetDigestAlgName(this.DigestAlgOid);
+				digestName = CmsSignedHelper.GetDigestAlgName(digestAlgorithm.Algorithm);
 			}
 			
-			IDigest digest = Helper.GetDigestInstance(digestName);
+			IDigest digest = CmsSignedHelper.GetDigestInstance(digestName);
 			ISigner sig;
 
-			if (sigAlgOid.Equals(Asn1.Pkcs.PkcsObjectIdentifiers.IdRsassaPss))
+			if (Asn1.Pkcs.PkcsObjectIdentifiers.IdRsassaPss.Equals(sigAlgOid))
 			{
 				// RFC 4056 2.2
 				// When the id-RSASSA-PSS algorithm identifier is used for a signature,
@@ -385,15 +383,15 @@ namespace Org.BouncyCastle.Cms
 				//				if (sigParams != null)
 				//					throw new CmsException("unrecognised signature parameters provided");
 
-				string signatureName = digestName + "with" + Helper.GetEncryptionAlgName(this.EncryptionAlgOid);
+				string signatureName = digestName + "with" + CmsSignedHelper.GetEncryptionAlgName(sigAlgOid);
 
-                sig = Helper.GetSignatureInstance(signatureName);
+                sig = CmsSignedHelper.GetSignatureInstance(signatureName);
 
-                //sig = Helper.GetSignatureInstance(this.EncryptionAlgOid);
-                //sig = SignerUtilities.GetSigner(sigAlgOid);
-			}
+                //sig = CmsSignedHelper.GetSignatureInstance(this.EncryptionAlgOid);
+                //sig = CmsSignedHelper.GetSignatureInstance(sigAlgOid);
+            }
 
-			try
+            try
 			{
 				if (calculatedDigest != null)
 				{
@@ -433,10 +431,8 @@ namespace Org.BouncyCastle.Cms
 					if (isCounterSignature)
 						throw new CmsException("[For counter signatures,] the signedAttributes field MUST NOT contain a content-type attribute");
 
-					if (!(validContentType is DerObjectIdentifier))
+					if (!(validContentType is DerObjectIdentifier signedContentType))
 						throw new CmsException("content-type attribute value not of ASN.1 type 'OBJECT IDENTIFIER'");
-
-					DerObjectIdentifier signedContentType = (DerObjectIdentifier)validContentType;
 
 					if (!signedContentType.Equals(contentType))
 						throw new CmsException("content-type attribute value does not match eContentType");
@@ -454,12 +450,8 @@ namespace Org.BouncyCastle.Cms
 				}
 				else
 				{
-					if (!(validMessageDigest is Asn1OctetString))
-					{
+					if (!(validMessageDigest is Asn1OctetString signedMessageDigest))
 						throw new CmsException("message-digest attribute value not of ASN.1 type 'OCTET STRING'");
-					}
-
-					Asn1OctetString signedMessageDigest = (Asn1OctetString)validMessageDigest;
 
 					if (!Arrays.AreEqual(resultDigest, signedMessageDigest.GetOctets()))
 						throw new CmsException("message-digest attribute value does not match calculated value");
@@ -490,7 +482,7 @@ namespace Org.BouncyCastle.Cms
 
 			try
 			{
-				sig.Init(false, key);
+				sig.Init(false, publicKey);
 
 				if (signedAttributeSet == null)
 				{
@@ -503,7 +495,7 @@ namespace Org.BouncyCastle.Cms
 						else
 						{
 							// need to decrypt signature and check message bytes
-							return VerifyDigest(resultDigest, key, this.GetSignature());
+							return VerifyDigest(resultDigest, publicKey, GetSignature());
 						}
 					}
 					else if (content != null)
@@ -567,20 +559,17 @@ namespace Org.BouncyCastle.Cms
 			return digInfo;
 		}
 
-		private bool VerifyDigest(
-			byte[]					digest,
-			AsymmetricKeyParameter	key,
-			byte[]					signature)
+		private bool VerifyDigest(byte[] digest, AsymmetricKeyParameter publicKey, byte[] signature)
 		{
-			string algorithm = Helper.GetEncryptionAlgName(this.EncryptionAlgOid);
+			string algorithm = CmsSignedHelper.GetEncryptionAlgName(encryptionAlgorithm.Algorithm);
 
 			try
 			{
 				if (algorithm.Equals("RSA"))
 				{
-					IBufferedCipher c = CmsEnvelopedHelper.Instance.CreateAsymmetricCipher("RSA/ECB/PKCS1Padding");
+					IBufferedCipher c = CipherUtilities.GetCipher(Asn1.Pkcs.PkcsObjectIdentifiers.RsaEncryption);
 
-					c.Init(false, key);
+					c.Init(false, publicKey);
 
 					byte[] decrypt = c.DoFinal(signature);
 
@@ -598,13 +587,13 @@ namespace Org.BouncyCastle.Cms
 
 					byte[] sigHash = digInfo.GetDigest();
 
-					return Arrays.ConstantTimeAreEqual(digest, sigHash);
+					return Arrays.FixedTimeEquals(digest, sigHash);
 				}
 				else if (algorithm.Equals("DSA"))
 				{
-					ISigner sig = SignerUtilities.GetSigner("NONEwithDSA");
+					ISigner sig = CmsSignedHelper.GetSignatureInstance("NONEwithDSA");
 
-					sig.Init(false, key);
+					sig.Init(false, publicKey);
 
 					sig.BlockUpdate(digest, 0, digest.Length);
 
@@ -615,9 +604,9 @@ namespace Org.BouncyCastle.Cms
 					throw new CmsException("algorithm: " + algorithm + " not supported in base signatures.");
 				}
 			}
-			catch (SecurityUtilityException e)
+			catch (SecurityUtilityException)
 			{
-				throw e;
+				throw;
 			}
 			catch (GeneralSecurityException e)
 			{
@@ -657,7 +646,7 @@ namespace Org.BouncyCastle.Cms
 			Asn1.Cms.Time signingTime = GetSigningTime();
 			if (signingTime != null)
 			{
-				cert.CheckValidity(signingTime.Date);
+				cert.CheckValidity(signingTime.ToDateTime());
 			}
 
 			return DoVerify(cert.GetPublicKey());
@@ -747,7 +736,7 @@ namespace Org.BouncyCastle.Cms
 
 			if (unsignedAttributes != null)
 			{
-				unsignedAttr = new DerSet(unsignedAttributes.ToAsn1EncodableVector());
+				unsignedAttr = DerSet.FromVector(unsignedAttributes.ToAsn1EncodableVector());
 			}
 
 			return new SignerInformation(
@@ -787,17 +776,17 @@ namespace Org.BouncyCastle.Cms
 			}
 			else
 			{
-				v = new Asn1EncodableVector();
+				v = new Asn1EncodableVector(1);
 			}
 
-			Asn1EncodableVector sigs = new Asn1EncodableVector();
-
-			foreach (SignerInformation sigInf in counterSigners.GetSigners())
+			var signers = counterSigners.GetSigners();
+            Asn1EncodableVector sigs = new Asn1EncodableVector(signers.Count);
+            foreach (SignerInformation sigInf in signers)
 			{
 				sigs.Add(sigInf.ToSignerInfo());
 			}
 
-			v.Add(new Asn1.Cms.Attribute(CmsAttributes.CounterSignature, new DerSet(sigs)));
+			v.Add(new Asn1.Cms.Attribute(CmsAttributes.CounterSignature, DerSet.FromVector(sigs)));
 
 			return new SignerInformation(
 				new SignerInfo(
@@ -806,7 +795,7 @@ namespace Org.BouncyCastle.Cms
 					sInfo.AuthenticatedAttributes,
 					sInfo.DigestEncryptionAlgorithm,
 					sInfo.EncryptedDigest,
-					new DerSet(v)),
+                    DerSet.FromVector(v)),
 				signerInformation.contentType,
 				signerInformation.content,
 				null);

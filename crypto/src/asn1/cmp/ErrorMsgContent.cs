@@ -1,43 +1,51 @@
 using System;
 
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Asn1.Cmp
 {
-	public class ErrorMsgContent
+    /**
+     * <pre>
+     *      ErrorMsgContent ::= SEQUENCE {
+     *          pKIStatusInfo          PKIStatusInfo,
+     *          errorCode              INTEGER           OPTIONAL,
+     *          -- implementation-specific error codes
+     *          errorDetails           PKIFreeText       OPTIONAL
+     *          -- implementation-specific error details
+     *      }
+     * </pre>
+     */
+    public class ErrorMsgContent
 		: Asn1Encodable
 	{
-		private readonly PkiStatusInfo pkiStatusInfo;
-		private readonly DerInteger errorCode;
-		private readonly PkiFreeText errorDetails;
+        public static ErrorMsgContent GetInstance(object obj)
+        {
+            if (obj == null)
+                return null;
+            if (obj is ErrorMsgContent errorMsgContent)
+                return errorMsgContent;
+            return new ErrorMsgContent(Asn1Sequence.GetInstance(obj));
+        }
+
+        public static ErrorMsgContent GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        {
+            return new ErrorMsgContent(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+        }
+
+        private readonly PkiStatusInfo m_pkiStatusInfo;
+		private readonly DerInteger m_errorCode;
+		private readonly PkiFreeText m_errorDetails;
 
 		private ErrorMsgContent(Asn1Sequence seq)
 		{
-			pkiStatusInfo = PkiStatusInfo.GetInstance(seq[0]);
+            int count = seq.Count, pos = 0;
+            if (count < 1 || count > 3)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
 
-			for (int pos = 1; pos < seq.Count; ++pos)
-			{
-				Asn1Encodable ae = seq[pos];
-				if (ae is DerInteger)
-				{
-					errorCode = DerInteger.GetInstance(ae);
-				}
-				else
-				{
-					errorDetails = PkiFreeText.GetInstance(ae);
-				}
-			}
-		}
+			m_pkiStatusInfo = PkiStatusInfo.GetInstance(seq[pos++]);
+			m_errorCode = Asn1Utilities.ReadOptional(seq, ref pos, DerInteger.GetOptional);
+            m_errorDetails = Asn1Utilities.ReadOptional(seq, ref pos, PkiFreeText.GetOptional);
 
-		public static ErrorMsgContent GetInstance(object obj)
-		{
-			if (obj is ErrorMsgContent)
-				return (ErrorMsgContent)obj;
-
-			if (obj is Asn1Sequence)
-				return new ErrorMsgContent((Asn1Sequence)obj);
-
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
+            if (pos != count)
+                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
 		}
 
 		public ErrorMsgContent(PkiStatusInfo pkiStatusInfo)
@@ -45,33 +53,18 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		{
 		}
 
-		public ErrorMsgContent(
-			PkiStatusInfo	pkiStatusInfo,
-			DerInteger		errorCode,
-			PkiFreeText		errorDetails)
+		public ErrorMsgContent(PkiStatusInfo pkiStatusInfo, DerInteger errorCode, PkiFreeText errorDetails)
 		{
-			if (pkiStatusInfo == null)
-				throw new ArgumentNullException("pkiStatusInfo");
-
-			this.pkiStatusInfo = pkiStatusInfo;
-			this.errorCode = errorCode;
-			this.errorDetails = errorDetails;
-		}
-		
-		public virtual PkiStatusInfo PkiStatusInfo
-		{
-			get { return pkiStatusInfo; }
+			m_pkiStatusInfo = pkiStatusInfo ?? throw new ArgumentNullException(nameof(pkiStatusInfo));
+			m_errorCode = errorCode;
+			m_errorDetails = errorDetails;
 		}
 
-		public virtual DerInteger ErrorCode
-		{
-			get { return errorCode; }
-		}
+		public virtual PkiStatusInfo PkiStatusInfo => m_pkiStatusInfo;
 
-		public virtual PkiFreeText ErrorDetails
-		{
-			get { return errorDetails; }
-		}
+		public virtual DerInteger ErrorCode => m_errorCode;
+
+		public virtual PkiFreeText ErrorDetails => m_errorDetails;
 
 		/**
 		 * <pre>
@@ -87,8 +80,9 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		 */
 		public override Asn1Object ToAsn1Object()
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(pkiStatusInfo);
-			v.AddOptional(errorCode, errorDetails);
+			Asn1EncodableVector v = new Asn1EncodableVector(3);
+			v.Add(m_pkiStatusInfo);
+			v.AddOptional(m_errorCode, m_errorDetails);
 			return new DerSequence(v);
 		}
 	}

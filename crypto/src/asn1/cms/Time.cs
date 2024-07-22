@@ -1,6 +1,7 @@
 using System;
 using System.Globalization;
 
+using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cms
@@ -8,24 +9,61 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class Time
         : Asn1Encodable, IAsn1Choice
     {
-        private readonly Asn1Object time;
-
-		public static Time GetInstance(
-            Asn1TaggedObject	obj,
-            bool				explicitly)
+        public static Time GetInstance(object obj)
         {
-            return GetInstance(obj.GetObject());
+            if (obj == null)
+                return null;
+            if (obj is Time time)
+                return time;
+            if (obj is Asn1UtcTime utcTime)
+                return new Time(utcTime);
+            if (obj is Asn1GeneralizedTime generalizedTime)
+                return new Time(generalizedTime);
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), nameof(obj));
         }
 
-		public Time(
-            Asn1Object time)
-        {
-            if (time == null)
-                throw new ArgumentNullException("time");
-            if (!(time is DerUtcTime) && !(time is DerGeneralizedTime))
-                throw new ArgumentException("unknown object passed to Time");
+        public static Time GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
 
-            this.time = time;
+        public static Time GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
+
+        public static Time GetOptional(Asn1Encodable element)
+        {
+            if (element == null)
+                throw new ArgumentNullException(nameof(element));
+
+            if (element is Time time)
+                return time;
+
+            Asn1UtcTime utcTime = Asn1UtcTime.GetOptional(element);
+            if (utcTime != null)
+                return new Time(utcTime);
+
+            Asn1GeneralizedTime generalizedTime = Asn1GeneralizedTime.GetOptional(element);
+            if (generalizedTime != null)
+                return new Time(generalizedTime);
+
+            return null;
+        }
+
+        private readonly Asn1Object m_timeObject;
+
+        public Time(Asn1GeneralizedTime generalizedTime)
+        {
+            m_timeObject = generalizedTime ?? throw new ArgumentNullException(nameof(generalizedTime));
+        }
+
+        public Time(Asn1UtcTime utcTime)
+        {
+            if (utcTime == null)
+                throw new ArgumentNullException(nameof(utcTime));
+
+            // Validate utcTime is in the appropriate year range
+            utcTime.ToDateTime(2049);
+
+            m_timeObject = utcTime;
         }
 
 		/**
@@ -33,71 +71,38 @@ namespace Org.BouncyCastle.Asn1.Cms
          * and 2049 a UTCTime object is Generated, otherwise a GeneralizedTime
          * is used.
          */
-        public Time(
-            DateTime date)
+        public Time(DateTime date)
         {
-            string d = date.ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + "Z";
+            DateTime utc = date.ToUniversalTime();
 
-			int year = int.Parse(d.Substring(0, 4));
-
-			if (year < 1950 || year > 2049)
+			if (utc.Year < 1950 || utc.Year > 2049)
             {
-                time = new DerGeneralizedTime(d);
+                m_timeObject = Rfc5280Asn1Utilities.CreateGeneralizedTime(utc);
             }
             else
             {
-                time = new DerUtcTime(d.Substring(2));
+                m_timeObject = Rfc5280Asn1Utilities.CreateUtcTime(utc);
             }
         }
 
-		public static Time GetInstance(
-            object obj)
+        public DateTime ToDateTime()
         {
-            if (obj == null || obj is Time)
-                return (Time)obj;
-			if (obj is DerUtcTime)
-                return new Time((DerUtcTime)obj);
-			if (obj is DerGeneralizedTime)
-                return new Time((DerGeneralizedTime)obj);
+            try
+            {
+                if (m_timeObject is Asn1UtcTime utcTime)
+                    return utcTime.ToDateTime(2049);
 
-            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+                return ((Asn1GeneralizedTime)m_timeObject).ToDateTime();
+            }
+            catch (FormatException e)
+            {
+                // this should never happen
+                throw new InvalidOperationException("invalid date string: " + e.Message);
+            }
         }
 
-		public string TimeString
-        {
-			get
-			{
-				if (time is DerUtcTime)
-				{
-					return ((DerUtcTime)time).AdjustedTimeString;
-				}
-				else
-				{
-					return ((DerGeneralizedTime)time).GetTime();
-				}
-			}
-        }
-
-		public DateTime Date
-        {
-			get
-			{
-				try
-				{
-					if (time is DerUtcTime)
-					{
-						return ((DerUtcTime)time).ToAdjustedDateTime();
-					}
-
-					return ((DerGeneralizedTime)time).ToDateTime();
-				}
-				catch (FormatException e)
-				{
-					// this should never happen
-					throw new InvalidOperationException("invalid date string: " + e.Message);
-				}
-			}
-        }
+        [Obsolete("Use 'ToDateTime' instead")]
+        public DateTime Date => ToDateTime();
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -109,7 +114,18 @@ namespace Org.BouncyCastle.Asn1.Cms
          */
         public override Asn1Object ToAsn1Object()
         {
-            return time;
+            return m_timeObject;
+        }
+
+        public override string ToString()
+        {
+            if (m_timeObject is Asn1UtcTime utcTime)
+                return utcTime.ToDateTime(2049).ToString(@"yyyyMMddHHmmssK", DateTimeFormatInfo.InvariantInfo);
+
+            if (m_timeObject is Asn1GeneralizedTime generalizedTime)
+                return generalizedTime.ToDateTime().ToString(@"yyyyMMddHHmmss.FFFFFFFK", DateTimeFormatInfo.InvariantInfo);
+
+            throw new InvalidOperationException();
         }
     }
 }

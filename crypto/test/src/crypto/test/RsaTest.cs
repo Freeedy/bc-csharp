@@ -2,7 +2,6 @@ using System;
 
 using NUnit.Framework;
 
-using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Encodings;
 using Org.BouncyCastle.Crypto.Engines;
@@ -398,7 +397,7 @@ namespace Org.BouncyCastle.Crypto.Tests
 		
 			eng.Init(true, encParameters);
 
-			if (eng.GetOutputBlockSize() != ((Pkcs1Encoding)eng).GetUnderlyingCipher().GetOutputBlockSize())
+			if (eng.GetOutputBlockSize() != ((Pkcs1Encoding)eng).UnderlyingCipher.GetOutputBlockSize())
 			{
 				Fail("PKCS1 output block size incorrect");
 			}
@@ -526,7 +525,7 @@ namespace Org.BouncyCastle.Crypto.Tests
 
 			eng.Init(true, pubParameters);
 
-			if (eng.GetOutputBlockSize() != ((Pkcs1Encoding)eng).GetUnderlyingCipher().GetOutputBlockSize())
+			if (eng.GetOutputBlockSize() != ((Pkcs1Encoding)eng).UnderlyingCipher.GetOutputBlockSize())
 			{
 				Fail("PKCS1 output block size incorrect");
 			}
@@ -594,7 +593,7 @@ namespace Org.BouncyCastle.Crypto.Tests
             //
             // PKCS1 - private encrypt, public decrypt
             //
-            eng = new Pkcs1Encoding(((Pkcs1Encoding)eng).GetUnderlyingCipher());
+            eng = new Pkcs1Encoding(((Pkcs1Encoding)eng).UnderlyingCipher);
 
 			eng.Init(true, privParameters);
 
@@ -744,15 +743,6 @@ namespace Org.BouncyCastle.Crypto.Tests
 			}
 		}
 
-		public static void Main(
-			string[] args)
-		{
-			ITest test = new RsaTest();
-			ITestResult result = test.Perform();
-
-			Console.WriteLine(result);
-		}
-
 		[Test]
 		public void TestFunction()
 		{
@@ -760,5 +750,23 @@ namespace Org.BouncyCastle.Crypto.Tests
 
 			Assert.AreEqual(Name + ": Okay", resultText);
 		}
-	}
+
+        [Test, Explicit]
+        public void BenchPublicKeyModulusValidation()
+        {
+			SecureRandom secureRandom = SecureRandom.GetInstance("SHA512PRNG", false);
+			secureRandom.SetSeed(2);
+
+            var kpg = new RsaKeyPairGenerator();
+			kpg.Init(new RsaKeyGenerationParameters(BigInteger.ValueOf(0x11), secureRandom, 2048, 100));
+
+			var kp = kpg.GenerateKeyPair();
+			var pub = (RsaKeyParameters)kp.Public;
+
+			for (int i = 0; i < 1000000; ++i)
+            {
+				new RsaKeyParameters(false, pub.Modulus, pub.Exponent);
+            }
+        }
+    }
 }

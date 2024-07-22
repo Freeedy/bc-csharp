@@ -1,48 +1,48 @@
 using System;
-using System.Collections;
-
-using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.CryptoPro
 {
     public class Gost28147Parameters
         : Asn1Encodable
     {
-        private readonly Asn1OctetString iv;
-        private readonly DerObjectIdentifier paramSet;
-
-		public static Gost28147Parameters GetInstance(
-            Asn1TaggedObject	obj,
-            bool				explicitly)
+		public static Gost28147Parameters GetInstance(object obj)
         {
-            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
+            if (obj == null)
+                return null;
+            if (obj is Gost28147Parameters gost28147Parameters)
+                return gost28147Parameters;
+            return new Gost28147Parameters(Asn1Sequence.GetInstance(obj));
         }
 
-		public static Gost28147Parameters GetInstance(
-            object obj)
+        public static Gost28147Parameters GetInstance(Asn1TaggedObject obj, bool explicitly) =>
+            new Gost28147Parameters(Asn1Sequence.GetInstance(obj, explicitly));
+
+        public static Gost28147Parameters GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            new Gost28147Parameters(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
+
+        private readonly Asn1OctetString m_iv;
+        private readonly DerObjectIdentifier m_encryptionParamSet;
+
+        private Gost28147Parameters(Asn1Sequence seq)
         {
-            if (obj == null || obj is Gost28147Parameters)
-            {
-                return (Gost28147Parameters) obj;
-            }
+            int count = seq.Count;
+            if (count != 2)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
 
-            if (obj is Asn1Sequence)
-            {
-                return new Gost28147Parameters((Asn1Sequence) obj);
-            }
-
-            throw new ArgumentException("Invalid GOST3410Parameter: " + Platform.GetTypeName(obj));
+            // TODO Validate length of 8?
+			m_iv = Asn1OctetString.GetInstance(seq[0]);
+            m_encryptionParamSet = DerObjectIdentifier.GetInstance(seq[1]);
         }
 
-        private Gost28147Parameters(
-            Asn1Sequence seq)
+        public Gost28147Parameters(Asn1OctetString iv, DerObjectIdentifier encryptionParamSet)
         {
-			if (seq.Count != 2)
-				throw new ArgumentException("Wrong number of elements in sequence", "seq");
-
-			this.iv = Asn1OctetString.GetInstance(seq[0]);
-			this.paramSet = DerObjectIdentifier.GetInstance(seq[1]);
+            m_iv = iv ?? throw new ArgumentNullException(nameof(iv));
+            m_encryptionParamSet = encryptionParamSet ?? throw new ArgumentNullException(nameof(encryptionParamSet));
         }
+
+        public Asn1OctetString IV => m_iv;
+
+        public DerObjectIdentifier EncryptionParamSet => m_encryptionParamSet;
 
 		/**
          * <pre>
@@ -55,9 +55,6 @@ namespace Org.BouncyCastle.Asn1.CryptoPro
          *   Gost28147-89-IV ::= OCTET STRING (SIZE (8))
          * </pre>
          */
-        public override Asn1Object ToAsn1Object()
-        {
-			return new DerSequence(iv, paramSet);
-        }
+        public override Asn1Object ToAsn1Object() => new DerSequence(m_iv, m_encryptionParamSet);
     }
 }

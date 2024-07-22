@@ -2,53 +2,53 @@ using System;
 
 using Org.BouncyCastle.Asn1.Cmp;
 using Org.BouncyCastle.Asn1.Cms;
-using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Tsp
 {
-	public class TimeStampResp
+    public class TimeStampResp
 		: Asn1Encodable
 	{
-		private readonly PkiStatusInfo	pkiStatusInfo;
-		private readonly ContentInfo	timeStampToken;
-
         public static TimeStampResp GetInstance(object obj)
         {
-            if (obj is TimeStampResp)
-                return (TimeStampResp)obj;
             if (obj == null)
                 return null;
+            if (obj is TimeStampResp timeStampResp)
+                return timeStampResp;
             return new TimeStampResp(Asn1Sequence.GetInstance(obj));
         }
 
-        private TimeStampResp(
-			Asn1Sequence seq)
+		public static TimeStampResp GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            new TimeStampResp(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+
+        public static TimeStampResp GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            new TimeStampResp(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
+
+        private readonly PkiStatusInfo m_pkiStatusInfo;
+        private readonly ContentInfo m_timeStampToken;
+
+        private TimeStampResp(Asn1Sequence seq)
 		{
-			this.pkiStatusInfo = PkiStatusInfo.GetInstance(seq[0]);
+            int count = seq.Count;
+            if (count < 1 || count > 2)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+
+            m_pkiStatusInfo = PkiStatusInfo.GetInstance(seq[0]);
 
 			if (seq.Count > 1)
 			{
-				this.timeStampToken = ContentInfo.GetInstance(seq[1]);
+				m_timeStampToken = ContentInfo.GetInstance(seq[1]);
 			}
 		}
 
-		public TimeStampResp(
-			PkiStatusInfo	pkiStatusInfo,
-			ContentInfo		timeStampToken)
+		public TimeStampResp(PkiStatusInfo pkiStatusInfo, ContentInfo timeStampToken)
 		{
-			this.pkiStatusInfo = pkiStatusInfo;
-			this.timeStampToken = timeStampToken;
+			m_pkiStatusInfo = pkiStatusInfo ?? throw new ArgumentNullException(nameof(pkiStatusInfo));
+			m_timeStampToken = timeStampToken;
 		}
 
-		public PkiStatusInfo Status
-		{
-			get { return pkiStatusInfo; }
-		}
+		public PkiStatusInfo Status => m_pkiStatusInfo;
 
-		public ContentInfo TimeStampToken
-		{
-			get { return timeStampToken; }
-		}
+		public ContentInfo TimeStampToken => m_timeStampToken;
 
 		/**
 		 * <pre>
@@ -59,9 +59,9 @@ namespace Org.BouncyCastle.Asn1.Tsp
 		 */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(pkiStatusInfo);
-            v.AddOptional(timeStampToken);
-            return new DerSequence(v);
+            return m_timeStampToken == null
+                ?  new DerSequence(m_pkiStatusInfo)
+                :  new DerSequence(m_pkiStatusInfo, m_timeStampToken);
         }
 	}
 }

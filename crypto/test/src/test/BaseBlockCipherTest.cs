@@ -55,7 +55,7 @@ namespace Org.BouncyCastle.Tests
 					Fail("failed OID test");
 				}
 
-				if (k.GetKey().Length != (16 + ((i / groupSize) * 8)))
+				if (k.KeyLength != (16 + ((i / groupSize) * 8)))
 				{
 					Fail("failed key length test");
 				}
@@ -87,44 +87,51 @@ namespace Org.BouncyCastle.Tests
 					Fail("failed wrap OID test");
 				}
 
-				if (k.GetKey().Length != (16 + (i * 8)))
+				if (k.KeyLength != (16 + (i * 8)))
 				{
 					Fail("failed key length test");
 				}
 			}
 		}
 
-		protected void wrapTest(
-			int		id,
-			string	wrappingAlgorithm,
-			byte[]	kek,
-			byte[]	inBytes,
-			byte[]	outBytes)
+		protected void wrapTest(int id, string wrappingAlgorithm, byte[] kek, byte[] inBytes, byte[] outBytes)
 		{
+            wrapTest(id, wrappingAlgorithm, kek, null, null, inBytes, outBytes);
+        }
+
+        protected void wrapTest(int id, string wrappingAlgorithm, byte[] kek, byte[] iv, SecureRandom rand,
+            byte[] inBytes, byte[] outBytes)
+        {
 			IWrapper wrapper = WrapperUtilities.GetWrapper(wrappingAlgorithm);
 
-			wrapper.Init(true, ParameterUtilities.CreateKeyParameter(algorithm, kek));
+			ICipherParameters cp = ParameterUtilities.CreateKeyParameter(algorithm, kek);
+			if (iv != null)
+			{
+				cp = new ParametersWithIV(cp, iv);
+			}
+
+            wrapper.Init(true, ParameterUtilities.WithRandom(cp, rand));
 
 			try
 			{
 				byte[] cText = wrapper.Wrap(inBytes, 0, inBytes.Length);
 				if (!AreEqual(cText, outBytes))
 				{
-					Fail("failed wrap test " + id  + " expected "
+					Fail("failed wrap test " + id + " expected "
 						+ Hex.ToHexString(outBytes) + " got "
 						+ Hex.ToHexString(cText));
 				}
 			}
-			catch (TestFailedException e)
+			catch (TestFailedException)
 			{
-				throw e;
+				throw;
 			}
 			catch (Exception e)
 			{
 				Fail("failed wrap test exception " + e.ToString(), e);
 			}
 
-			wrapper.Init(false, ParameterUtilities.CreateKeyParameter(algorithm, kek));
+			wrapper.Init(false, cp);
 
 			try
 			{
@@ -132,7 +139,7 @@ namespace Org.BouncyCastle.Tests
 
 				if (!AreEqual(pTextBytes, inBytes))
 				{
-					Fail("failed unwrap test " + id  + " expected "
+					Fail("failed unwrap test " + id + " expected "
 						+ Hex.ToHexString(inBytes) + " got "
 						+ Hex.ToHexString(pTextBytes));
 				}

@@ -1,24 +1,17 @@
 using System;
-using System.Collections;
+using System.Collections.Generic;
 
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
 using Org.BouncyCastle.Math.EC.Multiplier;
-using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.Utilities.Encoders;
 
 namespace Org.BouncyCastle.Asn1.X9
 {
-    /**
-     * table of the current named curves defined in X.962 EC-DSA.
-     */
-    public sealed class X962NamedCurves
+    /// <summary>Elliptic curve registry for the curves defined in X.962 EC-DSA.</summary>
+    public static class X962NamedCurves
     {
-        private X962NamedCurves()
-        {
-        }
-
         private static X9ECPoint ConfigureBasepoint(ECCurve curve, string encoding)
         {
             X9ECPoint G = new X9ECPoint(curve, Hex.DecodeStrict(encoding));
@@ -52,7 +45,7 @@ namespace Org.BouncyCastle.Asn1.X9
                     FromHex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF"),
                     FromHex("fffffffffffffffffffffffffffffffefffffffffffffffc"),
                     FromHex("64210519e59c80e70fa7e9ab72243049feb8deecc146b9b1"),
-                    n, h, true));
+                    n, h, isInternal: true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -83,7 +76,7 @@ namespace Org.BouncyCastle.Asn1.X9
                     FromHex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF"),
                     FromHex("fffffffffffffffffffffffffffffffefffffffffffffffc"),
                     FromHex("cc22d6dfb95c6b25e49c0d6364a4e5980c393aa21668d953"),
-                    n, h, true));
+                    n, h, isInternal: true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -114,7 +107,7 @@ namespace Org.BouncyCastle.Asn1.X9
                     FromHex("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFFFFFFFFFFFF"),
                     FromHex("fffffffffffffffffffffffffffffffefffffffffffffffc"),
                     FromHex("22123dc2395a05caa7423daeccc94760a7d462256bd56916"),
-                    n, h, true));
+                    n, h, isInternal: true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -145,7 +138,7 @@ namespace Org.BouncyCastle.Asn1.X9
                     new BigInteger("883423532389192164791648750360308885314476597252960362792450860609699839"),
                     FromHex("7fffffffffffffffffffffff7fffffffffff8000000000007ffffffffffc"),
                     FromHex("6b016c3bdcf18941d0d654921475ca71a9db2fb27d1d37796185c2942c0a"),
-                    n, h, true));
+                    n, h, isInternal: true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -176,7 +169,7 @@ namespace Org.BouncyCastle.Asn1.X9
                     new BigInteger("883423532389192164791648750360308885314476597252960362792450860609699839"),
                     FromHex("7fffffffffffffffffffffff7fffffffffff8000000000007ffffffffffc"),
                     FromHex("617fab6832576cbbfed50d99f0249c3fee58b94ba0038c7ae84c8c832f2c"),
-                    n, h, true));
+                    n, h, isInternal: true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -207,7 +200,7 @@ namespace Org.BouncyCastle.Asn1.X9
                     new BigInteger("883423532389192164791648750360308885314476597252960362792450860609699839"),
                     FromHex("7fffffffffffffffffffffff7fffffffffff8000000000007ffffffffffc"),
                     FromHex("255705fa2a306654b1f4cb03d6a750a30c250102d4988717d9ba15ab6d3e"),
-                    n, h, true));
+                    n, h, isInternal: true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -238,7 +231,7 @@ namespace Org.BouncyCastle.Asn1.X9
                     new BigInteger("115792089210356248762697446949407573530086143415290314195533631308867097853951"),
                     FromHex("ffffffff00000001000000000000000000000000fffffffffffffffffffffffc"),
                     FromHex("5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b"),
-                    n, h, true));
+                    n, h, isInternal: true));
             }
 
             protected override X9ECParameters CreateParameters()
@@ -253,9 +246,6 @@ namespace Org.BouncyCastle.Asn1.X9
             }
         }
 
-        /*
-         * F2m Curves
-         */
         internal class C2pnb163v1Holder
             : X9ECParametersHolder
         {
@@ -768,17 +758,16 @@ namespace Org.BouncyCastle.Asn1.X9
             }
         }
 
+        private static readonly Dictionary<string, DerObjectIdentifier> objIds =
+            new Dictionary<string, DerObjectIdentifier>(StringComparer.OrdinalIgnoreCase);
+        private static readonly Dictionary<DerObjectIdentifier, X9ECParametersHolder> curves =
+            new Dictionary<DerObjectIdentifier, X9ECParametersHolder>();
+        private static readonly Dictionary<DerObjectIdentifier, string> names =
+            new Dictionary<DerObjectIdentifier, string>();
 
-        private static readonly IDictionary objIds = Platform.CreateHashtable();
-        private static readonly IDictionary curves = Platform.CreateHashtable();
-        private static readonly IDictionary names = Platform.CreateHashtable();
-
-        private static void DefineCurve(
-            string					name,
-            DerObjectIdentifier		oid,
-            X9ECParametersHolder	holder)
+        private static void DefineCurve(string name, DerObjectIdentifier oid, X9ECParametersHolder holder)
         {
-            objIds.Add(Platform.ToUpperInvariant(name), oid);
+            objIds.Add(name, oid);
             names.Add(oid, name);
             curves.Add(oid, holder);
         }
@@ -810,63 +799,64 @@ namespace Org.BouncyCastle.Asn1.X9
             DefineCurve("c2tnb431r1", X9ObjectIdentifiers.C2Tnb431r1, C2tnb431r1Holder.Instance);
         }
 
+        /// <summary>Look up the <see cref="X9ECParameters"/> for the curve with the given name.</summary>
+        /// <param name="name">The name of the curve.</param>
         public static X9ECParameters GetByName(string name)
         {
             DerObjectIdentifier oid = GetOid(name);
             return oid == null ? null : GetByOid(oid);
         }
 
+        /// <summary>Look up an <see cref="X9ECParametersHolder"/> for the curve with the given name.</summary>
+        /// <remarks>
+        /// Allows accessing the <see cref="ECCurve">curve</see> without necessarily triggering the creation of the
+        /// full <see cref="X9ECParameters"/>.
+        /// </remarks>
+        /// <param name="name">The name of the curve.</param>
         public static X9ECParametersHolder GetByNameLazy(string name)
         {
             DerObjectIdentifier oid = GetOid(name);
             return oid == null ? null : GetByOidLazy(oid);
         }
 
-        /**
-         * return the X9ECParameters object for the named curve represented by
-         * the passed in object identifier. Null if the curve isn't present.
-         *
-         * @param oid an object identifier representing a named curve, if present.
-         */
+        /// <summary>Look up the <see cref="X9ECParameters"/> for the curve with the given
+        /// <see cref="DerObjectIdentifier">OID</see>.</summary>
+        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
         public static X9ECParameters GetByOid(DerObjectIdentifier oid)
         {
-            X9ECParametersHolder holder = GetByOidLazy(oid);
-            return holder == null ? null : holder.Parameters;
+            return GetByOidLazy(oid)?.Parameters;
         }
 
+        /// <summary>Look up an <see cref="X9ECParametersHolder"/> for the curve with the given
+        /// <see cref="DerObjectIdentifier">OID</see>.</summary>
+        /// <remarks>
+        /// Allows accessing the <see cref="ECCurve">curve</see> without necessarily triggering the creation of the
+        /// full <see cref="X9ECParameters"/>.
+        /// </remarks>
+        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
         public static X9ECParametersHolder GetByOidLazy(DerObjectIdentifier oid)
         {
-            return (X9ECParametersHolder)curves[oid];
+            return CollectionUtilities.GetValueOrNull(curves, oid);
         }
 
-        /**
-         * return the object identifier signified by the passed in name. Null
-         * if there is no object identifier associated with name.
-         *
-         * @return the object identifier associated with name, if present.
-         */
-        public static DerObjectIdentifier GetOid(
-            string name)
+        /// <summary>Look up the name of the curve with the given <see cref="DerObjectIdentifier">OID</see>.</summary>
+        /// <param name="oid">The <see cref="DerObjectIdentifier">OID</see> for the curve.</param>
+        public static string GetName(DerObjectIdentifier oid)
         {
-            return (DerObjectIdentifier)objIds[Platform.ToUpperInvariant(name)];
+            return CollectionUtilities.GetValueOrNull(names, oid);
         }
 
-        /**
-         * return the named curve name represented by the given object identifier.
-         */
-        public static string GetName(
-            DerObjectIdentifier oid)
+        /// <summary>Look up the <see cref="DerObjectIdentifier">OID</see> of the curve with the given name.</summary>
+        /// <param name="name">The name of the curve.</param>
+        public static DerObjectIdentifier GetOid(string name)
         {
-            return (string)names[oid];
+            return CollectionUtilities.GetValueOrNull(objIds, name);
         }
 
-        /**
-         * returns an enumeration containing the name strings for curves
-         * contained in this structure.
-         */
-        public static IEnumerable Names
+        /// <summary>Enumerate the available curve names in this registry.</summary>
+        public static IEnumerable<string> Names
         {
-            get { return new EnumerableProxy(names.Values); }
+            get { return CollectionUtilities.Proxy(objIds.Keys); }
         }
     }
 }

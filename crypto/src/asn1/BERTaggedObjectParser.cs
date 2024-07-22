@@ -1,10 +1,8 @@
-using System;
 using System.IO;
 
 namespace Org.BouncyCastle.Asn1
 {
-    [Obsolete("Will be made non-public. Test for and use only Asn1TaggedObjectParser.")]
-	public class BerTaggedObjectParser
+    internal class BerTaggedObjectParser
 		: Asn1TaggedObjectParser
 	{
         internal readonly int m_tagClass;
@@ -18,20 +16,16 @@ namespace Org.BouncyCastle.Asn1
             m_parser = parser;
 		}
 
-		public virtual bool IsConstructed
-		{
-			get { return true; }
-		}
+        public virtual bool IsConstructed => true;
 
-        public int TagClass
+        public int TagClass => m_tagClass;
+
+		public int TagNo => m_tagNo;
+
+        public bool HasContextTag()
         {
-            get { return m_tagClass; }
+            return m_tagClass == Asn1Tags.ContextSpecific;
         }
-
-		public int TagNo
-		{
-			get { return m_tagNo; }
-		}
 
         public bool HasContextTag(int tagNo)
         {
@@ -43,14 +37,10 @@ namespace Org.BouncyCastle.Asn1
             return m_tagClass == tagClass && m_tagNo == tagNo;
         }
 
-        [Obsolete("Use 'Parse...' methods instead, after checking this parser's TagClass and TagNo")]
-        public IAsn1Convertible GetObjectParser(int baseTagNo, bool declaredExplicit)
-		{
-            if (Asn1Tags.ContextSpecific != TagClass)
-                throw new Asn1Exception("this method only valid for CONTEXT_SPECIFIC tags");
-
-            return ParseBaseUniversal(declaredExplicit, baseTagNo);
-		}
+        public bool HasTagClass(int tagClass)
+        {
+            return m_tagClass == tagClass;
+        }
 
         public virtual IAsn1Convertible ParseBaseUniversal(bool declaredExplicit, int baseTagNo)
         {
@@ -60,24 +50,12 @@ namespace Org.BouncyCastle.Asn1
             return m_parser.ParseImplicitConstructedIL(baseTagNo);
         }
 
-        public virtual IAsn1Convertible ParseExplicitBaseObject()
-        {
-            return m_parser.ReadObject();
-        }
+        public virtual IAsn1Convertible ParseExplicitBaseObject() => m_parser.ReadObject();
 
-        public virtual Asn1TaggedObjectParser ParseExplicitBaseTagged()
-        {
-            return m_parser.ParseTaggedObject();
-        }
+        public virtual Asn1TaggedObjectParser ParseExplicitBaseTagged() => m_parser.ParseTaggedObject();
 
-        public virtual Asn1TaggedObjectParser ParseImplicitBaseTagged(int baseTagClass, int baseTagNo)
-        {
-            // TODO[asn1] Special handling can be removed once ASN1ApplicationSpecificParser types removed.
-            if (Asn1Tags.Application == baseTagClass)
-                return new BerApplicationSpecificParser(baseTagNo, m_parser);
-
-            return new BerTaggedObjectParser(baseTagClass, baseTagNo, m_parser);
-        }
+        public virtual Asn1TaggedObjectParser ParseImplicitBaseTagged(int baseTagClass, int baseTagNo) =>
+            new BerTaggedObjectParser(baseTagClass, baseTagNo, m_parser);
 
         public virtual Asn1Object ToAsn1Object()
 		{

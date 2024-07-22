@@ -30,21 +30,22 @@ namespace Org.BouncyCastle.Asn1
          */
         public static DerBoolean GetInstance(object obj)
         {
-            if (obj == null || obj is DerBoolean)
+            if (obj == null)
+                return null;
+
+            if (obj is DerBoolean derBoolean)
+                return derBoolean;
+
+            if (obj is IAsn1Convertible asn1Convertible)
             {
-                return (DerBoolean)obj;
+                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is DerBoolean converted)
+                    return converted;
             }
-            else if (obj is IAsn1Convertible)
-            {
-                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
-                if (asn1Object is DerBoolean)
-                    return (DerBoolean)asn1Object;
-            }
-            else if (obj is byte[])
+            else if (obj is byte[] bytes)
             {
                 try
                 {
-                    return (DerBoolean)Meta.Instance.FromByteArray((byte[])obj);
+                    return (DerBoolean)Meta.Instance.FromByteArray(bytes);
                 }
                 catch (IOException e)
                 {
@@ -75,6 +76,22 @@ namespace Org.BouncyCastle.Asn1
         public static DerBoolean GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
             return (DerBoolean)Meta.Instance.GetContextInstance(taggedObject, declaredExplicit);
+        }
+
+        public static DerBoolean GetOptional(Asn1Encodable element)
+        {
+            if (element == null)
+                throw new ArgumentNullException(nameof(element));
+
+            if (element is DerBoolean existing)
+                return existing;
+
+            return null;
+        }
+
+        public static DerBoolean GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        {
+            return (DerBoolean)Meta.Instance.GetTagged(taggedObject, declaredExplicit);
         }
 
         private readonly byte value;
@@ -108,6 +125,17 @@ namespace Org.BouncyCastle.Asn1
         internal override IAsn1Encoding GetEncodingImplicit(int encoding, int tagClass, int tagNo)
         {
             return new PrimitiveEncoding(tagClass, tagNo, GetContents(encoding));
+        }
+
+        internal sealed override DerEncoding GetEncodingDer()
+        {
+            return new PrimitiveDerEncoding(Asn1Tags.Universal, Asn1Tags.Boolean,
+                GetContents(Asn1OutputStream.EncodingDer));
+        }
+
+        internal sealed override DerEncoding GetEncodingDerImplicit(int tagClass, int tagNo)
+        {
+            return new PrimitiveDerEncoding(tagClass, tagNo, GetContents(Asn1OutputStream.EncodingDer));
         }
 
         protected override bool Asn1Equals(

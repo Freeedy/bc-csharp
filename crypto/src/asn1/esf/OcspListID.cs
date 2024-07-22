@@ -1,89 +1,61 @@
 using System;
-using System.Collections;
-
-using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Utilities.Collections;
+using System.Collections.Generic;
 
 namespace Org.BouncyCastle.Asn1.Esf
 {
-	/// <remarks>
-	/// RFC 3126: 4.2.2 Complete Revocation Refs Attribute Definition
-	/// <code>
-	/// OcspListID ::=  SEQUENCE {
-	///		ocspResponses	SEQUENCE OF OcspResponsesID
-	/// }
-	/// </code>
-	/// </remarks>
-	public class OcspListID
+    /// <remarks>
+    /// RFC 3126: 4.2.2 Complete Revocation Refs Attribute Definition
+    /// <code>
+    /// OcspListID ::=  SEQUENCE {
+    ///		ocspResponses	SEQUENCE OF OcspResponsesID
+    /// }
+    /// </code>
+    /// </remarks>
+    public class OcspListID
 		: Asn1Encodable
 	{
-		private readonly Asn1Sequence ocspResponses;
+        public static OcspListID GetInstance(object obj)
+        {
+            if (obj == null)
+                return null;
+            if (obj is OcspListID ocspListID)
+                return ocspListID;
+            return new OcspListID(Asn1Sequence.GetInstance(obj));
+        }
 
-		public static OcspListID GetInstance(
-			object obj)
+        public static OcspListID GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            new OcspListID(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+
+        public static OcspListID GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            new OcspListID(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
+
+        private readonly Asn1Sequence m_ocspResponses;
+
+        private OcspListID(Asn1Sequence seq)
 		{
-			if (obj == null || obj is OcspListID)
-				return (OcspListID) obj;
+			int count = seq.Count;
+			if (count != 1)
+				throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
 
-			if (obj is Asn1Sequence)
-				return new OcspListID((Asn1Sequence) obj);
+			m_ocspResponses = Asn1Sequence.GetInstance(seq[0]);
+            m_ocspResponses.MapElements(OcspResponsesID.GetInstance); // Validate
+        }
 
-			throw new ArgumentException(
-				"Unknown object in 'OcspListID' factory: "
-                    + Platform.GetTypeName(obj),
-				"obj");
+        public OcspListID(params OcspResponsesID[] ocspResponses)
+		{
+			m_ocspResponses = DerSequence.FromElements(ocspResponses);
 		}
 
-		private OcspListID(
-			Asn1Sequence seq)
-		{
-			if (seq == null)
-				throw new ArgumentNullException("seq");
-			if (seq.Count != 1)
-				throw new ArgumentException("Bad sequence size: " + seq.Count, "seq");
-
-			this.ocspResponses = (Asn1Sequence) seq[0].ToAsn1Object();
-
-			foreach (Asn1Encodable ae in this.ocspResponses)
-			{
-				OcspResponsesID.GetInstance(ae.ToAsn1Object());
-			}
-		}
-
-		public OcspListID(
-			params OcspResponsesID[] ocspResponses)
+		public OcspListID(IEnumerable<OcspResponsesID> ocspResponses)
 		{
 			if (ocspResponses == null)
-				throw new ArgumentNullException("ocspResponses");
+                throw new ArgumentNullException(nameof(ocspResponses));
 
-			this.ocspResponses = new DerSequence(ocspResponses);
+            m_ocspResponses = DerSequence.FromVector(Asn1EncodableVector.FromEnumerable(ocspResponses));
 		}
 
-		public OcspListID(
-			IEnumerable ocspResponses)
-		{
-			if (ocspResponses == null)
-				throw new ArgumentNullException("ocspResponses");
-			if (!CollectionUtilities.CheckElementsAreOfType(ocspResponses, typeof(OcspResponsesID)))
-				throw new ArgumentException("Must contain only 'OcspResponsesID' objects", "ocspResponses");
+		public OcspResponsesID[] GetOcspResponses() => m_ocspResponses.MapElements(OcspResponsesID.GetInstance);
 
-			this.ocspResponses = new DerSequence(
-				Asn1EncodableVector.FromEnumerable(ocspResponses));
-		}
-
-		public OcspResponsesID[] GetOcspResponses()
-		{
-			OcspResponsesID[] result = new OcspResponsesID[ocspResponses.Count];
-			for (int i = 0; i < ocspResponses.Count; ++i)
-			{
-				result[i] = OcspResponsesID.GetInstance(ocspResponses[i].ToAsn1Object());
-			}
-			return result;
-		}
-
-		public override Asn1Object ToAsn1Object()
-		{
-			return new DerSequence(ocspResponses);
-		}
+		public override Asn1Object ToAsn1Object() => new DerSequence(m_ocspResponses);
 	}
 }

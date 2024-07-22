@@ -7,38 +7,38 @@ namespace Org.BouncyCastle.Asn1.Cmp
     public class PkiMessages
         : Asn1Encodable
     {
-        private Asn1Sequence content;
-
-        private PkiMessages(Asn1Sequence seq)
-        {
-            content = seq;
-        }
-
         public static PkiMessages GetInstance(object obj)
         {
-            if (obj is PkiMessages)
-                return (PkiMessages)obj;
-
-            if (obj is Asn1Sequence)
-                return new PkiMessages((Asn1Sequence)obj);
-
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
+            if (obj == null)
+                return null;
+            if (obj is PkiMessages pkiMessages)
+                return pkiMessages;
+            return new PkiMessages(Asn1Sequence.GetInstance(obj));
         }
 
-		public PkiMessages(params PkiMessage[] msgs)
+        public static PkiMessages GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
-            content = new DerSequence(msgs);
+            return new PkiMessages(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
         }
 
-        public virtual PkiMessage[] ToPkiMessageArray()
+        private Asn1Sequence m_content;
+
+        internal PkiMessages(Asn1Sequence seq)
         {
-            PkiMessage[] result = new PkiMessage[content.Count];
-            for (int i = 0; i != result.Length; ++i)
-            {
-                result[i] = PkiMessage.GetInstance(content[i]);
-            }
-            return result;
+            m_content = seq;
         }
+
+        internal PkiMessages(PkiMessages other)
+        {
+            m_content = other.m_content;
+        }
+
+        public PkiMessages(params PkiMessage[] msgs)
+        {
+            m_content = new DerSequence(msgs);
+        }
+
+        public virtual PkiMessage[] ToPkiMessageArray() => m_content.MapElements(PkiMessage.GetInstance);
 
         /**
          * <pre>
@@ -46,9 +46,6 @@ namespace Org.BouncyCastle.Asn1.Cmp
          * </pre>
          * @return a basic ASN.1 object representation.
          */
-        public override Asn1Object ToAsn1Object()
-        {
-            return content;
-        }
+        public override Asn1Object ToAsn1Object() => m_content;
     }
 }

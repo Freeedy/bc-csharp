@@ -1,7 +1,5 @@
 using System;
-using System.Collections;
-
-using Org.BouncyCastle.Asn1;
+using System.Collections.Generic;
 
 namespace Org.BouncyCastle.Asn1.X509
 {
@@ -21,30 +19,40 @@ namespace Org.BouncyCastle.Asn1.X509
     public class CertificateList
         : Asn1Encodable
     {
-        private readonly TbsCertificateList	tbsCertList;
-        private readonly AlgorithmIdentifier sigAlgID;
-        private readonly DerBitString sig;
+        public static CertificateList GetInstance(object obj)
+        {
+            if (obj == null)
+                return null;
+            if (obj is CertificateList certificateList)
+                return certificateList;
+            return new CertificateList(Asn1Sequence.GetInstance(obj));
+        }
 
-		public static CertificateList GetInstance(
-            Asn1TaggedObject	obj,
-            bool				explicitly)
+        public static CertificateList GetInstance(Asn1TaggedObject obj, bool explicitly)
         {
             return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
         }
 
-		public static CertificateList GetInstance(
-            object obj)
+        public static CertificateList GetOptional(Asn1Encodable element)
         {
-            if (obj is CertificateList)
-                return (CertificateList) obj;
+            if (element == null)
+                throw new ArgumentNullException(nameof(element));
 
-			if (obj != null)
-				return new CertificateList(Asn1Sequence.GetInstance(obj));
+            if (element is CertificateList certificateList)
+                return certificateList;
 
-			return null;
-		}
+            Asn1Sequence asn1Sequence = Asn1Sequence.GetOptional(element);
+            if (asn1Sequence != null)
+                return new CertificateList(asn1Sequence);
 
-		private CertificateList(
+            return null;
+        }
+
+        private readonly TbsCertificateList tbsCertList;
+        private readonly AlgorithmIdentifier sigAlgID;
+        private readonly DerBitString sig;
+
+        private CertificateList(
             Asn1Sequence seq)
         {
 			if (seq.Count != 3)
@@ -65,7 +73,7 @@ namespace Org.BouncyCastle.Asn1.X509
             return tbsCertList.GetRevokedCertificates();
         }
 
-		public IEnumerable GetRevokedCertificateEnumeration()
+		public IEnumerable<CrlEntry> GetRevokedCertificateEnumeration()
 		{
 			return tbsCertList.GetRevokedCertificateEnumeration();
 		}

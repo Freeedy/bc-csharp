@@ -1,96 +1,61 @@
 using System;
 
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Asn1.Cms
 {
     public class OriginatorInfo
         : Asn1Encodable
     {
-        private Asn1Set certs;
-        private Asn1Set crls;
-
-        public OriginatorInfo(
-            Asn1Set certs,
-            Asn1Set crls)
+        public static OriginatorInfo GetInstance(object obj)
         {
-            this.certs = certs;
-            this.crls = crls;
+            if (obj == null)
+                return null;
+            if (obj is OriginatorInfo originatorInfo)
+                return originatorInfo;
+#pragma warning disable CS0618 // Type or member is obsolete
+            return new OriginatorInfo(Asn1Sequence.GetInstance(obj));
+#pragma warning restore CS0618 // Type or member is obsolete
         }
 
-		public OriginatorInfo(
-            Asn1Sequence seq)
+        public static OriginatorInfo GetInstance(Asn1TaggedObject obj, bool explicitly)
         {
-            switch (seq.Count)
-            {
-            case 0:     // empty
-                break;
-            case 1:
-                Asn1TaggedObject o = (Asn1TaggedObject) seq[0];
-                switch (o.TagNo)
-                {
-                case 0 :
-                    certs = Asn1Set.GetInstance(o, false);
-                    break;
-                case 1 :
-                    crls = Asn1Set.GetInstance(o, false);
-                    break;
-                default:
-                    throw new ArgumentException("Bad tag in OriginatorInfo: " + o.TagNo);
-                }
-                break;
-            case 2:
-                certs = Asn1Set.GetInstance((Asn1TaggedObject) seq[0], false);
-                crls  = Asn1Set.GetInstance((Asn1TaggedObject) seq[1], false);
-                break;
-            default:
-                throw new ArgumentException("OriginatorInfo too big");
-            }
+#pragma warning disable CS0618 // Type or member is obsolete
+            return new OriginatorInfo(Asn1Sequence.GetInstance(obj, explicitly));
+#pragma warning restore CS0618 // Type or member is obsolete
         }
 
-		/**
-         * return an OriginatorInfo object from a tagged object.
-         *
-         * @param obj the tagged object holding the object we want.
-         * @param explicitly true if the object is meant to be explicitly
-         *              tagged false otherwise.
-         * @exception ArgumentException if the object held by the
-         *          tagged object cannot be converted.
-         */
-        public static OriginatorInfo GetInstance(
-            Asn1TaggedObject	obj,
-            bool				explicitly)
+        public static OriginatorInfo GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
-            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
+#pragma warning disable CS0618 // Type or member is obsolete
+            return new OriginatorInfo(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
+#pragma warning restore CS0618 // Type or member is obsolete
         }
 
-		/**
-         * return an OriginatorInfo object from the given object.
-         *
-         * @param obj the object we want converted.
-         * @exception ArgumentException if the object cannot be converted.
-         */
-        public static OriginatorInfo GetInstance(
-            object obj)
+        private readonly Asn1Set m_certs;
+        private readonly Asn1Set m_crls;
+
+        public OriginatorInfo(Asn1Set certs, Asn1Set crls)
         {
-            if (obj == null || obj is OriginatorInfo)
-                return (OriginatorInfo)obj;
-
-			if (obj is Asn1Sequence)
-                return new OriginatorInfo((Asn1Sequence)obj);
-
-            throw new ArgumentException("Invalid OriginatorInfo: " + Platform.GetTypeName(obj));
+            m_certs = certs;
+            m_crls = crls;
         }
 
-		public Asn1Set Certificates
-		{
-			get { return certs; }
-		}
+        [Obsolete("Use 'GetInstance' instead")]
+        public OriginatorInfo(Asn1Sequence seq)
+        {
+            int count = seq.Count, pos = 0;
+            if (count < 0 || count > 2)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
 
-		public Asn1Set Crls
-		{
-			get { return crls; }
-		}
+            m_certs = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, false, Asn1Set.GetTagged);
+            m_crls = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, false, Asn1Set.GetTagged);
+
+            if (pos != count)
+                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+        }
+
+        public Asn1Set Certificates => m_certs;
+
+        public Asn1Set Crls => m_crls;
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -103,9 +68,9 @@ namespace Org.BouncyCastle.Asn1.Cms
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector();
-            v.AddOptionalTagged(false, 0, certs);
-            v.AddOptionalTagged(false, 1, crls);
+            Asn1EncodableVector v = new Asn1EncodableVector(2);
+            v.AddOptionalTagged(false, 0, m_certs);
+            v.AddOptionalTagged(false, 1, m_crls);
 			return new DerSequence(v);
         }
     }

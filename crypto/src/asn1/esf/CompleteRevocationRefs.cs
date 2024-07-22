@@ -1,85 +1,54 @@
 using System;
-using System.Collections;
-
-using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Utilities.Collections;
+using System.Collections.Generic;
 
 namespace Org.BouncyCastle.Asn1.Esf
 {
-	/// <remarks>
-	/// RFC 3126: 4.2.2 Complete Revocation Refs Attribute Definition
-	/// <code>
-	/// CompleteRevocationRefs ::= SEQUENCE OF CrlOcspRef
-	/// </code>
-	/// </remarks>
-	public class CompleteRevocationRefs
+    /// <remarks>
+    /// RFC 3126: 4.2.2 Complete Revocation Refs Attribute Definition
+    /// <code>
+    /// CompleteRevocationRefs ::= SEQUENCE OF CrlOcspRef
+    /// </code>
+    /// </remarks>
+    public class CompleteRevocationRefs
 		: Asn1Encodable
 	{
-		private readonly Asn1Sequence crlOcspRefs;
-
-		public static CompleteRevocationRefs GetInstance(
-			object obj)
+		public static CompleteRevocationRefs GetInstance(object obj)
 		{
-			if (obj == null || obj is CompleteRevocationRefs)
-				return (CompleteRevocationRefs) obj;
-
-			if (obj is Asn1Sequence)
-				return new CompleteRevocationRefs((Asn1Sequence) obj);
-
-			throw new ArgumentException(
-				"Unknown object in 'CompleteRevocationRefs' factory: "
-                    + Platform.GetTypeName(obj),
-				"obj");
+			if (obj == null)
+				return null;
+			if (obj is CompleteRevocationRefs completeRevocationRefs)
+				return completeRevocationRefs;
+			return new CompleteRevocationRefs(Asn1Sequence.GetInstance(obj));
 		}
 
-		private CompleteRevocationRefs(
-			Asn1Sequence seq)
+        public static CompleteRevocationRefs GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        {
+            return new CompleteRevocationRefs(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+        }
+
+        private readonly Asn1Sequence m_crlOcspRefs;
+
+        private CompleteRevocationRefs(Asn1Sequence seq)
 		{
-			if (seq == null)
-				throw new ArgumentNullException("seq");
-
-			foreach (Asn1Encodable ae in seq)
-			{
-				CrlOcspRef.GetInstance(ae.ToAsn1Object());
-			}
-
-			this.crlOcspRefs = seq;
+			m_crlOcspRefs = seq;
+            m_crlOcspRefs.MapElements(CrlOcspRef.GetInstance); // Validate
 		}
 
-		public CompleteRevocationRefs(
-			params CrlOcspRef[] crlOcspRefs)
+		public CompleteRevocationRefs(params CrlOcspRef[] crlOcspRefs)
+		{
+			m_crlOcspRefs = DerSequence.FromElements(crlOcspRefs);
+		}
+
+		public CompleteRevocationRefs(IEnumerable<CrlOcspRef> crlOcspRefs)
 		{
 			if (crlOcspRefs == null)
-				throw new ArgumentNullException("crlOcspRefs");
+                throw new ArgumentNullException(nameof(crlOcspRefs));
 
-			this.crlOcspRefs = new DerSequence(crlOcspRefs);
+            m_crlOcspRefs = DerSequence.FromVector(Asn1EncodableVector.FromEnumerable(crlOcspRefs));
 		}
 
-		public CompleteRevocationRefs(
-			IEnumerable crlOcspRefs)
-		{
-			if (crlOcspRefs == null)
-				throw new ArgumentNullException("crlOcspRefs");
-			if (!CollectionUtilities.CheckElementsAreOfType(crlOcspRefs, typeof(CrlOcspRef)))
-				throw new ArgumentException("Must contain only 'CrlOcspRef' objects", "crlOcspRefs");
+		public CrlOcspRef[] GetCrlOcspRefs() => m_crlOcspRefs.MapElements(CrlOcspRef.GetInstance);
 
-			this.crlOcspRefs = new DerSequence(
-				Asn1EncodableVector.FromEnumerable(crlOcspRefs));
-		}
-
-		public CrlOcspRef[] GetCrlOcspRefs()
-		{
-			CrlOcspRef[] result = new CrlOcspRef[crlOcspRefs.Count];
-			for (int i = 0; i < crlOcspRefs.Count; ++i)
-			{
-				result[i] = CrlOcspRef.GetInstance(crlOcspRefs[i].ToAsn1Object());
-			}
-			return result;
-		}
-
-		public override Asn1Object ToAsn1Object()
-		{
-			return crlOcspRefs;
-		}
+		public override Asn1Object ToAsn1Object() => m_crlOcspRefs;
 	}
 }

@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Text;
 
 using NUnit.Framework;
@@ -124,11 +123,6 @@ namespace Org.BouncyCastle.Cms.Tests
 //		super(name);
 //		}
 //		
-//		public static void main(string args[])
-//		{
-//		junit.textui.TestRunner.run(AuthenticatedDataTest.class);
-//		}
-//		
 //		public static Test suite()
 //		throws Exception
 //		{
@@ -141,6 +135,7 @@ namespace Org.BouncyCastle.Cms.Tests
 		public void TestKeyTransDESede()
 		{
 			tryKeyTrans(CmsAuthenticatedDataGenerator.DesEde3Cbc);
+			tryKeyTransWithOaepOverride(CmsAuthenticatedDataGenerator.DesEde3Cbc);
 		}
 		
 		[Test]
@@ -172,13 +167,15 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(CmsAuthenticatedDataGenerator.DesEde3Cbc, ad.MacAlgOid);
 
-			ICollection c = recipients.GetRecipients();
+			var c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
-				byte[] recData = recipient.GetContent(ReciECKP.Private);
+                Assert.True(recipient.RecipientID.Match(ReciECCert));
+
+                byte[] recData = recipient.GetContent(ReciECKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 				Assert.IsTrue(Arrays.AreEqual(ad.GetMac(), recipient.GetMac()));
@@ -204,15 +201,16 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(CmsAuthenticatedDataGenerator.DesEde3Cbc, ad.MacAlgOid);
 
-			ICollection c = recipients.GetRecipients();
+			var c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
 				Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.RsaEncryption.Id);
+                Assert.True(recipient.RecipientID.Match(ReciCert));
 
-				byte[] recData = recipient.GetContent(ReciKP.Private);
+                byte[] recData = recipient.GetContent(ReciKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 				Assert.IsTrue(Arrays.AreEqual(ad.GetMac(), recipient.GetMac()));
@@ -235,21 +233,55 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(ad.MacAlgOid, macAlg);
 
-			ICollection c = recipients.GetRecipients();
+			var c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
 				Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.RsaEncryption.Id);
+                Assert.True(recipient.RecipientID.Match(ReciCert));
 
-				byte[] recData = recipient.GetContent(ReciKP.Private);
+                byte[] recData = recipient.GetContent(ReciKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 				Assert.IsTrue(Arrays.AreEqual(ad.GetMac(), recipient.GetMac()));
 			}
 		}
-		
+
+		private void tryKeyTransWithOaepOverride(string macAlg)
+		{
+			byte[] data = Encoding.ASCII.GetBytes("Eric H. Echidna");
+
+			CmsAuthenticatedDataGenerator adGen = new CmsAuthenticatedDataGenerator();
+
+			adGen.AddKeyTransRecipient("RSA/NONE/OAEPWITHSHA256ANDMGF1PADDING", ReciCert);
+
+			CmsAuthenticatedData ad = adGen.Generate(
+				new CmsProcessableByteArray(data),
+				macAlg);
+
+			RecipientInformationStore recipients = ad.GetRecipientInfos();
+
+			Assert.AreEqual(ad.MacAlgOid, macAlg);
+
+			var c = recipients.GetRecipients();
+
+			Assert.AreEqual(1, c.Count);
+
+			foreach (RecipientInformation recipient in c)
+			{
+				Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.IdRsaesOaep.Id);
+                Assert.True(recipient.RecipientID.Match(ReciCert));
+
+                byte[] recData = recipient.GetContent(ReciKP.Private);
+
+				Assert.IsTrue(Arrays.AreEqual(data, recData));
+				Assert.IsTrue(Arrays.AreEqual(ad.GetMac(), recipient.GetMac()));
+			}
+		}
+
+
 		private void tryKekAlgorithm(KeyParameter kek, DerObjectIdentifier algOid)
 		{
 			byte[] data = Encoding.ASCII.GetBytes("Eric H. Echidna");
@@ -271,15 +303,16 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(CmsAuthenticatedDataGenerator.DesEde3Cbc, ad.MacAlgOid);
 
-			ICollection c = recipients.GetRecipients();
+			var c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 
 			foreach (RecipientInformation recipient in c)
 			{
 				Assert.AreEqual(recipient.KeyEncryptionAlgOid, algOid.Id);
+                Assert.True(Arrays.AreEqual(recipient.RecipientID.KeyIdentifier, kekId));
 
-				byte[] recData = recipient.GetContent(kek);
+                byte[] recData = recipient.GetContent(kek);
 
 				Assert.IsTrue(Arrays.AreEqual(data, recData));
 				Assert.IsTrue(Arrays.AreEqual(ad.GetMac(), recipient.GetMac()));
@@ -302,7 +335,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(CmsAuthenticatedDataGenerator.DesEde3Cbc, ad.MacAlgOid);
 
-			ICollection c = recipients.GetRecipients();
+			var c = recipients.GetRecipients();
 
 			Assert.AreEqual(1, c.Count);
 

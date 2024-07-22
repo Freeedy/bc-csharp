@@ -1,7 +1,5 @@
 using System;
-using System.Collections;
-using System.IO;
-using System.Text;
+using System.Collections.Generic;
 
 using NUnit.Framework;
 
@@ -56,7 +54,7 @@ namespace Org.BouncyCastle.Asn1.Tests
             DateTime startDate = MakeUtcDateTime(1970, 1, 1, 0, 0, 1);
             DateTime endDate = MakeUtcDateTime(1970, 1, 1, 0, 0, 12);
 
-            gen.SetSerialNumber(new DerInteger(1));
+            gen.SetSerialNumber(DerInteger.One);
 
             gen.SetStartDate(new Time(startDate));
             gen.SetEndDate(new Time(endDate));
@@ -109,7 +107,7 @@ namespace Org.BouncyCastle.Asn1.Tests
             DateTime startDate = MakeUtcDateTime(1970, 1, 1, 0, 0, 1);
             DateTime endDate = MakeUtcDateTime(1970, 1, 1, 0, 0, 2);
 
-			gen.SetSerialNumber(new DerInteger(2));
+			gen.SetSerialNumber(DerInteger.Two);
 
 			gen.SetStartDate(new Time(startDate));
 			gen.SetEndDate(new Time(endDate));
@@ -123,15 +121,15 @@ namespace Org.BouncyCastle.Asn1.Tests
 				new AlgorithmIdentifier(
 					OiwObjectIdentifiers.ElGamalAlgorithm,
 					new ElGamalParameter(BigInteger.One, BigInteger.Two)),
-				new DerInteger(3));
+				DerInteger.Three);
 
 			gen.SetSubjectPublicKeyInfo(info);
 
 			//
 			// add extensions
 			//
-			IList order = new ArrayList();
-			IDictionary extensions = new Hashtable();
+			var order = new List<DerObjectIdentifier>();
+			var extensions = new Dictionary<DerObjectIdentifier, X509Extension>();
 
 			order.Add(X509Extensions.AuthorityKeyIdentifier);
 			order.Add(X509Extensions.SubjectKeyIdentifier);
@@ -169,7 +167,7 @@ namespace Org.BouncyCastle.Asn1.Tests
             DateTime startDate = MakeUtcDateTime(1970, 1, 1, 0, 0, 1);
             DateTime endDate = MakeUtcDateTime(1970, 1, 1, 0, 0, 2);
 
-			gen.SetSerialNumber(new DerInteger(2));
+			gen.SetSerialNumber(DerInteger.Two);
 
 			gen.SetStartDate(new Time(startDate));
 			gen.SetEndDate(new Time(endDate));
@@ -181,7 +179,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 			SubjectPublicKeyInfo info = new SubjectPublicKeyInfo(
 				new AlgorithmIdentifier(OiwObjectIdentifiers.ElGamalAlgorithm,
 					new ElGamalParameter(BigInteger.One, BigInteger.Two)),
-				new DerInteger(3));
+                DerInteger.Three);
 
 			gen.SetSubjectPublicKeyInfo(info);
 
@@ -201,8 +199,8 @@ namespace Org.BouncyCastle.Asn1.Tests
 			//
 			// add extensions
 			//
-			IList order = new ArrayList();
-			IDictionary extensions = new Hashtable();
+			var order = new List<DerObjectIdentifier>();
+			var extensions = new Dictionary<DerObjectIdentifier, X509Extension>();
 
 			order.Add(X509Extensions.SubjectAlternativeName);
 
@@ -243,7 +241,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
             gen.SetIssuer(new X509Name("CN=AU,O=Bouncy Castle"));
 
-            gen.AddCrlEntry(new DerInteger(1), new Time(MakeUtcDateTime(1970, 1, 1, 0, 0, 1)), ReasonFlags.AACompromise);
+            gen.AddCrlEntry(DerInteger.One, new Time(MakeUtcDateTime(1970, 1, 1, 0, 0, 1)), ReasonFlags.AACompromise);
 
             gen.SetNextUpdate(new Time(MakeUtcDateTime(1970, 1, 1, 0, 0, 2)));
 
@@ -251,16 +249,17 @@ namespace Org.BouncyCastle.Asn1.Tests
 
             gen.SetSignature(new AlgorithmIdentifier(PkcsObjectIdentifiers.Sha1WithRsaEncryption, DerNull.Instance));
 
-            //
-            // extensions
-            //
-            IList order = new ArrayList();
-            IDictionary extensions = new Hashtable();
-            SubjectPublicKeyInfo info = new SubjectPublicKeyInfo(
+			//
+			// extensions
+			//
+			var order = new List<DerObjectIdentifier>();
+			var extensions = new Dictionary<DerObjectIdentifier, X509Extension>();
+
+			SubjectPublicKeyInfo info = new SubjectPublicKeyInfo(
 				new AlgorithmIdentifier(
 					OiwObjectIdentifiers.ElGamalAlgorithm,
 					new ElGamalParameter(BigInteger.One, BigInteger.Two)),
-				new DerInteger(3));
+				DerInteger.Three);
 
 			order.Add(X509Extensions.AuthorityKeyIdentifier);
             order.Add(X509Extensions.IssuerAlternativeName);
@@ -269,7 +268,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
             extensions.Add(X509Extensions.AuthorityKeyIdentifier, new X509Extension(true, new DerOctetString(CreateAuthorityKeyId(info, new X509Name("CN=AU,O=Bouncy Castle,OU=Test 2"), 2))));
             extensions.Add(X509Extensions.IssuerAlternativeName, new X509Extension(false, new DerOctetString(GeneralNames.GetInstance(new DerSequence(new GeneralName(new X509Name("CN=AU,O=Bouncy Castle,OU=Test 3")))))));
-            extensions.Add(X509Extensions.CrlNumber, new X509Extension(false, new DerOctetString(new DerInteger(1))));
+            extensions.Add(X509Extensions.CrlNumber, new X509Extension(false, new DerOctetString(DerInteger.One)));
             extensions.Add(X509Extensions.IssuingDistributionPoint, new X509Extension(true, new DerOctetString(IssuingDistributionPoint.GetInstance(DerSequence.Empty))));
 
             X509Extensions ex = new X509Extensions(order, extensions);
@@ -307,12 +306,6 @@ namespace Org.BouncyCastle.Asn1.Tests
 		{
 			get { return "Generation"; }
 		}
-
-        public static void Main(
-            string[] args)
-        {
-			RunTest(new GenerationTest());
-        }
 
 		[Test]
         public void TestFunction()

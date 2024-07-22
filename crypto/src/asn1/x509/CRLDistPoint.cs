@@ -41,24 +41,17 @@ namespace Org.BouncyCastle.Asn1.X509
 			seq = new DerSequence(points);
         }
 
-		/**
+        /**
          * Return the distribution points making up the sequence.
          *
          * @return DistributionPoint[]
          */
         public DistributionPoint[] GetDistributionPoints()
         {
-            DistributionPoint[] dp = new DistributionPoint[seq.Count];
-
-			for (int i = 0; i != seq.Count; ++i)
-            {
-                dp[i] = DistributionPoint.GetInstance(seq[i]);
-            }
-
-			return dp;
+            return seq.MapElements(DistributionPoint.GetInstance);
         }
 
-		/**
+        /**
          * Produce an object suitable for an Asn1OutputStream.
          * <pre>
          * CrlDistPoint ::= Sequence SIZE {1..MAX} OF DistributionPoint
@@ -72,16 +65,12 @@ namespace Org.BouncyCastle.Asn1.X509
 		public override string ToString()
 		{
 			StringBuilder buf = new StringBuilder();
-			string sep = Platform.NewLine;
-
-			buf.Append("CRLDistPoint:");
-			buf.Append(sep);
-			DistributionPoint[] dp = GetDistributionPoints();
-			for (int i = 0; i != dp.Length; i++)
+			buf.AppendLine("CRLDistPoint:");
+            foreach (DistributionPoint dp in GetDistributionPoints())
 			{
-				buf.Append("    ");
-				buf.Append(dp[i]);
-				buf.Append(sep);
+				buf.Append("    ")
+				   .Append(dp)
+                   .AppendLine();
 			}
 			return buf.ToString();
 		}

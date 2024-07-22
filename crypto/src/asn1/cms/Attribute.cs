@@ -1,57 +1,51 @@
 using System;
 
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Asn1.Cms
 {
     public class Attribute
         : Asn1Encodable
     {
-        private DerObjectIdentifier	attrType;
-        private Asn1Set				attrValues;
-
-		/**
-        * return an Attribute object from the given object.
-        *
-        * @param o the object we want converted.
-        * @exception ArgumentException if the object cannot be converted.
-        */
-        public static Attribute GetInstance(
-            object obj)
+        public static Attribute GetInstance(object obj)
         {
-            if (obj == null || obj is Attribute)
-				return (Attribute) obj;
-
-			if (obj is Asn1Sequence)
-                return new Attribute((Asn1Sequence) obj);
-
-            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+            if (obj == null)
+                return null;
+            if (obj is Attribute attribute)
+                return attribute;
+#pragma warning disable CS0618 // Type or member is obsolete
+            return new Attribute(Asn1Sequence.GetInstance(obj));
+#pragma warning restore CS0618 // Type or member is obsolete
         }
 
-		public Attribute(
-            Asn1Sequence seq)
+        public static Attribute GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
-            attrType = (DerObjectIdentifier)seq[0];
-            attrValues = (Asn1Set)seq[1];
+#pragma warning disable CS0618 // Type or member is obsolete
+            return new Attribute(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+#pragma warning restore CS0618 // Type or member is obsolete
         }
 
-		public Attribute(
-            DerObjectIdentifier attrType,
-            Asn1Set             attrValues)
+        private readonly DerObjectIdentifier m_attrType;
+        private readonly Asn1Set m_attrValues;
+
+        [Obsolete("Use 'GetInstance' instead")]
+        public Attribute(Asn1Sequence seq)
         {
-            this.attrType = attrType;
-            this.attrValues = attrValues;
+            int count = seq.Count;
+            if (count != 2)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+
+            m_attrType = DerObjectIdentifier.GetInstance(seq[0]);
+            m_attrValues = Asn1Set.GetInstance(seq[1]);
         }
 
-        public DerObjectIdentifier AttrType
-		{
-			get { return attrType; }
-		}
+        public Attribute(DerObjectIdentifier attrType, Asn1Set attrValues)
+        {
+            m_attrType = attrType ?? throw new ArgumentNullException(nameof(attrType));
+            m_attrValues = attrValues ?? throw new ArgumentNullException(nameof(attrValues));
+        }
 
-		public Asn1Set AttrValues
-		{
-			get { return attrValues; }
-		}
+        public DerObjectIdentifier AttrType => m_attrType;
+
+        public Asn1Set AttrValues => m_attrValues;
 
 		/**
         * Produce an object suitable for an Asn1OutputStream.
@@ -62,9 +56,6 @@ namespace Org.BouncyCastle.Asn1.Cms
         * }
         * </pre>
         */
-        public override Asn1Object ToAsn1Object()
-        {
-			return new DerSequence(attrType, attrValues);
-        }
+        public override Asn1Object ToAsn1Object() => new DerSequence(m_attrType, m_attrValues);
     }
 }

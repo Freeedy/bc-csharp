@@ -1,38 +1,32 @@
-using System;
-using System.Collections;
-
-using Org.BouncyCastle.Utilities;
+using System.Collections.Generic;
 
 namespace Org.BouncyCastle.Cms
 {
-	public class RecipientInformationStore
+    public class RecipientInformationStore
+		: IEnumerable<RecipientInformation>
 	{
-		private readonly IList all; //ArrayList[RecipientInformation]
-		private readonly IDictionary table = Platform.CreateHashtable(); // Hashtable[RecipientID, ArrayList[RecipientInformation]]
+		private readonly IList<RecipientInformation> m_all;
+		private readonly IDictionary<RecipientID, IList<RecipientInformation>> m_table =
+			new Dictionary<RecipientID, IList<RecipientInformation>>();
 
-		public RecipientInformationStore(
-			ICollection recipientInfos)
+		public RecipientInformationStore(IEnumerable<RecipientInformation> recipientInfos)
 		{
 			foreach (RecipientInformation recipientInformation in recipientInfos)
 			{
 				RecipientID rid = recipientInformation.RecipientID;
-                IList list = (IList)table[rid];
 
-				if (list == null)
-				{
-					table[rid] = list = Platform.CreateArrayList(1);
+				if (!m_table.TryGetValue(rid, out var list))
+                {
+					m_table[rid] = list = new List<RecipientInformation>(1);
 				}
 
 				list.Add(recipientInformation);
 			}
 
-            this.all = Platform.CreateArrayList(recipientInfos);
+            m_all = new List<RecipientInformation>(recipientInfos);
 		}
 
-		public RecipientInformation this[RecipientID selector]
-		{
-			get { return GetFirstRecipient(selector); }
-		}
+		public RecipientInformation this[RecipientID selector] => GetFirstRecipient(selector);
 
 		/**
 		* Return the first RecipientInformation object that matches the
@@ -41,12 +35,12 @@ namespace Org.BouncyCastle.Cms
 		* @param selector to identify a recipient
 		* @return a single RecipientInformation object. Null if none matches.
 		*/
-		public RecipientInformation GetFirstRecipient(
-			RecipientID selector)
+		public RecipientInformation GetFirstRecipient(RecipientID selector)
 		{
-			IList list = (IList) table[selector];
+			if (!m_table.TryGetValue(selector, out var list))
+				return null;
 
-			return list == null ? null : (RecipientInformation) list[0];
+			return list[0];
 		}
 
 		/**
@@ -54,20 +48,14 @@ namespace Org.BouncyCastle.Cms
 		*
 		* @return number of recipients identified.
 		*/
-		public int Count
-		{
-			get { return all.Count; }
-		}
+		public int Count => m_all.Count;
 
 		/**
 		* Return all recipients in the collection
 		*
 		* @return a collection of recipients.
 		*/
-		public ICollection GetRecipients()
-		{
-			return Platform.CreateArrayList(all);
-		}
+		public IList<RecipientInformation> GetRecipients() => new List<RecipientInformation>(m_all);
 
 		/**
 		* Return possible empty collection with recipients matching the passed in RecipientID
@@ -75,12 +63,16 @@ namespace Org.BouncyCastle.Cms
 		* @param selector a recipient id to select against.
 		* @return a collection of RecipientInformation objects.
 		*/
-		public ICollection GetRecipients(
-			RecipientID selector)
+		public IList<RecipientInformation> GetRecipients(RecipientID selector)
 		{
-            IList list = (IList)table[selector];
+			if (!m_table.TryGetValue(selector, out var list))
+				return new List<RecipientInformation>(0);
 
-            return list == null ? Platform.CreateArrayList() : Platform.CreateArrayList(list);
+			return new List<RecipientInformation>(list);
 		}
-	}
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+        public IEnumerator<RecipientInformation> GetEnumerator() => GetRecipients().GetEnumerator();
+    }
 }

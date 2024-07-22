@@ -29,21 +29,22 @@ namespace Org.BouncyCastle.Asn1
          */
         public static DerGraphicString GetInstance(object obj)
         {
-            if (obj == null || obj is DerGraphicString)
+            if (obj == null)
+                return null;
+
+            if (obj is DerGraphicString derGraphicString)
+                return derGraphicString;
+
+            if (obj is IAsn1Convertible asn1Convertible)
             {
-                return (DerGraphicString)obj;
+                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is DerGraphicString converted)
+                    return converted;
             }
-            else if (obj is IAsn1Convertible)
-            {
-                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
-                if (asn1Object is DerGraphicString)
-                    return (DerGraphicString)asn1Object;
-            }
-            else if (obj is byte[])
+            else if (obj is byte[] bytes)
             {
                 try
                 {
-                    return (DerGraphicString)Meta.Instance.FromByteArray((byte[])obj);
+                    return (DerGraphicString)Meta.Instance.FromByteArray(bytes);
                 }
                 catch (IOException e)
                 {
@@ -65,6 +66,22 @@ namespace Org.BouncyCastle.Asn1
         public static DerGraphicString GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
             return (DerGraphicString)Meta.Instance.GetContextInstance(taggedObject, declaredExplicit);
+        }
+
+        public static DerGraphicString GetOptional(Asn1Encodable element)
+        {
+            if (element == null)
+                throw new ArgumentNullException(nameof(element));
+
+            if (element is DerGraphicString existing)
+                return existing;
+
+            return null;
+        }
+
+        public static DerGraphicString GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        {
+            return (DerGraphicString)Meta.Instance.GetTagged(taggedObject, declaredExplicit);
         }
 
         private readonly byte[] m_contents;
@@ -100,6 +117,16 @@ namespace Org.BouncyCastle.Asn1
         internal override IAsn1Encoding GetEncodingImplicit(int encoding, int tagClass, int tagNo)
         {
             return new PrimitiveEncoding(tagClass, tagNo, m_contents);
+        }
+
+        internal sealed override DerEncoding GetEncodingDer()
+        {
+            return new PrimitiveDerEncoding(Asn1Tags.Universal, Asn1Tags.GraphicString, m_contents);
+        }
+
+        internal sealed override DerEncoding GetEncodingDerImplicit(int tagClass, int tagNo)
+        {
+            return new PrimitiveDerEncoding(tagClass, tagNo, m_contents);
         }
 
         protected override int Asn1GetHashCode()

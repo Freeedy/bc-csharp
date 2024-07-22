@@ -5,40 +5,49 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class Attributes
         : Asn1Encodable
     {
-        private readonly Asn1Set attributes;
-
-        private Attributes(Asn1Set attributes)
-        {
-            this.attributes = attributes;
-        }
-
-        public Attributes(Asn1EncodableVector v)
-        {
-            attributes = new BerSet(v);
-        }
-
         public static Attributes GetInstance(object obj)
         {
-            if (obj is Attributes)
-                return (Attributes)obj;
+            if (obj == null)
+                return null;
+            if (obj is Attributes attributes)
+                return attributes;
+            return new Attributes(Asn1Set.GetInstance(obj));
+        }
 
-            if (obj != null)
-                return new Attributes(Asn1Set.GetInstance(obj));
+        public static Attributes GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            new Attributes(Asn1Set.GetInstance(taggedObject, declaredExplicit));
+
+        public static Attributes GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            new Attributes(Asn1Set.GetTagged(taggedObject, declaredExplicit));
+
+        public static Attributes GetOptional(Asn1Encodable element)
+        {
+            if (element == null)
+                throw new ArgumentNullException(nameof(element));
+
+            if (element is Attributes attributes)
+                return attributes;
+
+            Asn1Set asn1Set = Asn1Set.GetOptional(element);
+            if (asn1Set != null)
+                return new Attributes(asn1Set);
 
             return null;
         }
 
-        public virtual Attribute[] GetAttributes()
+        private readonly Asn1Set m_attributes;
+
+        private Attributes(Asn1Set attributes)
         {
-            Attribute[] rv = new Attribute[attributes.Count];
-
-            for (int i = 0; i != rv.Length; i++)
-            {
-                rv[i] = Attribute.GetInstance(attributes[i]);
-            }
-
-            return rv;
+            m_attributes = attributes;
         }
+
+        public Attributes(Asn1EncodableVector v)
+        {
+            m_attributes = BerSet.FromVector(v);
+        }
+
+        public virtual Attribute[] GetAttributes() => m_attributes.MapElements(Attribute.GetInstance);
 
         /**
          * <pre>
@@ -47,9 +56,6 @@ namespace Org.BouncyCastle.Asn1.Cms
          * </pre>
          * @return
          */
-        public override Asn1Object ToAsn1Object()
-        {
-            return attributes;
-        }
+        public override Asn1Object ToAsn1Object() => m_attributes;
     }
 }

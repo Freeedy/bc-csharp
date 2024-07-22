@@ -26,61 +26,32 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
-        public override bool CanRead
-        {
-            get { return true; }
-        }
-
-        public override bool CanSeek
-        {
-            get { return false; }
-        }
-
-        public override bool CanWrite
-        {
-            get { return true; }
-        }
-
-        public override void Close()
-        {
-            lock (this)
-            {
-                m_closed = true;
-                Monitor.PulseAll(this);
-            }
-        }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => true;
 
         public override void Flush()
         {
         }
 
-        public override long Length
-        {
-            get { throw new NotImplementedException(); }
-        }
+        public override long Length => throw new NotSupportedException();
 
         public override long Position
         {
-            get { throw new NotImplementedException(); }
-            set { throw new NotImplementedException(); }
+            get { throw new NotSupportedException(); }
+            set { throw new NotSupportedException(); }
         }
 
-        public override long Seek(long offset, SeekOrigin origin)
-        {
-            throw new NotImplementedException();
-        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
 
-        public override void SetLength(long value)
-        {
-            throw new NotImplementedException();
-        }
+        public override void SetLength(long value) => throw new NotSupportedException();
 
         public override int Read(byte[] buffer, int offset, int count)
         {
             lock (m_other)
             {
                 WaitForData();
-                int len = (int)System.Math.Min(count, m_other.m_buf.Position - m_readPos);
+                int len = System.Math.Min(count, Convert.ToInt32(m_other.m_buf.Position - m_readPos));
                 Array.Copy(m_other.m_buf.GetBuffer(), m_readPos, buffer, offset, len);
                 m_readPos += len;
                 return len;
@@ -92,7 +63,7 @@ namespace Org.BouncyCastle.Tls.Tests
             lock (m_other)
             {
                 WaitForData();
-                bool eof = (m_readPos >= m_other.m_buf.Position);
+                bool eof = m_readPos >= m_other.m_buf.Position;
                 return eof ? -1 : m_other.m_buf.GetBuffer()[m_readPos++];
             }
         }
@@ -117,10 +88,25 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                lock (this)
+                {
+                    if (!m_closed)
+                    {
+                        m_closed = true;
+                        Monitor.PulseAll(this);
+                    }
+                }
+            }
+        }
+
         private void CheckOpen()
         {
             if (m_closed)
-                throw new ObjectDisposedException(this.GetType().Name);
+                throw new ObjectDisposedException(GetType().FullName);
         }
 
         private void WaitForData()

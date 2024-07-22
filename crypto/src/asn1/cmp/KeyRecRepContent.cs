@@ -1,88 +1,51 @@
 using System;
 
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Asn1.Cmp
 {
 	public class KeyRecRepContent
 		: Asn1Encodable
 	{
-		private readonly PkiStatusInfo status;
-		private readonly CmpCertificate newSigCert;
-		private readonly Asn1Sequence caCerts;
-		private readonly Asn1Sequence keyPairHist;
+        public static KeyRecRepContent GetInstance(object obj)
+        {
+            if (obj == null)
+                return null;
+            if (obj is KeyRecRepContent keyRecRepContent)
+                return keyRecRepContent;
+            return new KeyRecRepContent(Asn1Sequence.GetInstance(obj));
+        }
+
+        public static KeyRecRepContent GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        {
+            return new KeyRecRepContent(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+        }
+
+        private readonly PkiStatusInfo m_status;
+		private readonly CmpCertificate m_newSigCert;
+		private readonly Asn1Sequence m_caCerts;
+		private readonly Asn1Sequence m_keyPairHist;
 
 		private KeyRecRepContent(Asn1Sequence seq)
 		{
-			status = PkiStatusInfo.GetInstance(seq[0]);
+            int count = seq.Count, pos = 0;
+            if (count < 1 || count > 4)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
 
-			for (int pos = 1; pos < seq.Count; ++pos)
-			{
-				Asn1TaggedObject tObj = Asn1TaggedObject.GetInstance(seq[pos]);
+            m_status = PkiStatusInfo.GetInstance(seq[pos++]);
+            m_newSigCert = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, CmpCertificate.GetTagged);
+            m_caCerts = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, Asn1Sequence.GetTagged);
+            m_keyPairHist = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 2, true, Asn1Sequence.GetTagged);
 
-				switch (tObj.TagNo)
-				{
-					case 0:
-						newSigCert = CmpCertificate.GetInstance(tObj.GetObject());
-						break;
-					case 1:
-						caCerts = Asn1Sequence.GetInstance(tObj.GetObject());
-						break;
-					case 2:
-						keyPairHist = Asn1Sequence.GetInstance(tObj.GetObject());
-						break;
-					default:
-						throw new ArgumentException("unknown tag number: " + tObj.TagNo, "seq");
-				}
-			}
-		}
+            if (pos != count)
+                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+        }
 
-		public static KeyRecRepContent GetInstance(object obj)
-		{
-			if (obj is KeyRecRepContent)
-				return (KeyRecRepContent)obj;
+		public virtual PkiStatusInfo Status => m_status;
 
-			if (obj is Asn1Sequence)
-				return new KeyRecRepContent((Asn1Sequence)obj);
+		public virtual CmpCertificate NewSigCert => m_newSigCert;
 
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
-		}
+		public virtual CmpCertificate[] GetCACerts() => m_caCerts?.MapElements(CmpCertificate.GetInstance);
 
-		public virtual PkiStatusInfo Status
-		{
-			get { return status; }
-		}
-
-		public virtual CmpCertificate NewSigCert
-		{
-			get { return newSigCert; }
-		}
-
-		public virtual CmpCertificate[] GetCACerts()
-		{
-			if (caCerts == null)
-				return null;
-
-			CmpCertificate[] results = new CmpCertificate[caCerts.Count];
-			for (int i = 0; i != results.Length; ++i)
-			{
-				results[i] = CmpCertificate.GetInstance(caCerts[i]);
-			}
-			return results;
-		}
-
-		public virtual CertifiedKeyPair[] GetKeyPairHist()
-		{
-			if (keyPairHist == null)
-				return null;
-
-			CertifiedKeyPair[] results = new CertifiedKeyPair[keyPairHist.Count];
-			for (int i = 0; i != results.Length; ++i)
-			{
-				results[i] = CertifiedKeyPair.GetInstance(keyPairHist[i]);
-			}
-			return results;
-		}
+		public virtual CertifiedKeyPair[] GetKeyPairHist() => m_keyPairHist?.MapElements(CertifiedKeyPair.GetInstance);
 
 		/**
 		 * <pre>
@@ -99,10 +62,11 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		 */
 		public override Asn1Object ToAsn1Object()
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(status);
-            v.AddOptionalTagged(true, 0, newSigCert);
-            v.AddOptionalTagged(true, 1, caCerts);
-            v.AddOptionalTagged(true, 2, keyPairHist);
+			Asn1EncodableVector v = new Asn1EncodableVector(4);
+			v.Add(m_status);
+            v.AddOptionalTagged(true, 0, m_newSigCert);
+            v.AddOptionalTagged(true, 1, m_caCerts);
+            v.AddOptionalTagged(true, 2, m_keyPairHist);
 			return new DerSequence(v);
 		}
 	}

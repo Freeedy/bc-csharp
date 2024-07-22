@@ -2,7 +2,6 @@
 
 using Org.BouncyCastle.Asn1.Cmp;
 using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Crmf
 {
@@ -12,29 +11,31 @@ namespace Org.BouncyCastle.Asn1.Crmf
     public class PKMacValue
         : Asn1Encodable
     {
-        private readonly AlgorithmIdentifier  algID;
-        private readonly DerBitString         macValue;
-
-        private PKMacValue(Asn1Sequence seq)
-        {
-            this.algID = AlgorithmIdentifier.GetInstance(seq[0]);
-            this.macValue = DerBitString.GetInstance(seq[1]);
-        }
-
         public static PKMacValue GetInstance(object obj)
         {
-            if (obj is PKMacValue)
-                return (PKMacValue)obj;
-
-            if (obj is Asn1Sequence)
-                return new PKMacValue((Asn1Sequence)obj);
-
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
+            if (obj == null)
+                return null;
+            if (obj is PKMacValue pkMacValue)
+                return pkMacValue;
+            return new PKMacValue(Asn1Sequence.GetInstance(obj));
         }
 
         public static PKMacValue GetInstance(Asn1TaggedObject obj, bool isExplicit)
         {
-            return GetInstance(Asn1Sequence.GetInstance(obj, isExplicit));
+            return new PKMacValue(Asn1Sequence.GetInstance(obj, isExplicit));
+        }
+
+        private readonly AlgorithmIdentifier m_algID;
+        private readonly DerBitString m_macValue;
+
+        private PKMacValue(Asn1Sequence seq)
+        {
+            int count = seq.Count;
+            if (count != 2)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+
+            m_algID = AlgorithmIdentifier.GetInstance(seq[0]);
+            m_macValue = DerBitString.GetInstance(seq[1]);
         }
 
         /**
@@ -42,9 +43,7 @@ namespace Org.BouncyCastle.Asn1.Crmf
          * @param params parameters for password-based MAC
          * @param value MAC of the DER-encoded SubjectPublicKeyInfo
          */
-        public PKMacValue(
-            PbmParameter pbmParams,
-            DerBitString macValue)
+        public PKMacValue(PbmParameter pbmParams, DerBitString macValue)
             : this(new AlgorithmIdentifier(CmpObjectIdentifiers.passwordBasedMac, pbmParams), macValue)
         {
         }
@@ -54,23 +53,15 @@ namespace Org.BouncyCastle.Asn1.Crmf
          * @param aid CMPObjectIdentifiers.passwordBasedMAC, with PBMParameter
          * @param value MAC of the DER-encoded SubjectPublicKeyInfo
          */
-        public PKMacValue(
-            AlgorithmIdentifier algID,
-            DerBitString        macValue)
+        public PKMacValue(AlgorithmIdentifier algID, DerBitString macValue)
         {
-            this.algID = algID;
-            this.macValue = macValue;
+            m_algID = algID;
+            m_macValue = macValue;
         }
 
-        public virtual AlgorithmIdentifier AlgID
-        {
-            get { return algID; }
-        }
+        public virtual AlgorithmIdentifier AlgID => m_algID;
 
-        public virtual DerBitString MacValue
-        {
-            get { return macValue; }
-        }
+        public virtual DerBitString MacValue => m_macValue;
 
         /**
          * <pre>
@@ -82,9 +73,6 @@ namespace Org.BouncyCastle.Asn1.Crmf
          * </pre>
          * @return a basic ASN.1 object representation.
          */
-        public override Asn1Object ToAsn1Object()
-        {
-            return new DerSequence(algID, macValue);
-        }
+        public override Asn1Object ToAsn1Object() => new DerSequence(m_algID, m_macValue);
     }
 }

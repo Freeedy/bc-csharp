@@ -399,11 +399,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			// Attributes
 			Asn1Sequence attribSeq = acInfo.Attributes;
-			AttributeX509[] att = new AttributeX509[attribSeq.Count];
-			for (int i = 0; i < attribSeq.Count; i++)
-			{
-				att[i] = AttributeX509.GetInstance(attribSeq[i]);
-			}
+			AttributeX509[] att = attribSeq.MapElements(AttributeX509.GetInstance);
 
 			// IssuerUniqueId
 			// TODO, how to best test?
@@ -465,11 +461,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			// Attributes
 			Asn1Sequence attribSeq = acInfo.Attributes;
-			AttributeX509[] att = new AttributeX509[attribSeq.Count];
-			for (int i = 0; i < attribSeq.Count; i++)
-			{
-				att[i] = AttributeX509.GetInstance(attribSeq[i]);
-			}
+            AttributeX509[] att = attribSeq.MapElements(AttributeX509.GetInstance);
 
 			// IssuerUniqueId
 			// TODO, how to best test?
@@ -520,12 +512,6 @@ namespace Org.BouncyCastle.Asn1.Tests
 			CheckV1AttributeCertificate(9, attrCertv1);
 			CheckDudCertificate();
 			CheckMalformed();
-		}
-
-		public static void Main(
-			string[] args)
-		{
-			RunTest(new CertificateTest());
 		}
 
 		[Test]

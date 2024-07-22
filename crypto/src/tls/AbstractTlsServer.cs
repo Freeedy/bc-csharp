@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
@@ -16,21 +16,21 @@ namespace Org.BouncyCastle.Tls
         protected int[] m_cipherSuites;
 
         protected int[] m_offeredCipherSuites;
-        protected IDictionary m_clientExtensions;
+        protected IDictionary<int, byte[]> m_clientExtensions;
 
         protected bool m_encryptThenMACOffered;
         protected short m_maxFragmentLengthOffered;
         protected bool m_truncatedHMacOffered;
         protected bool m_clientSentECPointFormats;
         protected CertificateStatusRequest m_certificateStatusRequest;
-        protected IList m_statusRequestV2;
-        protected IList m_trustedCAKeys;
+        protected IList<CertificateStatusRequestItemV2> m_statusRequestV2;
+        protected IList<TrustedAuthority> m_trustedCAKeys;
 
         protected int m_selectedCipherSuite;
-        protected IList m_clientProtocolNames;
+        protected IList<ProtocolName> m_clientProtocolNames;
         protected ProtocolName m_selectedProtocolName;
 
-        protected readonly IDictionary m_serverExtensions = Platform.CreateHashtable();
+        protected readonly IDictionary<int, byte[]> m_serverExtensions = new Dictionary<int, byte[]>();
 
         public AbstractTlsServer(TlsCrypto crypto)
             : base(crypto)
@@ -62,50 +62,76 @@ namespace Org.BouncyCastle.Tls
             return false;
         }
 
+        protected virtual string GetDetailMessageNoCipherSuite()
+        {
+            return "No selectable cipher suite";
+        }
+
+        protected virtual int GetMaximumDefaultCurveBits()
+        {
+            return NamedGroup.GetCurveBits(NamedGroup.secp521r1);
+        }
+
+        protected virtual int GetMaximumDefaultFiniteFieldBits()
+        {
+            return NamedGroup.GetFiniteFieldBits(NamedGroup.ffdhe8192);
+        }
+
         protected virtual int GetMaximumNegotiableCurveBits()
         {
+            int maxBits = 0;
             int[] clientSupportedGroups = m_context.SecurityParameters.ClientSupportedGroups;
-            if (clientSupportedGroups == null)
+            if (clientSupportedGroups != null)
+            {
+                for (int i = 0; i < clientSupportedGroups.Length; ++i)
+                {
+                    maxBits = System.Math.Max(maxBits, NamedGroup.GetCurveBits(clientSupportedGroups[i]));
+                }
+            }
+            else
             {
                 /*
                  * RFC 4492 4. A client that proposes ECC cipher suites may choose not to include these
-                 * extensions. In this case, the server is free to choose any one of the elliptic curves
-                 * or point formats [...].
+                 * extensions. In this case, the server is free to choose any one of the elliptic curves or point
+                 * formats [...].
                  */
-                return NamedGroup.GetMaximumCurveBits();
-            }
-
-            int maxBits = 0;
-            for (int i = 0; i < clientSupportedGroups.Length; ++i)
-            {
-                maxBits = System.Math.Max(maxBits, NamedGroup.GetCurveBits(clientSupportedGroups[i]));
+                maxBits = GetMaximumDefaultCurveBits();
             }
             return maxBits;
         }
 
         protected virtual int GetMaximumNegotiableFiniteFieldBits()
         {
-            int[] clientSupportedGroups = m_context.SecurityParameters.ClientSupportedGroups;
-            if (clientSupportedGroups == null)
-            {
-                return NamedGroup.GetMaximumFiniteFieldBits();
-            }
-
             int maxBits = 0;
-            for (int i = 0; i < clientSupportedGroups.Length; ++i)
+            bool anyPeerFF = false;
+            int[] clientSupportedGroups = m_context.SecurityParameters.ClientSupportedGroups;
+            if (clientSupportedGroups != null)
             {
-                maxBits = System.Math.Max(maxBits, NamedGroup.GetFiniteFieldBits(clientSupportedGroups[i]));
+                for (int i = 0; i < clientSupportedGroups.Length; ++i)
+                {
+                    anyPeerFF |= NamedGroup.IsFiniteField(clientSupportedGroups[i]);
+                    maxBits = System.Math.Max(maxBits, NamedGroup.GetFiniteFieldBits(clientSupportedGroups[i]));
+                }
+            }
+            if (!anyPeerFF)
+            {
+                /*
+                 * RFC 7919 4. If [...] the Supported Groups extension is either absent from the ClientHello
+                 * entirely or contains no FFDHE groups (i.e., no codepoints between 256 and 511, inclusive), then
+                 * the server [...] MAY select an FFDHE cipher suite and offer an FFDHE group of its choice [...].
+                 */
+                maxBits = GetMaximumDefaultFiniteFieldBits();
             }
             return maxBits;
         }
 
-        protected virtual IList GetProtocolNames()
+        protected virtual IList<ProtocolName> GetProtocolNames()
         {
             return null;
         }
 
         protected virtual bool IsSelectableCipherSuite(int cipherSuite, int availCurveBits, int availFiniteFieldBits,
-            IList sigAlgs)
+            IList<short> sigAlgs)
         {
             // TODO[tls13] The version check should be separated out (eventually select ciphersuite before version)
             return TlsUtilities.IsValidVersionForCipherSuite(cipherSuite, m_context.ServerVersion)
@@ -126,23 +152,39 @@ namespace Org.BouncyCastle.Tls
             return true;
         }
 
+        // TODO[api] Preferably return TlsDHConfig from here to support custom DH groups more easily
         protected virtual int SelectDH(int minimumFiniteFieldBits)
         {
+            bool anyPeerFF = false;
             int[] clientSupportedGroups = m_context.SecurityParameters.ClientSupportedGroups;
-            if (clientSupportedGroups == null)
-                return SelectDHDefault(minimumFiniteFieldBits);
-
-            // Try to find a supported named group of the required size from the client's list.
-            for (int i = 0; i < clientSupportedGroups.Length; ++i)
+            if (clientSupportedGroups != null)
             {
-                int namedGroup = clientSupportedGroups[i];
-                if (NamedGroup.GetFiniteFieldBits(namedGroup) >= minimumFiniteFieldBits)
-                    return namedGroup;
-            }
+                // Try to find a supported named group of the required size from the client's list.
+                for (int i = 0; i < clientSupportedGroups.Length; ++i)
+                {
+                    int namedGroup = clientSupportedGroups[i];
+                    anyPeerFF |= NamedGroup.IsFiniteField(namedGroup);
 
+                    if (NamedGroup.GetFiniteFieldBits(namedGroup) >= minimumFiniteFieldBits)
+                    {
+                        // This default server implementation supports all NamedGroup finite fields
+                        return namedGroup;
+                    }
+                }
+            }
+            if (!anyPeerFF)
+            {
+                /*
+                 * RFC 7919 4. If [...] the Supported Groups extension is either absent from the ClientHello
+                 * entirely or contains no FFDHE groups (i.e., no codepoints between 256 and 511, inclusive), then
+                 * the server [...] MAY select an FFDHE cipher suite and offer an FFDHE group of its choice [...].
+                 */
+                return SelectDHDefault(minimumFiniteFieldBits);
+            }
             return -1;
         }
 
+        // TODO[api] Preferably return TlsDHConfig from here to support custom DH groups more easily
         protected virtual int SelectDHDefault(int minimumFiniteFieldBits)
         {
             return minimumFiniteFieldBits <= 2048 ? NamedGroup.ffdhe2048
@@ -157,14 +199,24 @@ namespace Org.BouncyCastle.Tls
         {
             int[] clientSupportedGroups = m_context.SecurityParameters.ClientSupportedGroups;
             if (clientSupportedGroups == null)
+            {
+                /*
+                 * RFC 4492 4. A client that proposes ECC cipher suites may choose not to include these
+                 * extensions. In this case, the server is free to choose any one of the elliptic curves or point
+                 * formats [...].
+                 */
                 return SelectECDHDefault(minimumCurveBits);
+            }
 
             // Try to find a supported named group of the required size from the client's list.
             for (int i = 0; i < clientSupportedGroups.Length; ++i)
             {
                 int namedGroup = clientSupportedGroups[i];
                 if (NamedGroup.GetCurveBits(namedGroup) >= minimumCurveBits)
+                {
+                    // This default server implementation supports all NamedGroup curves
                     return namedGroup;
+                }
             }
 
             return -1;
@@ -180,7 +232,7 @@ namespace Org.BouncyCastle.Tls
 
         protected virtual ProtocolName SelectProtocolName()
         {
-            IList serverProtocolNames = GetProtocolNames();
+            IList<ProtocolName> serverProtocolNames = GetProtocolNames();
             if (null == serverProtocolNames || serverProtocolNames.Count < 1)
                 return null;
 
@@ -191,7 +243,8 @@ namespace Org.BouncyCastle.Tls
             return result;
         }
 
-        protected virtual ProtocolName SelectProtocolName(IList clientProtocolNames, IList serverProtocolNames)
+        protected virtual ProtocolName SelectProtocolName(IList<ProtocolName> clientProtocolNames,
+            IList<ProtocolName> serverProtocolNames)
         {
             foreach (ProtocolName serverProtocolName in serverProtocolNames)
             {
@@ -205,6 +258,26 @@ namespace Org.BouncyCastle.Tls
         {
             return true;
         }
+
+        protected virtual bool PreferLocalClientCertificateTypes()
+        {
+            return false;
+        }
+
+        protected virtual short[] GetAllowedClientCertificateTypes()
+        {
+            return null;
+        }
+
+        /// <summary>RFC 9146 DTLS connection ID.</summary>
+        /// <remarks>
+        /// This method will be called if a connection_id extension was sent by the client.
+        /// If the return value is non-null, the server will send this connection ID to the client to use in future packets.
+        /// As future communication doesn't include the connection IDs length, this should either be fixed-length
+        /// or include the connection ID's length. (see explanation in RFC 9146 4. "cid:")
+        /// </remarks>
+        /// <returns>The connection ID to use.</returns>
+        protected virtual byte[] GetNewConnectionID() => null;
 
         public virtual void Init(TlsServerContext context)
         {
@@ -250,7 +323,7 @@ namespace Org.BouncyCastle.Tls
             return null;
         }
 
-        public virtual TlsPskExternal GetExternalPsk(IList identities)
+        public virtual TlsPskExternal GetExternalPsk(IList<PskIdentity> identities)
         {
             return null;
         }
@@ -302,7 +375,7 @@ namespace Org.BouncyCastle.Tls
             this.m_offeredCipherSuites = offeredCipherSuites;
         }
 
-        public virtual void ProcessClientExtensions(IDictionary clientExtensions)
+        public virtual void ProcessClientExtensions(IDictionary<int, byte[]> clientExtensions)
         {
             this.m_clientExtensions = clientExtensions;
 
@@ -382,7 +455,7 @@ namespace Org.BouncyCastle.Tls
                  * somewhat inelegant but is a compromise designed to minimize changes to the original
                  * cipher suite design.
                  */
-                IList sigAlgs = TlsUtilities.GetUsableSignatureAlgorithms(securityParameters.ClientSigAlgs);
+                var sigAlgs = TlsUtilities.GetUsableSignatureAlgorithms(securityParameters.ClientSigAlgs);
 
                 /*
                  * RFC 4429 5.1. A server that receives a ClientHello containing one or both of these
@@ -408,11 +481,11 @@ namespace Org.BouncyCastle.Tls
                 }
             }
 
-            throw new TlsFatalAlert(AlertDescription.handshake_failure, "No selectable cipher suite");
+            throw new TlsFatalAlert(AlertDescription.handshake_failure, GetDetailMessageNoCipherSuite());
         }
 
         // IDictionary is (Int32 -> byte[])
-        public virtual IDictionary GetServerExtensions()
+        public virtual IDictionary<int, byte[]> GetServerExtensions()
         {
             bool isTlsV13 = TlsUtilities.IsTlsV13(m_context);
 
@@ -490,10 +563,87 @@ namespace Org.BouncyCastle.Tls
                 TlsExtensionsUtilities.AddMaxFragmentLengthExtension(m_serverExtensions, m_maxFragmentLengthOffered);
             }
 
+            // RFC 7250 4.2 for server_certificate_type
+            short[] serverCertTypes = TlsExtensionsUtilities.GetServerCertificateTypeExtensionClient(
+                m_clientExtensions);
+            if (serverCertTypes != null)
+            {
+                TlsCredentials credentials = GetCredentials();
+                if (credentials != null)
+                {
+                    // TODO An X509 certificate should still be usable as RawPublicKey
+                    short serverCertificateType = credentials.Certificate.CertificateType;
+
+                    if (CertificateType.OpenPGP == serverCertificateType && isTlsV13)
+                    {
+                        throw new TlsFatalAlert(AlertDescription.internal_error,
+                            "The OpenPGP certificate type MUST NOT be used with TLS 1.3");
+                    }
+
+                    if (!Arrays.Contains(serverCertTypes, serverCertificateType))
+                    {
+                        // outcome 2: we support the extension but have no common types
+                        throw new TlsFatalAlert(AlertDescription.unsupported_certificate);
+                    }
+
+                    // outcome 3: we support the extension and have a common type
+                    TlsExtensionsUtilities.AddServerCertificateTypeExtensionServer(m_serverExtensions,
+                        serverCertificateType);
+                }
+            }
+
+            // TODO If we won't be sending a CertificateRequest, this extension can be ignored
+            // RFC 7250 4.2 for client_certificate_type
+            short[] remoteClientCertTypes = TlsExtensionsUtilities.GetClientCertificateTypeExtensionClient(
+                m_clientExtensions);
+            if (remoteClientCertTypes != null)
+            {
+                short[] localClientCertTypes = GetAllowedClientCertificateTypes();
+                if (localClientCertTypes != null)
+                {
+                    short[] preferredTypes;
+                    short[] nonPreferredTypes;
+                    if (PreferLocalClientCertificateTypes())
+                    {
+                        preferredTypes = localClientCertTypes;
+                        nonPreferredTypes = remoteClientCertTypes;
+                    }
+                    else
+                    {
+                        preferredTypes = remoteClientCertTypes;
+                        nonPreferredTypes = localClientCertTypes;
+                    }
+
+                    short selectedType = -1;
+                    for (int i = 0; i < preferredTypes.Length; i++)
+                    {
+                        short preferredType = preferredTypes[i];
+                        if (CertificateType.OpenPGP == preferredType && isTlsV13)
+                            continue;
+
+                        if (Arrays.Contains(nonPreferredTypes, preferredType))
+                        {
+                            selectedType = preferredType;
+                            break;
+                        }
+                    }
+
+                    // TODO Shouldn't be an error unless we REQUIRE client authentication
+                    if (selectedType == -1)
+                    {
+                        // outcome 2: we support the extension but have no common types
+                        throw new TlsFatalAlert(AlertDescription.unsupported_certificate);
+                    }
+
+                    // outcome 3: we support the extension and have a common type
+                    TlsExtensionsUtilities.AddClientCertificateTypeExtensionServer(m_serverExtensions, selectedType);
+                } // else outcome 1: we don't support the extension
+            }
+
             return m_serverExtensions;
         }
 
-        public virtual void GetServerExtensionsForConnection(IDictionary serverExtensions)
+        public virtual void GetServerExtensionsForConnection(IDictionary<int, byte[]> serverExtensions)
         {
             if (!ShouldSelectProtocolNameEarly())
             {
@@ -516,9 +666,25 @@ namespace Org.BouncyCastle.Tls
             {
                 TlsExtensionsUtilities.AddAlpnExtensionServer(serverExtensions, m_selectedProtocolName);
             }
+
+            if (ProtocolVersion.DTLSv12.Equals(m_context.ServerVersion))
+            {
+                /*
+                 * RFC 9146 3. When a DTLS session is resumed or renegotiated, the "connection_id" extension is
+                 * negotiated afresh.
+                 */
+                if (m_clientExtensions != null && m_clientExtensions.ContainsKey(ExtensionType.connection_id))
+                {
+                    var serverConnectionID = GetNewConnectionID();
+                    if (serverConnectionID != null)
+                    {
+                        TlsExtensionsUtilities.AddConnectionIDExtension(m_serverExtensions, serverConnectionID);
+                    }
+                }
+            }
         }
 
-        public virtual IList GetServerSupplementalData()
+        public virtual IList<SupplementalDataEntry> GetServerSupplementalData()
         {
             return null;
         }
@@ -559,7 +725,7 @@ namespace Org.BouncyCastle.Tls
             return TlsEccUtilities.CreateNamedECConfig(m_context, namedGroup);
         }
 
-        public virtual void ProcessClientSupplementalData(IList clientSupplementalData)
+        public virtual void ProcessClientSupplementalData(IList<SupplementalDataEntry> clientSupplementalData)
         {
             if (clientSupplementalData != null)
                 throw new TlsFatalAlert(AlertDescription.unexpected_message);

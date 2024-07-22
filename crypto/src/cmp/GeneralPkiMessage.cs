@@ -1,18 +1,13 @@
-﻿using System;
-
-using Org.BouncyCastle.Asn1;
+﻿using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cmp;
 
 namespace Org.BouncyCastle.Cmp
 {
     public class GeneralPkiMessage
     {
-        private readonly PkiMessage pkiMessage;
+        private readonly PkiMessage m_pkiMessage;
 
-        private static PkiMessage ParseBytes(byte[] encoding)
-        {
-            return PkiMessage.GetInstance(Asn1Object.FromByteArray(encoding));
-        }
+        private static PkiMessage ParseBytes(byte[] encoding) => PkiMessage.GetInstance(encoding);
 
         /// <summary>
         /// Wrap a PKIMessage ASN.1 structure.
@@ -20,7 +15,7 @@ namespace Org.BouncyCastle.Cmp
         /// <param name="pkiMessage">PKI message.</param>
         public GeneralPkiMessage(PkiMessage pkiMessage)
         {
-            this.pkiMessage = pkiMessage;
+            m_pkiMessage = pkiMessage;
         }
 
         /// <summary>
@@ -32,28 +27,16 @@ namespace Org.BouncyCastle.Cmp
         {
         }
 
-        public PkiHeader Header
-        {
-            get { return pkiMessage.Header; }
-        }
+        public virtual PkiHeader Header => m_pkiMessage.Header;
 
-        public PkiBody Body
-        {
-            get { return pkiMessage.Body; }
-        }
+        public virtual PkiBody Body => m_pkiMessage.Body;
 
         /// <summary>
         /// Return true if this message has protection bits on it. A return value of true
         /// indicates the message can be used to construct a ProtectedPKIMessage.
         /// </summary>
-        public bool HasProtection
-        {
-            get { return pkiMessage.Protection != null; }
-        }
+        public virtual bool HasProtection => m_pkiMessage.Protection != null;
 
-        public PkiMessage ToAsn1Structure()
-        {
-            return pkiMessage;
-        }
+        public virtual PkiMessage ToAsn1Structure() => m_pkiMessage;
     }
 }

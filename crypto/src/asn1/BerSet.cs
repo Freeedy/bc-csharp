@@ -5,7 +5,7 @@ using Org.BouncyCastle.Utilities;
 namespace Org.BouncyCastle.Asn1
 {
     public class BerSet
-        : DerSet
+        : DLSet
     {
 		public static new readonly BerSet Empty = new BerSet();
 
@@ -31,7 +31,7 @@ namespace Org.BouncyCastle.Asn1
         }
 
         public BerSet(params Asn1Encodable[] elements)
-            : base(elements, false)
+            : base(elements)
         {
         }
 
@@ -39,7 +39,7 @@ namespace Org.BouncyCastle.Asn1
          * create a set containing a vector of objects.
          */
         public BerSet(Asn1EncodableVector elementVector)
-            : base(elementVector, false)
+            : base(elementVector)
         {
         }
 
@@ -54,7 +54,7 @@ namespace Org.BouncyCastle.Asn1
                 return base.GetEncoding(encoding);
 
             return new ConstructedILEncoding(Asn1Tags.Universal, Asn1Tags.Set,
-                Asn1OutputStream.GetContentsEncodings(encoding, elements));
+                Asn1OutputStream.GetContentsEncodings(encoding, m_elements));
         }
 
         internal override IAsn1Encoding GetEncodingImplicit(int encoding, int tagClass, int tagNo)
@@ -63,7 +63,7 @@ namespace Org.BouncyCastle.Asn1
                 return base.GetEncodingImplicit(encoding, tagClass, tagNo);
 
             return new ConstructedILEncoding(tagClass, tagNo,
-                Asn1OutputStream.GetContentsEncodings(encoding, elements));
+                Asn1OutputStream.GetContentsEncodings(encoding, m_elements));
         }
     }
 }

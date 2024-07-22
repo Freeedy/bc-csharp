@@ -1,14 +1,14 @@
 using System;
-using System.Collections;
+using System.Collections.Generic;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Security.Certificates;
-using Org.BouncyCastle.Utilities;
+using Org.BouncyCastle.Cms;
+using Org.BouncyCastle.Operators.Utilities;
+using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.X509;
-using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.Cms
 {
@@ -37,19 +37,13 @@ namespace Org.BouncyCastle.Cms
 	*/
 	public class CmsSignedData
 	{
-		private static readonly CmsSignedHelper Helper = CmsSignedHelper.Instance;
-
 		private readonly CmsProcessable	signedContent;
 		private SignedData				signedData;
 		private ContentInfo				contentInfo;
 		private SignerInformationStore	signerInfoStore;
-		private IX509Store				attrCertStore;
-		private IX509Store				certificateStore;
-		private IX509Store				crlStore;
-		private IDictionary				hashes;
+		private IDictionary<string, byte[]> m_hashes;
 
-		private CmsSignedData(
-			CmsSignedData c)
+		private CmsSignedData(CmsSignedData c)
 		{
 			this.signedData = c.signedData;
 			this.contentInfo = c.contentInfo;
@@ -57,15 +51,12 @@ namespace Org.BouncyCastle.Cms
 			this.signerInfoStore = c.signerInfoStore;
 		}
 
-		public CmsSignedData(
-			byte[] sigBlock)
+		public CmsSignedData(byte[] sigBlock)
 			: this(CmsUtilities.ReadContentInfo(new MemoryStream(sigBlock, false)))
 		{
 		}
 
-		public CmsSignedData(
-			CmsProcessable	signedContent,
-			byte[]			sigBlock)
+		public CmsSignedData(CmsProcessable signedContent, byte[] sigBlock)
 			: this(signedContent, CmsUtilities.ReadContentInfo(new MemoryStream(sigBlock, false)))
 		{
 		}
@@ -76,9 +67,7 @@ namespace Org.BouncyCastle.Cms
 		 * @param hashes a map of precomputed digests for content indexed by name of hash.
 		 * @param sigBlock the signature object.
 		 */
-		public CmsSignedData(
-			IDictionary	hashes,
-			byte[]		sigBlock)
+		public CmsSignedData(IDictionary<string, byte[]> hashes, byte[] sigBlock)
 			: this(hashes, CmsUtilities.ReadContentInfo(sigBlock))
 		{
 		}
@@ -89,9 +78,7 @@ namespace Org.BouncyCastle.Cms
 		* @param signedContent the content that was signed.
 		* @param sigData the signature object.
 		*/
-		public CmsSignedData(
-			CmsProcessable	signedContent,
-			Stream			sigData)
+		public CmsSignedData(CmsProcessable signedContent, Stream sigData)
 			: this(signedContent, CmsUtilities.ReadContentInfo(sigData))
 		{
 		}
@@ -99,32 +86,26 @@ namespace Org.BouncyCastle.Cms
 		/**
 		* base constructor - with encapsulated content
 		*/
-		public CmsSignedData(
-			Stream sigData)
+		public CmsSignedData(Stream sigData)
 			: this(CmsUtilities.ReadContentInfo(sigData))
 		{
 		}
 
-		public CmsSignedData(
-			CmsProcessable  signedContent,
-			ContentInfo     sigData)
+		public CmsSignedData(CmsProcessable signedContent, ContentInfo sigData)
 		{
 			this.signedContent = signedContent;
 			this.contentInfo = sigData;
 			this.signedData = SignedData.GetInstance(contentInfo.Content);
 		}
 
-		public CmsSignedData(
-			IDictionary	hashes,
-			ContentInfo	sigData)
+		public CmsSignedData(IDictionary<string, byte[]> hashes, ContentInfo sigData)
 		{
-			this.hashes = hashes;
+			this.m_hashes = hashes;
 			this.contentInfo = sigData;
 			this.signedData = SignedData.GetInstance(contentInfo.Content);
 		}
 
-		public CmsSignedData(
-			ContentInfo sigData)
+		public CmsSignedData(ContentInfo sigData)
 		{
 			this.contentInfo = sigData;
 			this.signedData = SignedData.GetInstance(contentInfo.Content);
@@ -135,8 +116,16 @@ namespace Org.BouncyCastle.Cms
 			//
 			if (signedData.EncapContentInfo.Content != null)
 			{
-				this.signedContent = new CmsProcessableByteArray(
-					((Asn1OctetString)(signedData.EncapContentInfo.Content)).GetOctets());
+				if (signedData.EncapContentInfo.Content is Asn1OctetString)
+				{
+					signedContent = new CmsProcessableByteArray(
+						((Asn1OctetString)(signedData.EncapContentInfo.Content)).GetOctets());
+				}
+				else
+				{
+					signedContent = new Pkcs7ProcessableObject(signedData.EncapContentInfo.ContentType,
+						signedData.EncapContentInfo.Content);
+				}
 			}
 //			else
 //			{
@@ -150,11 +139,6 @@ namespace Org.BouncyCastle.Cms
 			get { return signedData.Version.IntValueExact; }
 		}
 
-        internal IX509Store GetCertificates()
-        {
-            return Helper.GetCertificates(signedData.Certificates);
-		}
-
         /**
 		* return the collection of signers that are associated with the
 		* signatures for the message.
@@ -163,7 +147,7 @@ namespace Org.BouncyCastle.Cms
 		{
 			if (signerInfoStore == null)
 			{
-                IList signerInfos = Platform.CreateArrayList();
+				var signerInfos = new List<SignerInformation>();
 				Asn1Set s = signedData.SignerInfos;
 
 				foreach (object obj in s)
@@ -171,16 +155,18 @@ namespace Org.BouncyCastle.Cms
 					SignerInfo info = SignerInfo.GetInstance(obj);
 					DerObjectIdentifier contentType = signedData.EncapContentInfo.ContentType;
 
-					if (hashes == null)
+					if (m_hashes == null)
 					{
 						signerInfos.Add(new SignerInformation(info, contentType, signedContent, null));
 					}
-					else
+					else if (m_hashes.TryGetValue(info.DigestAlgorithm.Algorithm.Id, out var hash))
 					{
-                        byte[] hash = (byte[])hashes[info.DigestAlgorithm.Algorithm.Id];
-
-						signerInfos.Add(new SignerInformation(info, contentType, null, new BaseDigestCalculator(hash)));
+						signerInfos.Add(new SignerInformation(info, contentType, null, hash));
 					}
+					else
+                    {
+						throw new InvalidOperationException();
+                    }
 				}
 
 				signerInfoStore = new SignerInformationStore(signerInfos);
@@ -198,68 +184,64 @@ namespace Org.BouncyCastle.Cms
 		 * @exception NoSuchStoreException if the store type isn't available.
 		 * @exception CmsException if a general exception prevents creation of the X509Store
 		 */
-		public IX509Store GetAttributeCertificates(
-			string type)
+		public IStore<X509V2AttributeCertificate> GetAttributeCertificates()
 		{
-			if (attrCertStore == null)
-			{
-				attrCertStore = Helper.CreateAttributeStore(type, signedData.Certificates);
-			}
-
-			return attrCertStore;
+			return CmsSignedHelper.GetAttributeCertificates(signedData.Certificates);
 		}
 
 		/**
-		 * return a X509Store containing the public key certificates, if any, contained
-		 * in this message.
+		 * return a X509Store containing the public key certificates, if any, contained in this message.
 		 *
-		 * @param type type of store to create
 		 * @return a store of public key certificates
 		 * @exception NoSuchStoreException if the store type isn't available.
 		 * @exception CmsException if a general exception prevents creation of the X509Store
 		 */
-		public IX509Store GetCertificates(
-			string type)
+		public IStore<X509Certificate> GetCertificates()
 		{
-			if (certificateStore == null)
-			{				
-				certificateStore = Helper.CreateCertificateStore(type, signedData.Certificates);
-			}
-
-			return certificateStore;
+			return CmsSignedHelper.GetCertificates(signedData.Certificates);
 		}
 
 		/**
-		* return a X509Store containing CRLs, if any, contained
-		* in this message.
+		* return a X509Store containing CRLs, if any, contained in this message.
 		*
-		* @param type type of store to create
 		* @return a store of CRLs
 		* @exception NoSuchStoreException if the store type isn't available.
 		* @exception CmsException if a general exception prevents creation of the X509Store
 		*/
-		public IX509Store GetCrls(
-			string type)
+		public IStore<X509Crl> GetCrls()
 		{
-			if (crlStore == null)
+			return CmsSignedHelper.GetCrls(signedData.CRLs);
+		}
+
+        public IStore<Asn1Encodable> GetOtherRevInfos(DerObjectIdentifier otherRevInfoFormat)
+		{
+			return CmsSignedHelper.GetOtherRevInfos(signedData.CRLs, otherRevInfoFormat);
+		}
+
+        /**
+         * Return the digest algorithm identifiers for the SignedData object
+         *
+         * @return the set of digest algorithm identifiers
+         */
+        public ISet<AlgorithmIdentifier> GetDigestAlgorithmIDs()
+        {
+			var digestAlgorithms = signedData.DigestAlgorithms;
+
+            HashSet<AlgorithmIdentifier> result = new HashSet<AlgorithmIdentifier>();
+
+			foreach (var entry in digestAlgorithms)
 			{
-				crlStore = Helper.CreateCrlStore(type, signedData.CRLs);
+                result.Add(AlgorithmIdentifier.GetInstance(entry));
 			}
 
-			return crlStore;
-		}
+			return CollectionUtilities.ReadOnly(result);
+        }
 
-		[Obsolete("Use 'SignedContentType' property instead.")]
-		public string SignedContentTypeOid
-		{
-			get { return signedData.EncapContentInfo.ContentType.Id; }
-		}
-
-		/// <summary>
-		/// Return the <c>DerObjectIdentifier</c> associated with the encapsulated
-		/// content info structure carried in the signed data.
-		/// </summary>
-		public DerObjectIdentifier SignedContentType
+        /// <summary>
+        /// Return the <c>DerObjectIdentifier</c> associated with the encapsulated
+        /// content info structure carried in the signed data.
+        /// </summary>
+        public DerObjectIdentifier SignedContentType
 		{
 			get { return signedData.EncapContentInfo.ContentType; }
 		}
@@ -295,59 +277,68 @@ namespace Org.BouncyCastle.Cms
             return contentInfo.GetEncoded(encoding);
         }
 
-		/**
-		* Replace the signerinformation store associated with this
-		* CmsSignedData object with the new one passed in. You would
-		* probably only want to do this if you wanted to change the unsigned
-		* attributes associated with a signer, or perhaps delete one.
-		*
-		* @param signedData the signed data object to be used as a base.
-		* @param signerInformationStore the new signer information store to use.
-		* @return a new signed data object.
-		*/
-		public static CmsSignedData ReplaceSigners(
-			CmsSignedData           signedData,
-			SignerInformationStore  signerInformationStore)
+        /**
+         * Return a new CMSSignedData which guarantees to have the passed in digestAlgorithm
+         * in it. Uses the DefaultDigestAlgorithmFinder for creating the digest sets.
+         *
+         * @param signedData      the signed data object to be used as a base.
+         * @param digestAlgorithm the digest algorithm to be added to the signed data.
+         * @return a new signed data object.
+         */
+        public static CmsSignedData AddDigestAlgorithm(CmsSignedData signedData, AlgorithmIdentifier digestAlgorithm) =>
+            AddDigestAlgorithm(signedData, digestAlgorithm, DefaultDigestAlgorithmFinder.Instance);
+
+        /**
+         * Return a new CMSSignedData which guarantees to have the passed in digestAlgorithm
+         * in it. Uses the passed in IDigestAlgorithmFinder for creating the digest sets.
+         *
+         * @param signedData      the signed data object to be used as a base.
+         * @param digestAlgorithm the digest algorithm to be added to the signed data.
+         * @param digestAlgorithmFinder the digest algorithm finder to generate the digest set with.
+         * @return a new signed data object.
+         */
+        public static CmsSignedData AddDigestAlgorithm(CmsSignedData signedData, AlgorithmIdentifier digestAlgorithm,
+			IDigestAlgorithmFinder digestAlgorithmFinder)
 		{
+			ISet<AlgorithmIdentifier> digestAlgorithms = signedData.GetDigestAlgorithmIDs();
+			AlgorithmIdentifier digestAlg = CmsSignedHelper.FixDigestAlgID(digestAlgorithm, digestAlgorithmFinder);
+
+			//
+			// if the algorithm is already present there is no need to add it.
+			//
+			if (digestAlgorithms.Contains(digestAlg))
+				return signedData;
+
 			//
 			// copy
 			//
 			CmsSignedData cms = new CmsSignedData(signedData);
 
-			//
-			// replace the store
-			//
-			cms.signerInfoStore = signerInformationStore;
+            //
+            // build up the new set
+            //
+            HashSet<AlgorithmIdentifier> digestAlgs = new HashSet<AlgorithmIdentifier>();
 
-			//
-			// replace the signers in the SignedData object
-			//
-			Asn1EncodableVector digestAlgs = new Asn1EncodableVector();
-			Asn1EncodableVector vec = new Asn1EncodableVector();
-
-			foreach (SignerInformation signer in signerInformationStore.GetSigners())
+            foreach (var entry in digestAlgs)
 			{
-				digestAlgs.Add(Helper.FixAlgID(signer.DigestAlgorithmID));
-				vec.Add(signer.ToSignerInfo());
+				digestAlgs.Add(CmsSignedHelper.FixDigestAlgID(entry, digestAlgorithmFinder));
 			}
+			digestAlgs.Add(digestAlg);
 
-			Asn1Set digests = new DerSet(digestAlgs);
-			Asn1Set signers = new DerSet(vec);
+			Asn1Set digests = CmsUtilities.ConvertToDLSet(digestAlgs);
 			Asn1Sequence sD = (Asn1Sequence)signedData.signedData.ToAsn1Object();
 
-			//
-			// signers are the last item in the sequence.
-			//
-			vec = new Asn1EncodableVector(
-				sD[0], // version
-				digests);
+            //
+            // signers are the last item in the sequence.
+            //
+            Asn1EncodableVector vec = new Asn1EncodableVector(sD.Count);
+            vec.Add(sD[0]); // version
+			vec.Add(digests);
 
-			for (int i = 2; i != sD.Count - 1; i++)
+			for (int i = 2; i != sD.Count; i++)
 			{
 				vec.Add(sD[i]);
 			}
-
-			vec.Add(signers);
 
 			cms.signedData = SignedData.GetInstance(new BerSequence(vec));
 
@@ -359,7 +350,86 @@ namespace Org.BouncyCastle.Cms
 			return cms;
 		}
 
-		/**
+        /**
+		 * Replace the SignerInformation store associated with this CMSSignedData object with the new one passed in
+		 * using the DefaultDigestAlgorithmFinder for creating the digest sets. You would probably only want
+		 * to do this if you wanted to change the unsigned attributes associated with a signer, or perhaps delete one.
+		 *
+		 * @param signedData             the signed data object to be used as a base.
+		 * @param signerInformationStore the new signer information store to use.
+		 * @return a new signed data object.
+		 */
+        public static CmsSignedData ReplaceSigners(CmsSignedData signedData,
+			SignerInformationStore signerInformationStore) =>
+				ReplaceSigners(signedData, signerInformationStore, DefaultDigestAlgorithmFinder.Instance);
+
+        /**
+         * Replace the SignerInformation store associated with this CMSSignedData object with the new one passed in
+         * using the passed in IDigestAlgorithmFinder for creating the digest sets. You would probably only
+         * want to do this if you wanted to change the unsigned attributes associated with a signer, or perhaps delete
+         * one.
+         *
+         * @param signedData             the signed data object to be used as a base.
+         * @param signerInformationStore the new signer information store to use.
+         * @param digestAlgorithmFinder the digest algorithm finder to generate the digest set with.
+         * @return a new signed data object.
+         */
+        public static CmsSignedData ReplaceSigners(CmsSignedData signedData,
+			SignerInformationStore signerInformationStore, IDigestAlgorithmFinder digestAlgorithmFinder)
+		{
+            //
+            // copy
+            //
+            CmsSignedData cms = new CmsSignedData(signedData);
+
+            //
+            // replace the store
+            //
+            cms.signerInfoStore = signerInformationStore;
+
+            //
+            // replace the signers in the SignedData object
+            //
+            HashSet<AlgorithmIdentifier> digestAlgs = new HashSet<AlgorithmIdentifier>();
+
+			var signers = signerInformationStore.GetSigners();
+			Asn1EncodableVector vec = new Asn1EncodableVector(signers.Count);
+
+			foreach (var signer in signers)
+			{
+				CmsUtilities.AddDigestAlgs(digestAlgs, signer, digestAlgorithmFinder);
+				vec.Add(signer.ToSignerInfo());
+			}
+
+			Asn1Set digestSet = CmsUtilities.ConvertToDLSet(digestAlgs);
+			Asn1Set signerSet = DLSet.FromVector(vec);
+			Asn1Sequence sD = (Asn1Sequence)signedData.signedData.ToAsn1Object();
+
+            //
+            // signers are the last item in the sequence.
+            //
+            vec = new Asn1EncodableVector(sD.Count);
+            vec.Add(sD[0]); // version
+			vec.Add(digestSet);
+
+			for (int i = 2; i != sD.Count - 1; i++)
+			{
+				vec.Add(sD[i]);
+			}
+
+			vec.Add(signerSet);
+
+			cms.signedData = SignedData.GetInstance(new BerSequence(vec));
+
+			//
+			// replace the contentInfo with the new one
+			//
+			cms.contentInfo = new ContentInfo(cms.contentInfo.ContentType, cms.signedData);
+
+			return cms;
+		}
+
+        /**
 		* Replace the certificate and CRL information associated with this
 		* CmsSignedData object with the new one passed in.
 		*
@@ -369,53 +439,70 @@ namespace Org.BouncyCastle.Cms
 		* @return a new signed data object.
 		* @exception CmsException if there is an error processing the stores
 		*/
-		public static CmsSignedData ReplaceCertificatesAndCrls(
-			CmsSignedData	signedData,
-			IX509Store		x509Certs,
-			IX509Store		x509Crls,
-			IX509Store		x509AttrCerts)
+        public static CmsSignedData ReplaceCertificatesAndCrls(CmsSignedData signedData,
+            IStore<X509Certificate> x509Certs, IStore<X509Crl> x509Crls)
 		{
-			if (x509AttrCerts != null)
-				throw Platform.CreateNotImplementedException("Currently can't replace attribute certificates");
+            return ReplaceCertificatesAndRevocations(signedData, x509Certs, x509Crls, null, null);
+		}
 
-			//
-			// copy
-			//
-			CmsSignedData cms = new CmsSignedData(signedData);
+        public static CmsSignedData ReplaceCertificatesAndCrls(CmsSignedData signedData,
+			IStore<X509Certificate> x509Certs, IStore<X509Crl> x509Crls,
+			IStore<X509V2AttributeCertificate> x509AttrCerts)
+		{
+            return ReplaceCertificatesAndRevocations(signedData, x509Certs, x509Crls, x509AttrCerts, null);
+        }
+
+        public static CmsSignedData ReplaceCertificatesAndRevocations(CmsSignedData signedData,
+            IStore<X509Certificate> x509Certs, IStore<X509Crl> x509Crls,
+            IStore<X509V2AttributeCertificate> x509AttrCerts, IStore<OtherRevocationInfoFormat> otherRevocationInfos)
+        {
+            //
+            // copy
+            //
+            CmsSignedData cms = new CmsSignedData(signedData);
 
 			//
 			// replace the certs and crls in the SignedData object
 			//
-			Asn1Set certs = null;
-			try
-			{
-				Asn1Set asn1Set = CmsUtilities.CreateBerSetFromList(
-					CmsUtilities.GetCertificatesFromStore(x509Certs));
+			Asn1Set certSet = null;
+			Asn1Set revocationSet = null;
 
-				if (asn1Set.Count != 0)
+			if (x509Certs != null || x509AttrCerts != null)
+			{
+				var certificates = new List<Asn1Encodable>();
+				if (x509Certs != null)
 				{
-					certs = asn1Set;
+					certificates.AddRange(CmsUtilities.GetCertificatesFromStore(x509Certs));
+				}
+				if (x509AttrCerts != null)
+				{
+					certificates.AddRange(CmsUtilities.GetAttributeCertificatesFromStore(x509AttrCerts));
+				}
+
+				Asn1Set berSet = CmsUtilities.CreateBerSetFromList(certificates);
+				if (berSet.Count > 0)
+				{
+					certSet = berSet;
 				}
 			}
-			catch (X509StoreException e)
-			{
-				throw new CmsException("error getting certificates from store", e);
-			}
 
-			Asn1Set crls = null;
-			try
+			if (x509Crls != null || otherRevocationInfos != null)
 			{
-				Asn1Set asn1Set = CmsUtilities.CreateBerSetFromList(
-					CmsUtilities.GetCrlsFromStore(x509Crls));
-
-				if (asn1Set.Count != 0)
+				var revocations = new List<Asn1Encodable>();
+				if (x509Crls != null)
 				{
-					crls = asn1Set;
+					revocations.AddRange(CmsUtilities.GetCrlsFromStore(x509Crls));
 				}
-			}
-			catch (X509StoreException e)
-			{
-				throw new CmsException("error getting CRLs from store", e);
+				if (otherRevocationInfos != null)
+				{
+                    revocations.AddRange(CmsUtilities.GetOtherRevocationInfosFromStore(otherRevocationInfos));
+                }
+
+				Asn1Set berSet = CmsUtilities.CreateBerSetFromList(revocations);
+				if (berSet.Count > 0)
+				{
+					revocationSet = berSet;
+				}
 			}
 
 			//
@@ -425,8 +512,8 @@ namespace Org.BouncyCastle.Cms
 			cms.signedData = new SignedData(
 				old.DigestAlgorithms,
 				old.EncapContentInfo,
-				certs,
-				crls,
+				certSet,
+				revocationSet,
 				old.SignerInfos);
 
 			//

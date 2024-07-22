@@ -1,19 +1,10 @@
 using System;
-using System.Collections;
-using System.Globalization;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
-using Org.BouncyCastle.Asn1.CryptoPro;
-using Org.BouncyCastle.Asn1.Nist;
-using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.Pkcs;
-using Org.BouncyCastle.Asn1.TeleTrust;
 using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.X509;
 
@@ -103,27 +94,20 @@ namespace Org.BouncyCastle.Pkcs
 				throw new ArgumentNullException("publicKey");
 			if (publicKey.IsPrivate)
 				throw new ArgumentException("expected public key", "publicKey");
-//			DerObjectIdentifier sigOid = SignerUtilities.GetObjectIdentifier(signatureAlgorithm);
-			string algorithmName = Platform.ToUpperInvariant(signatureAlgorithm);
-			DerObjectIdentifier sigOid = (DerObjectIdentifier) algorithms[algorithmName];
-			if (sigOid == null)
-			{
-				try
-				{
-					sigOid = new DerObjectIdentifier(algorithmName);
-				}
-				catch (Exception e)
-				{
-					throw new ArgumentException("Unknown signature type requested", e);
-				}
-			}
-			if (noParams.Contains(sigOid))
+
+            if (!m_algorithms.TryGetValue(signatureAlgorithm, out var sigOid) &&
+                !DerObjectIdentifier.TryFromID(signatureAlgorithm, out sigOid))
+            {
+                throw new ArgumentException("Unknown signature type requested");
+            }
+
+			if (m_noParams.Contains(sigOid))
 			{
 				this.sigAlgId = new AlgorithmIdentifier(sigOid);
 			}
-			else if (exParams.Contains(algorithmName))
+			else if (m_exParams.TryGetValue(signatureAlgorithm, out var explicitParameters))
 			{
-				this.sigAlgId = new AlgorithmIdentifier(sigOid, (Asn1Encodable) exParams[algorithmName]);
+				this.sigAlgId = new AlgorithmIdentifier(sigOid, explicitParameters);
 			}
 			else
 			{
@@ -132,6 +116,7 @@ namespace Org.BouncyCastle.Pkcs
 			SubjectPublicKeyInfo pubInfo = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(publicKey);
 			this.reqInfo = new CertificationRequestInfo(subject, pubInfo, attributes);
 		}
+
 		public byte[] GetDataToSign()
 		{
 			return reqInfo.GetDerEncoded();

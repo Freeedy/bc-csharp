@@ -1,4 +1,9 @@
 using System;
+using System.Runtime.CompilerServices;
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+#endif
 using System.Text;
 
 using Org.BouncyCastle.Math;
@@ -6,7 +11,7 @@ using Org.BouncyCastle.Math;
 namespace Org.BouncyCastle.Utilities
 {
     /// <summary> General array utilities.</summary>
-    public abstract class Arrays
+    public static class Arrays
     {
         public static readonly byte[] EmptyBytes = new byte[0];
         public static readonly int[] EmptyInts = new int[0];
@@ -20,6 +25,18 @@ namespace Org.BouncyCastle.Utilities
             }
             return bits == 0;
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static bool AreAllZeroes(ReadOnlySpan<byte> buf)
+        {
+            uint bits = 0;
+            for (int i = 0; i < buf.Length; ++i)
+            {
+                bits |= buf[i];
+            }
+            return bits == 0;
+        }
+#endif
 
         public static bool AreEqual(
             bool[]  a,
@@ -81,42 +98,102 @@ namespace Org.BouncyCastle.Utilities
             return true;
         }
 
-        [Obsolete("Use 'AreEqual' method instead")]
-        public static bool AreSame(
-            byte[]	a,
-            byte[]	b)
+        [CLSCompliant(false)]
+        public static bool AreEqual(ulong[] a, int aFromIndex, int aToIndex, ulong[] b, int bFromIndex, int bToIndex)
         {
-            return AreEqual(a, b);
+            int aLength = aToIndex - aFromIndex;
+            int bLength = bToIndex - bFromIndex;
+
+            if (aLength != bLength)
+                return false;
+
+            for (int i = 0; i < aLength; ++i)
+            {
+                if (a[aFromIndex + i] != b[bFromIndex + i])
+                    return false;
+            }
+
+            return true;
         }
 
-        /// <summary>
-        /// A constant time equals comparison - does not terminate early if
-        /// test will fail.
-        /// </summary>
-        /// <param name="a">first array</param>
-        /// <param name="b">second array</param>
-        /// <returns>true if arrays equal, false otherwise.</returns>
-        public static bool ConstantTimeAreEqual(byte[] a, byte[] b)
+        public static bool AreEqual(object[] a, object[] b)
         {
-            if (null == a || null == b)
-                return false;
             if (a == b)
                 return true;
 
-            int len = System.Math.Min(a.Length, b.Length);
-            int nonEqual = a.Length ^ b.Length;
-            for (int i = 0; i < len; ++i)
+            if (a == null || b == null)
+                return false;
+
+            int length = a.Length;
+            if (length != b.Length)
+                return false;
+
+            for (int i = 0; i < length; ++i)
             {
-                nonEqual |= (a[i] ^ b[i]);
+                if (!Objects.Equals(a[i], b[i]))
+                    return false;
             }
-            for (int i = len; i < b.Length; ++i)
-            {
-                nonEqual |= (b[i] ^ ~b[i]);
-            }
-            return 0 == nonEqual;
+
+            return true;
         }
 
+        public static bool AreEqual(object[] a, int aFromIndex, int aToIndex, object[] b, int bFromIndex, int bToIndex)
+        {
+            int aLength = aToIndex - aFromIndex;
+            int bLength = bToIndex - bFromIndex;
+
+            if (aLength != bLength)
+                return false;
+
+            for (int i = 0; i < aLength; ++i)
+            {
+                if (!Objects.Equals(a[aFromIndex + i], b[bFromIndex + i]))
+                    return false;
+            }
+
+            return true;
+        }
+
+        [Obsolete("Use 'FixedTimeEquals' instead")]
+        public static bool ConstantTimeAreEqual(byte[] a, byte[] b)
+        {
+            return FixedTimeEquals(a, b);
+        }
+
+        [Obsolete("Use 'FixedTimeEquals' instead")]
         public static bool ConstantTimeAreEqual(int len, byte[] a, int aOff, byte[] b, int bOff)
+        {
+            return FixedTimeEquals(len, a, aOff, b, bOff);
+        }
+
+#if !(NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER)
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+#endif
+        public static bool FixedTimeEquals(byte[] a, byte[] b)
+        {
+            if (null == a || null == b)
+                return false;
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            return CryptographicOperations.FixedTimeEquals(a, b);
+#else
+            int len = a.Length;
+            if (len != b.Length)
+                return false;
+
+            int d = 0;
+            for (int i = 0; i < len; ++i)
+            {
+                d |= a[i] ^ b[i];
+            }
+            return 0 == d;
+#endif
+        }
+
+#if !(NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER)
+        [MethodImpl(MethodImplOptions.NoInlining | MethodImplOptions.NoOptimization)]
+#endif
+        public static bool FixedTimeEquals(int len, byte[] a, int aOff, byte[] b, int bOff)
         {
             if (null == a)
                 throw new ArgumentNullException("a");
@@ -129,13 +206,30 @@ namespace Org.BouncyCastle.Utilities
             if (bOff > (b.Length - len))
                 throw new IndexOutOfRangeException("'bOff' value invalid for specified length");
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            return CryptographicOperations.FixedTimeEquals(a.AsSpan(aOff, len), b.AsSpan(bOff, len));
+#else
             int d = 0;
             for (int i = 0; i < len; ++i)
             {
-                d |= (a[aOff + i] ^ b[bOff + i]);
+                d |= a[aOff + i] ^ b[bOff + i];
             }
             return 0 == d;
+#endif
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        [Obsolete("Use 'FixedTimeEquals' instead")]
+        public static bool ConstantTimeAreEqual(Span<byte> a, Span<byte> b)
+        {
+            return CryptographicOperations.FixedTimeEquals(a, b);
+        }
+
+        public static bool FixedTimeEquals(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
+        {
+            return CryptographicOperations.FixedTimeEquals(a, b);
+        }
+#endif
 
         public static bool AreEqual(
             int[]	a,
@@ -150,7 +244,7 @@ namespace Org.BouncyCastle.Utilities
             return HaveSameContents(a, b);
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static bool AreEqual(uint[] a, uint[] b)
         {
             if (a == b)
@@ -173,7 +267,7 @@ namespace Org.BouncyCastle.Utilities
             return HaveSameContents(a, b);
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static bool AreEqual(ulong[] a, ulong[] b)
         {
             if (a == b)
@@ -310,10 +404,13 @@ namespace Org.BouncyCastle.Utilities
         public static int GetHashCode(byte[] data)
         {
             if (data == null)
-            {
                 return 0;
-            }
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(data);
+            return hc.ToHashCode();
+#else
             int i = data.Length;
             int hc = i + 1;
 
@@ -324,15 +421,19 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
         }
 
         public static int GetHashCode(byte[] data, int off, int len)
         {
             if (data == null)
-            {
                 return 0;
-            }
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(data.AsSpan(off, len));
+            return hc.ToHashCode();
+#else
             int i = len;
             int hc = i + 1;
 
@@ -343,6 +444,7 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
         }
 
         public static int GetHashCode(int[] data)
@@ -350,6 +452,11 @@ namespace Org.BouncyCastle.Utilities
             if (data == null)
                 return 0;
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(MemoryMarshal.AsBytes(data.AsSpan()));
+            return hc.ToHashCode();
+#else
             int i = data.Length;
             int hc = i + 1;
 
@@ -360,14 +467,20 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static int GetHashCode(ushort[] data)
         {
             if (data == null)
                 return 0;
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(MemoryMarshal.AsBytes(data.AsSpan()));
+            return hc.ToHashCode();
+#else
             int i = data.Length;
             int hc = i + 1;
 
@@ -378,6 +491,7 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
         }
 
         public static int GetHashCode(int[] data, int off, int len)
@@ -385,6 +499,11 @@ namespace Org.BouncyCastle.Utilities
             if (data == null)
                 return 0;
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(MemoryMarshal.AsBytes(data.AsSpan(off, len)));
+            return hc.ToHashCode();
+#else
             int i = len;
             int hc = i + 1;
 
@@ -395,14 +514,20 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static int GetHashCode(uint[] data)
         {
             if (data == null)
                 return 0;
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(MemoryMarshal.AsBytes(data.AsSpan()));
+            return hc.ToHashCode();
+#else
             int i = data.Length;
             int hc = i + 1;
 
@@ -413,14 +538,20 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static int GetHashCode(uint[] data, int off, int len)
         {
             if (data == null)
                 return 0;
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(MemoryMarshal.AsBytes(data.AsSpan(off, len)));
+            return hc.ToHashCode();
+#else
             int i = len;
             int hc = i + 1;
 
@@ -431,14 +562,20 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static int GetHashCode(ulong[] data)
         {
             if (data == null)
                 return 0;
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(MemoryMarshal.AsBytes(data.AsSpan()));
+            return hc.ToHashCode();
+#else
             int i = data.Length;
             int hc = i + 1;
 
@@ -452,14 +589,20 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static int GetHashCode(ulong[] data, int off, int len)
         {
             if (data == null)
                 return 0;
 
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            hc.AddBytes(MemoryMarshal.AsBytes(data.AsSpan(off, len)));
+            return hc.ToHashCode();
+#else
             int i = len;
             int hc = i + 1;
 
@@ -473,6 +616,55 @@ namespace Org.BouncyCastle.Utilities
             }
 
             return hc;
+#endif
+        }
+
+        public static int GetHashCode(object[] data)
+        {
+            if (data == null)
+                return 0;
+
+            int len = data.Length;
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            for (int i = 0; i < len; ++i)
+            {
+                hc.Add(data[i]);
+            }
+            return hc.ToHashCode();
+#else
+            int hc = len + 1;
+            for (int i = 0; i < len; ++i)
+            {
+                hc *= 257;
+                hc ^= Objects.GetHashCode(data[i]);
+            }
+            return hc;
+#endif
+        }
+
+        public static int GetHashCode(object[] data, int off, int len)
+        {
+            if (data == null)
+                return 0;
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+            HashCode hc = default;
+            for (int i = 0; i < len; ++i)
+            {
+                hc.Add(data[off + i]);
+            }
+            return hc.ToHashCode();
+#else
+            int hc = len + 1;
+            for (int i = 0; i < len; ++i)
+            {
+                hc *= 257;
+                hc ^= Objects.GetHashCode(data[off + i]);
+            }
+            return hc;
+#endif
         }
 
         public static bool[] Clone(bool[] data)
@@ -490,7 +682,7 @@ namespace Org.BouncyCastle.Utilities
             return data == null ? null : (short[])data.Clone();
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static ushort[] Clone(ushort[] data)
         {
             return data == null ? null : (ushort[])data.Clone();
@@ -501,7 +693,7 @@ namespace Org.BouncyCastle.Utilities
             return data == null ? null : (int[])data.Clone();
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static uint[] Clone(uint[] data)
         {
             return data == null ? null : (uint[])data.Clone();
@@ -512,7 +704,7 @@ namespace Org.BouncyCastle.Utilities
             return data == null ? null : (long[])data.Clone();
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static ulong[] Clone(ulong[] data)
         {
             return data == null ? null : (ulong[])data.Clone();
@@ -528,7 +720,7 @@ namespace Org.BouncyCastle.Utilities
             return existing;
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static ulong[] Clone(ulong[] data, ulong[] existing)
         {
             if (data == null)
@@ -569,9 +761,17 @@ namespace Org.BouncyCastle.Utilities
             return false;
         }
 
-        public static void Fill(
-            byte[]	buf,
-            byte	b)
+        public static void Fill(byte[] buf, byte b)
+        {
+            int i = buf.Length;
+            while (i > 0)
+            {
+                buf[--i] = b;
+            }
+        }
+
+        [CLSCompliant(false)]
+        public static void Fill(ulong[] buf, ulong b)
         {
             int i = buf.Length;
             while (i > 0)
@@ -587,6 +787,21 @@ namespace Org.BouncyCastle.Utilities
                 buf[i] = b;
             }
         }
+
+        public static void Fill<T>(T[] ts, T t)
+        {
+            for (int i = 0; i < ts.Length; ++i)
+            {
+                ts[i] = t;
+            }
+        }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+        public static void Fill<T>(Span<T> ts, T t)
+        {
+            ts.Fill(t);
+        }
+#endif
 
         public static byte[] CopyOf(byte[] data, int newLength)
         {
@@ -605,6 +820,14 @@ namespace Org.BouncyCastle.Utilities
         public static int[] CopyOf(int[] data, int newLength)
         {
             int[] tmp = new int[newLength];
+            Array.Copy(data, 0, tmp, 0, System.Math.Min(newLength, data.Length));
+            return tmp;
+        }
+
+        [CLSCompliant(false)]
+        public static uint[] CopyOf(uint[] data, int newLength)
+        {
+            uint[] tmp = new uint[newLength];
             Array.Copy(data, 0, tmp, 0, System.Math.Min(newLength, data.Length));
             return tmp;
         }
@@ -723,7 +946,7 @@ namespace Org.BouncyCastle.Utilities
             return rv;
         }
 
-        [CLSCompliantAttribute(false)]
+        [CLSCompliant(false)]
         public static ushort[] Concatenate(ushort[] a, ushort[] b)
         {
             if (a == null)
@@ -779,6 +1002,20 @@ namespace Org.BouncyCastle.Utilities
             return rv;
         }
 
+        [CLSCompliant(false)]
+        public static uint[] Concatenate(uint[] a, uint[] b)
+        {
+            if (a == null)
+                return Clone(b);
+            if (b == null)
+                return Clone(a);
+
+            uint[] rv = new uint[a.Length + b.Length];
+            Array.Copy(a, 0, rv, 0, a.Length);
+            Array.Copy(b, 0, rv, a.Length, b.Length);
+            return rv;
+        }
+
         public static byte[] Prepend(byte[] a, byte b)
         {
             if (a == null)
@@ -815,6 +1052,17 @@ namespace Org.BouncyCastle.Utilities
             return result;
         }
 
+        public static T[] Prepend<T>(T[] a, T b)
+        {
+            if (a == null)
+                return new T[1]{ b };
+
+            T[] result = new T[1 + a.Length];
+            result[0] = b;
+            a.CopyTo(result, 1);
+            return result;
+        }
+
         public static byte[] Reverse(byte[] a)
         {
             if (a == null)
@@ -847,36 +1095,22 @@ namespace Org.BouncyCastle.Utilities
             return result;
         }
 
-        public static byte[] ReverseInPlace(byte[] a)
+        internal static void Reverse<T>(T[] input, T[] output)
         {
-            if (null == a)
-                return null;
-
-            int p1 = 0, p2 = a.Length - 1;
-            while (p1 < p2)
+            int last = input.Length - 1;
+            for (int i = 0; i <= last; ++i)
             {
-                byte t1 = a[p1], t2 = a[p2];
-                a[p1++] = t2;
-                a[p2--] = t1;
+                output[i] = input[last - i];
             }
-
-            return a;
         }
 
-        public static int[] ReverseInPlace(int[] a)
+        public static T[] ReverseInPlace<T>(T[] array)
         {
-            if (null == a)
+            if (null == array)
                 return null;
 
-            int p1 = 0, p2 = a.Length - 1;
-            while (p1 < p2)
-            {
-                int t1 = a[p1], t2 = a[p2];
-                a[p1++] = t2;
-                a[p2--] = t1;
-            }
-
-            return a;
+            Array.Reverse(array);
+            return array;
         }
 
         public static void Clear(byte[] data)
@@ -918,5 +1152,44 @@ namespace Org.BouncyCastle.Utilities
         {
             return null == array || array.Length < 1;
         }
+
+#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
+
+        public static byte[] Concatenate(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b)
+        {
+            byte[] rv = new byte[a.Length + b.Length];
+            a.CopyTo(rv);
+            b.CopyTo(rv.AsSpan(a.Length));
+            return rv;
+        }
+
+        public static byte[] Concatenate(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, ReadOnlySpan<byte> c)
+        {
+            byte[] rv = new byte[a.Length + b.Length + c.Length];
+            a.CopyTo(rv);
+            b.CopyTo(rv.AsSpan(a.Length));
+            c.CopyTo(rv.AsSpan(a.Length + b.Length));
+            return rv;
+        }
+
+        public static byte[] Concatenate(ReadOnlySpan<byte> a, ReadOnlySpan<byte> b, ReadOnlySpan<byte> c,
+            ReadOnlySpan<byte> d)
+        {
+            byte[] rv = new byte[a.Length + b.Length + c.Length + d.Length];
+            a.CopyTo(rv);
+            b.CopyTo(rv.AsSpan(a.Length));
+            c.CopyTo(rv.AsSpan(a.Length + b.Length));
+            d.CopyTo(rv.AsSpan(a.Length + b.Length + c.Length));
+            return rv;
+        }
+
+        public static T[] Prepend<T>(ReadOnlySpan<T> a, T b)
+        {
+            T[] result = new T[1 + a.Length];
+            result[0] = b;
+            a.CopyTo(result.AsSpan(1));
+            return result;
+        }
+#endif
     }
 }

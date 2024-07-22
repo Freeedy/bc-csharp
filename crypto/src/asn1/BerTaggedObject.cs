@@ -8,18 +8,8 @@ namespace Org.BouncyCastle.Asn1
 	 * rules (as with sequences).
 	 */
 	public class BerTaggedObject
-		: DerTaggedObject
+		: DLTaggedObject
 	{
-        /**
-		 * create an implicitly tagged object that contains a zero
-		 * length sequence.
-		 */
-        [Obsolete("Will be removed")]
-        public BerTaggedObject(int tagNo)
-            : base(false, tagNo, BerSequence.Empty)
-        {
-        }
-
         /**
 		 * @param tagNo the tag number for this object.
 		 * @param obj the tagged object.
@@ -54,11 +44,6 @@ namespace Org.BouncyCastle.Asn1
         {
         }
 
-        internal override string Asn1Encoding
-        {
-            get { return Ber; }
-        }
-
         internal override IAsn1Encoding GetEncoding(int encoding)
         {
             if (Asn1OutputStream.EncodingBer != encoding)
@@ -69,7 +54,7 @@ namespace Org.BouncyCastle.Asn1
             if (!IsExplicit())
                 return baseObject.GetEncodingImplicit(encoding, TagClass, TagNo);
 
-            return new ConstructedILEncoding(TagClass, TagNo, new IAsn1Encoding[]{ baseObject.GetEncoding(encoding) });
+            return new TaggedILEncoding(TagClass, TagNo, baseObject.GetEncoding(encoding));
         }
 
         internal override IAsn1Encoding GetEncodingImplicit(int encoding, int tagClass, int tagNo)
@@ -82,7 +67,7 @@ namespace Org.BouncyCastle.Asn1
             if (!IsExplicit())
                 return baseObject.GetEncodingImplicit(encoding, tagClass, tagNo);
 
-            return new ConstructedILEncoding(tagClass, tagNo, new IAsn1Encoding[]{ baseObject.GetEncoding(encoding) });
+            return new TaggedILEncoding(tagClass, tagNo, baseObject.GetEncoding(encoding));
         }
 
         internal override Asn1Sequence RebuildConstructed(Asn1Object asn1Object)
@@ -92,7 +77,7 @@ namespace Org.BouncyCastle.Asn1
 
         internal override Asn1TaggedObject ReplaceTag(int tagClass, int tagNo)
         {
-            return new BerTaggedObject(explicitness, tagClass, tagNo, obj);
+            return new BerTaggedObject(m_explicitness, tagClass, tagNo, m_object);
         }
     }
 }

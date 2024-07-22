@@ -1,5 +1,3 @@
-using System;
-
 namespace Org.BouncyCastle.Bcpg.Sig
 {
     /**
@@ -8,40 +6,16 @@ namespace Org.BouncyCastle.Bcpg.Sig
     public class PrimaryUserId
         : SignatureSubpacket
     {
-        private static byte[] BooleanToByteArray(
-            bool    val)
-        {
-            byte[]    data = new byte[1];
-
-            if (val)
-            {
-                data[0] = 1;
-                return data;
-            }
-            else
-            {
-                return data;
-            }
-        }
-
-        public PrimaryUserId(
-            bool    critical,
-            bool    isLongLength,
-            byte[]  data)
+        public PrimaryUserId(bool critical, bool isLongLength, byte[] data)
             : base(SignatureSubpacketTag.PrimaryUserId, critical, isLongLength, data)
         {
         }
 
-        public PrimaryUserId(
-            bool    critical,
-            bool    isPrimaryUserId)
-            : base(SignatureSubpacketTag.PrimaryUserId, critical, false, BooleanToByteArray(isPrimaryUserId))
+        public PrimaryUserId(bool critical, bool isPrimaryUserId)
+            : base(SignatureSubpacketTag.PrimaryUserId, critical, false, Utilities.BooleanToBytes(isPrimaryUserId))
         {
         }
 
-        public bool IsPrimaryUserId()
-        {
-            return data[0] != 0;
-        }
+        public bool IsPrimaryUserId() => Utilities.BooleanFromBytes(data);
     }
 }

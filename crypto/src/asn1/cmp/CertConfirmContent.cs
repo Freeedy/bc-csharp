@@ -1,49 +1,37 @@
-using System;
-
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Asn1.Cmp
 {
-	public class CertConfirmContent
+    public class CertConfirmContent
 		: Asn1Encodable
 	{
-		private readonly Asn1Sequence content;
+        public static CertConfirmContent GetInstance(object obj)
+        {
+            if (obj == null)
+                return null;
+            if (obj is CertConfirmContent certConfirmContent)
+                return certConfirmContent;
+            return new CertConfirmContent(Asn1Sequence.GetInstance(obj));
+        }
 
-		private CertConfirmContent(Asn1Sequence seq)
-		{
-			content = seq;
-		}
+        public static CertConfirmContent GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        {
+            return new CertConfirmContent(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+        }
 
-		public static CertConfirmContent GetInstance(object obj)
-		{
-			if (obj is CertConfirmContent)
-				return (CertConfirmContent)obj;
+        private readonly Asn1Sequence m_content;
 
-			if (obj is Asn1Sequence)
-				return new CertConfirmContent((Asn1Sequence)obj);
+        private CertConfirmContent(Asn1Sequence seq)
+        {
+            m_content = seq;
+        }
 
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
-		}
+        public virtual CertStatus[] ToCertStatusArray() => m_content.MapElements(CertStatus.GetInstance);
 
-		public virtual CertStatus[] ToCertStatusArray()
-		{
-			CertStatus[] result = new CertStatus[content.Count];
-			for (int i = 0; i != result.Length; i++)
-			{
-				result[i] = CertStatus.GetInstance(content[i]);
-			}
-			return result;
-		}
-
-		/**
+        /**
 		 * <pre>
 		 * CertConfirmContent ::= SEQUENCE OF CertStatus
 		 * </pre>
 		 * @return a basic ASN.1 object representation.
 		 */
-		public override Asn1Object ToAsn1Object()
-		{
-			return content;
-		}
+        public override Asn1Object ToAsn1Object() => m_content;
 	}
 }

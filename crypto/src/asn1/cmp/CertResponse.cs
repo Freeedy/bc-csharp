@@ -1,94 +1,65 @@
 using System;
 
-using Org.BouncyCastle.Utilities;
-
 namespace Org.BouncyCastle.Asn1.Cmp
 {
 	public class CertResponse
 		: Asn1Encodable
 	{
-		private readonly DerInteger certReqId;
-		private readonly PkiStatusInfo status;
-		private readonly CertifiedKeyPair certifiedKeyPair;
-		private readonly Asn1OctetString rspInfo;
+        public static CertResponse GetInstance(object obj)
+        {
+            if (obj == null)
+                return null;
+            if (obj is CertResponse certResponse)
+                return certResponse;
+            return new CertResponse(Asn1Sequence.GetInstance(obj));
+        }
+
+        public static CertResponse GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        {
+            return new CertResponse(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+        }
+
+        private readonly DerInteger m_certReqId;
+		private readonly PkiStatusInfo m_status;
+		private readonly CertifiedKeyPair m_certifiedKeyPair;
+		private readonly Asn1OctetString m_rspInfo;
 
 		private CertResponse(Asn1Sequence seq)
 		{
-			certReqId = DerInteger.GetInstance(seq[0]);
-			status = PkiStatusInfo.GetInstance(seq[1]);
+            int count = seq.Count, pos = 0;
+            if (count < 2 || count > 4)
+                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
 
-			if (seq.Count >= 3)
-			{
-				if (seq.Count == 3)
-				{
-					Asn1Encodable o = seq[2];
-					if (o is Asn1OctetString)
-					{
-						rspInfo = Asn1OctetString.GetInstance(o);
-					}
-					else
-					{
-						certifiedKeyPair = CertifiedKeyPair.GetInstance(o);
-					}
-				}
-				else
-				{
-					certifiedKeyPair = CertifiedKeyPair.GetInstance(seq[2]);
-					rspInfo = Asn1OctetString.GetInstance(seq[3]);
-				}
-			}
-		}
+            m_certReqId = DerInteger.GetInstance(seq[pos++]);
+            m_status = PkiStatusInfo.GetInstance(seq[pos++]);
+            m_certifiedKeyPair = Asn1Utilities.ReadOptional(seq, ref pos, CertifiedKeyPair.GetOptional);
+            m_rspInfo = Asn1Utilities.ReadOptional(seq, ref pos, Asn1OctetString.GetOptional);
 
-		public static CertResponse GetInstance(object obj)
-		{
-			if (obj is CertResponse)
-				return (CertResponse)obj;
+            if (pos != count)
+                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+        }
 
-			if (obj is Asn1Sequence)
-				return new CertResponse((Asn1Sequence)obj);
-
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
-		}
-
-		public CertResponse(
-			DerInteger certReqId,
-			PkiStatusInfo status)
+        public CertResponse(DerInteger certReqId, PkiStatusInfo status)
 			: this(certReqId, status, null, null)
 		{
 		}
 
-		public CertResponse(
-			DerInteger			certReqId,
-			PkiStatusInfo		status,
-			CertifiedKeyPair	certifiedKeyPair,
-			Asn1OctetString		rspInfo)
-		{
-			if (certReqId == null)
-				throw new ArgumentNullException("certReqId");
-
-			if (status == null)
-				throw new ArgumentNullException("status");
-
-			this.certReqId = certReqId;
-			this.status = status;
-			this.certifiedKeyPair = certifiedKeyPair;
-			this.rspInfo = rspInfo;
+        public CertResponse(DerInteger certReqId, PkiStatusInfo status, CertifiedKeyPair certifiedKeyPair,
+            Asn1OctetString rspInfo)
+        {
+			m_certReqId = certReqId ?? throw new ArgumentNullException(nameof(certReqId));
+			m_status = status ?? throw new ArgumentNullException(nameof(status));
+            m_certifiedKeyPair = certifiedKeyPair;
+			m_rspInfo = rspInfo;
 		}
 
-		public virtual DerInteger CertReqID
-		{
-			get { return certReqId; }
-		}
+		public virtual DerInteger CertReqID => m_certReqId;
 
-		public virtual PkiStatusInfo Status
-		{
-			get { return status; }
-		}
+		public virtual PkiStatusInfo Status => m_status;
 
-		public virtual CertifiedKeyPair CertifiedKeyPair
-		{
-			get { return certifiedKeyPair; }
-		}
+		public virtual CertifiedKeyPair CertifiedKeyPair => m_certifiedKeyPair;
+
+		public virtual Asn1OctetString RspInfo => m_rspInfo;
 
 		/**
 		 * <pre>
@@ -108,8 +79,9 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		 */
 		public override Asn1Object ToAsn1Object()
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(certReqId, status);
-			v.AddOptional(certifiedKeyPair, rspInfo);
+			Asn1EncodableVector v = new Asn1EncodableVector(4);
+			v.Add(m_certReqId, m_status);
+			v.AddOptional(m_certifiedKeyPair, m_rspInfo);
 			return new DerSequence(v);
 		}
 	}

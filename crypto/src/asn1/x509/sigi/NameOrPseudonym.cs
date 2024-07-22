@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 
 using Org.BouncyCastle.Asn1.X500;
 using Org.BouncyCastle.Utilities;
@@ -50,7 +49,13 @@ namespace Org.BouncyCastle.Asn1.X509.SigI
             throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
 		}
 
-		/**
+        public static NameOrPseudonym GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
+
+        public static NameOrPseudonym GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
+
+        /**
 		* Constructor from DERString.
 		* <p/>
 		* The sequence is of type NameOrPseudonym:
@@ -66,7 +71,7 @@ namespace Org.BouncyCastle.Asn1.X509.SigI
 		* </pre>
 		* @param pseudonym pseudonym value to use.
 		*/
-		public NameOrPseudonym(
+        public NameOrPseudonym(
 			DirectoryString pseudonym)
 		{
 			this.pseudonym = pseudonym;

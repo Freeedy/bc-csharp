@@ -8,34 +8,40 @@ namespace Org.BouncyCastle.Asn1.X509
         private readonly DerObjectIdentifier	algorithm;
         private readonly Asn1Encodable			parameters;
 
-        public static AlgorithmIdentifier GetInstance(
-            Asn1TaggedObject	obj,
-            bool				explicitly)
-        {
-            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
-        }
-
-        public static AlgorithmIdentifier GetInstance(
-            object obj)
+        public static AlgorithmIdentifier GetInstance(object obj)
         {
             if (obj == null)
                 return null;
-            if (obj is AlgorithmIdentifier)
-                return (AlgorithmIdentifier)obj;
+            if (obj is AlgorithmIdentifier algorithmIdentifier)
+                return algorithmIdentifier;
             return new AlgorithmIdentifier(Asn1Sequence.GetInstance(obj));
         }
+
+        public static AlgorithmIdentifier GetInstance(Asn1TaggedObject obj, bool explicitly) =>
+            new AlgorithmIdentifier(Asn1Sequence.GetInstance(obj, explicitly));
+
+        public static AlgorithmIdentifier GetOptional(Asn1Encodable element)
+        {
+            if (element == null)
+                throw new ArgumentNullException(nameof(element));
+
+            if (element is AlgorithmIdentifier algorithmIdentifier)
+                return algorithmIdentifier;
+
+            Asn1Sequence asn1Sequence = Asn1Sequence.GetOptional(element);
+            if (asn1Sequence != null)
+                return new AlgorithmIdentifier(asn1Sequence);
+
+            return null;
+        }
+
+        public static AlgorithmIdentifier GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
+            new AlgorithmIdentifier(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
 
         public AlgorithmIdentifier(
             DerObjectIdentifier algorithm)
         {
             this.algorithm = algorithm;
-        }
-
-        [Obsolete("Use version taking a DerObjectIdentifier")]
-        public AlgorithmIdentifier(
-            string algorithm)
-        {
-            this.algorithm = new DerObjectIdentifier(algorithm);
         }
 
         public AlgorithmIdentifier(
@@ -63,12 +69,6 @@ namespace Org.BouncyCastle.Asn1.X509
 		{
 			get { return algorithm; }
 		}
-
-        [Obsolete("Use 'Algorithm' property instead")]
-        public virtual DerObjectIdentifier ObjectID
-        {
-            get { return algorithm; }
-        }
 
         /// <summary>
         /// Return the parameters structure in the Parameters entry of this identifier.

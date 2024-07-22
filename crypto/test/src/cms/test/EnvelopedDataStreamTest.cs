@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.IO;
 using System.Text;
 
@@ -7,14 +6,12 @@ using NUnit.Framework;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Pkcs;
-using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Utilities.IO;
-using Org.BouncyCastle.Utilities.Test;
 using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Cms.Tests
@@ -107,9 +104,9 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			RecipientInformationStore recipients = ep.GetRecipientInfos();
 
-			Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedDataGenerator.Aes128Cbc);
+			Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
 
-			ICollection c = recipients.GetRecipients();
+			var c = recipients.GetRecipients();
 
 //            PKCS8EncodedKeySpec	keySpec = new PKCS8EncodedKeySpec(keyData);
 //            KeyFactory			keyFact = KeyFactory.GetInstance("RSA");
@@ -138,13 +135,14 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(ep.EncryptionAlgOid, expectedOid);
 
-			ICollection c = recipients.GetRecipients();
+			var c = recipients.GetRecipients();
 
 			foreach (RecipientInformation recipient in c)
 			{
 				Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.RsaEncryption.Id);
+                Assert.True(recipient.RecipientID.Match(ReciCert));
 
-				CmsTypedStream recData = recipient.GetContentStream(ReciKP.Private);
+                CmsTypedStream recData = recipient.GetContentStream(ReciKP.Private);
 
 				Assert.IsTrue(Arrays.AreEqual(expectedData, CmsTestUtil.StreamToByteArray(
 					recData.ContentStream)));
@@ -169,8 +167,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			MemoryStream bOut = new MemoryStream();
 
-			Stream outStream = edGen.Open(
-				bOut, CmsEnvelopedDataGenerator.Aes128Cbc);
+			Stream outStream = edGen.Open(bOut, CmsEnvelopedGenerator.Aes128Cbc);
 
 			for (int i = 0; i != 2000; i++)
 			{
@@ -179,7 +176,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			outStream.Close();
 
-			VerifyData(bOut.ToArray(), CmsEnvelopedDataGenerator.Aes128Cbc, data);
+			VerifyData(bOut.ToArray(), CmsEnvelopedGenerator.Aes128Cbc, data);
 
 			int unbufferedLength = bOut.ToArray().Length;
 
@@ -192,12 +189,12 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			bOut.SetLength(0);
 
-			outStream = edGen.Open(bOut, CmsEnvelopedDataGenerator.Aes128Cbc);
+			outStream = edGen.Open(bOut, CmsEnvelopedGenerator.Aes128Cbc);
 
 			Streams.PipeAll(new MemoryStream(data, false), outStream);
 			outStream.Close();
 
-			VerifyData(bOut.ToArray(), CmsEnvelopedDataGenerator.Aes128Cbc, data);
+			VerifyData(bOut.ToArray(), CmsEnvelopedGenerator.Aes128Cbc, data);
 
 			Assert.AreEqual(unbufferedLength, bOut.ToArray().Length);
 		}
@@ -220,8 +217,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			MemoryStream  bOut = new MemoryStream();
 
-			Stream outStream = edGen.Open(
-				bOut, CmsEnvelopedDataGenerator.Aes128Cbc);
+			Stream outStream = edGen.Open(bOut, CmsEnvelopedGenerator.Aes128Cbc);
 
 			for (int i = 0; i != 2000; i++)
 			{
@@ -230,7 +226,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			outStream.Close();
 
-			VerifyData(bOut.ToArray(), CmsEnvelopedDataGenerator.Aes128Cbc, data);
+			VerifyData(bOut.ToArray(), CmsEnvelopedGenerator.Aes128Cbc, data);
 
 			int unbufferedLength = bOut.ToArray().Length;
 
@@ -245,7 +241,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			bOut.SetLength(0);
 
-			outStream = edGen.Open(bOut, CmsEnvelopedDataGenerator.Aes128Cbc);
+			outStream = edGen.Open(bOut, CmsEnvelopedGenerator.Aes128Cbc);
 
 			for (int i = 0; i != 2000; i++)
 			{
@@ -254,7 +250,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			outStream.Close();
 
-			VerifyData(bOut.ToArray(), CmsEnvelopedDataGenerator.Aes128Cbc, data);
+			VerifyData(bOut.ToArray(), CmsEnvelopedGenerator.Aes128Cbc, data);
 
 			Assert.IsTrue(unbufferedLength < bOut.ToArray().Length);
 		}
@@ -274,8 +270,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			MemoryStream bOut = new MemoryStream();
 
-			Stream outStream = edGen.Open(
-				bOut, CmsEnvelopedDataGenerator.Aes128Cbc);
+			Stream outStream = edGen.Open(bOut, CmsEnvelopedGenerator.Aes128Cbc);
 
 			for (int i = 0; i != 2000; i++)
 			{
@@ -287,7 +282,7 @@ namespace Org.BouncyCastle.Cms.Tests
 			// convert to DER
 			byte[] derEncodedBytes = Asn1Object.FromByteArray(bOut.ToArray()).GetDerEncoded();
 
-			VerifyData(derEncodedBytes, CmsEnvelopedDataGenerator.Aes128Cbc, data);
+			VerifyData(derEncodedBytes, CmsEnvelopedGenerator.Aes128Cbc, data);
 		}
 
 		[Test]
@@ -310,7 +305,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			MemoryStream bOut = new MemoryStream();
 
-			Stream outStream = edGen.Open(bOut, CmsEnvelopedDataGenerator.Aes128Cbc);
+			Stream outStream = edGen.Open(bOut, CmsEnvelopedGenerator.Aes128Cbc);
 
 			for (int i = 0; i != data.Length; i++)
 			{
@@ -319,19 +314,19 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			outStream.Close();
 
-			CmsEnvelopedDataParser		ep = new CmsEnvelopedDataParser(bOut.ToArray());
-			RecipientInformationStore	recipients = ep.GetRecipientInfos();
-			ICollection					c = recipients.GetRecipients();
-
-			IEnumerator e = c.GetEnumerator();
+			CmsEnvelopedDataParser ep = new CmsEnvelopedDataParser(bOut.ToArray());
+			RecipientInformationStore recipients = ep.GetRecipientInfos();
+			var c = recipients.GetRecipients();
+			var e = c.GetEnumerator();
 
 			if (e.MoveNext())
 			{
-				RecipientInformation recipient = (RecipientInformation) e.Current;
+				RecipientInformation recipient = e.Current;
 
 				Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.RsaEncryption.Id);
+                Assert.True(recipient.RecipientID.Match(ReciCert));
 
-				CmsTypedStream recData = recipient.GetContentStream(ReciKP.Private);
+                CmsTypedStream recData = recipient.GetContentStream(ReciKP.Private);
 
 				Stream dataStream = recData.ContentStream;
 				MemoryStream dataOut = new MemoryStream();
@@ -369,32 +364,29 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			MemoryStream bOut = new MemoryStream();
 
-			Stream outStream = edGen.Open(
-				bOut, CmsEnvelopedDataGenerator.Aes128Cbc);
+			Stream outStream = edGen.Open(bOut, CmsEnvelopedGenerator.Aes128Cbc);
 
 			outStream.Write(data, 0, data.Length);
 
 			outStream.Close();
 
-			CmsEnvelopedDataParser ep = new CmsEnvelopedDataParser(bOut.ToArray());
-
-			RecipientInformationStore recipients = ep.GetRecipientInfos();
-
-			Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedDataGenerator.Aes128Cbc);
-
-			ICollection c = recipients.GetRecipients();
-
-			foreach (RecipientInformation recipient in c)
+			using (var ep = new CmsEnvelopedDataParser(bOut.ToArray()))
 			{
-				Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.RsaEncryption.Id);
+                RecipientInformationStore recipients = ep.GetRecipientInfos();
 
-				CmsTypedStream recData = recipient.GetContentStream(ReciKP.Private);
+                Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
 
-				Assert.IsTrue(Arrays.AreEqual(data, CmsTestUtil.StreamToByteArray(recData.ContentStream)));
-			}
+                foreach (RecipientInformation recipient in recipients.GetRecipients())
+                {
+                    Assert.AreEqual(recipient.KeyEncryptionAlgOid, PkcsObjectIdentifiers.RsaEncryption.Id);
+                    Assert.True(recipient.RecipientID.Match(ReciCert));
 
-			ep.Close();
-		}
+                    CmsTypedStream recData = recipient.GetContentStream(ReciKP.Private);
+
+                    Assert.IsTrue(Arrays.AreEqual(data, CmsTestUtil.StreamToByteArray(recData.ContentStream)));
+                }
+            }
+        }
 
 		[Test]
 		public void TestAesKek()
@@ -412,30 +404,28 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Stream outStream = edGen.Open(
 				bOut,
-				CmsEnvelopedDataGenerator.DesEde3Cbc);
+				CmsEnvelopedGenerator.DesEde3Cbc);
 			outStream.Write(data, 0, data.Length);
 
 			outStream.Close();
 
-			CmsEnvelopedDataParser ep = new CmsEnvelopedDataParser(bOut.ToArray());
-
-			RecipientInformationStore recipients = ep.GetRecipientInfos();
-
-			Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedDataGenerator.DesEde3Cbc);
-
-			ICollection c = recipients.GetRecipients();
-
-			foreach (RecipientInformation recipient in c)
+			using (var ep = new CmsEnvelopedDataParser(bOut.ToArray()))
 			{
-				Assert.AreEqual(recipient.KeyEncryptionAlgOid, "2.16.840.1.101.3.4.1.25");
+                RecipientInformationStore recipients = ep.GetRecipientInfos();
 
-				CmsTypedStream recData = recipient.GetContentStream(kek);
+                Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedGenerator.DesEde3Cbc);
 
-				Assert.IsTrue(Arrays.AreEqual(data, CmsTestUtil.StreamToByteArray(recData.ContentStream)));
-			}
+                foreach (RecipientInformation recipient in recipients.GetRecipients())
+                {
+                    Assert.AreEqual(recipient.KeyEncryptionAlgOid, "2.16.840.1.101.3.4.1.25");
+                    Assert.True(Arrays.AreEqual(recipient.RecipientID.KeyIdentifier, kekId));
 
-			ep.Close();
-		}
+                    CmsTypedStream recData = recipient.GetContentStream(kek);
+
+                    Assert.IsTrue(Arrays.AreEqual(data, CmsTestUtil.StreamToByteArray(recData.ContentStream)));
+                }
+            }
+        }
 
 		[Test]
 		public void TestTwoAesKek()
@@ -456,31 +446,31 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Stream outStream = edGen.Open(
 				bOut,
-				CmsEnvelopedDataGenerator.DesEde3Cbc);
+				CmsEnvelopedGenerator.DesEde3Cbc);
 			outStream.Write(data, 0, data.Length);
 
 			outStream.Close();
 
-			CmsEnvelopedDataParser ep = new CmsEnvelopedDataParser(bOut.ToArray());
+			using (var ep = new CmsEnvelopedDataParser(bOut.ToArray()))
+			{
+                RecipientInformationStore recipients = ep.GetRecipientInfos();
 
-			RecipientInformationStore recipients = ep.GetRecipientInfos();
+                Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedGenerator.DesEde3Cbc);
 
-			Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedDataGenerator.DesEde3Cbc);
+                var recSel = new RecipientID
+                {
+                    KeyIdentifier = kekId2
+                };
 
-			RecipientID recSel = new RecipientID();
+                RecipientInformation recipient = recipients.GetFirstRecipient(recSel);
 
-			recSel.KeyIdentifier = kekId2;
+                Assert.AreEqual(recipient.KeyEncryptionAlgOid, "2.16.840.1.101.3.4.1.25");
 
-			RecipientInformation recipient = recipients.GetFirstRecipient(recSel);
+                CmsTypedStream recData = recipient.GetContentStream(kek2);
 
-			Assert.AreEqual(recipient.KeyEncryptionAlgOid, "2.16.840.1.101.3.4.1.25");
-
-			CmsTypedStream recData = recipient.GetContentStream(kek2);
-
-			Assert.IsTrue(Arrays.AreEqual(data, CmsTestUtil.StreamToByteArray(recData.ContentStream)));
-
-			ep.Close();
-		}
+                Assert.IsTrue(Arrays.AreEqual(data, CmsTestUtil.StreamToByteArray(recData.ContentStream)));
+            }
+        }
 
 		[Test]
 		public void TestECKeyAgree()
@@ -494,35 +484,34 @@ namespace Org.BouncyCastle.Cms.Tests
 				OrigECKP.Private,
 				OrigECKP.Public,
 				ReciECCert,
-				CmsEnvelopedDataGenerator.Aes128Wrap);
+				CmsEnvelopedGenerator.Aes128Wrap);
 
 			MemoryStream bOut = new MemoryStream();
 
-			Stream outStr = edGen.Open(bOut, CmsEnvelopedDataGenerator.Aes128Cbc);
+			Stream outStr = edGen.Open(bOut, CmsEnvelopedGenerator.Aes128Cbc);
 			outStr.Write(data, 0, data.Length);
 
 			outStr.Close();
 
-			CmsEnvelopedDataParser ep = new CmsEnvelopedDataParser(bOut.ToArray());
+			using (var ep = new CmsEnvelopedDataParser(bOut.ToArray()))
+			{
+                RecipientInformationStore recipients = ep.GetRecipientInfos();
 
-			RecipientInformationStore recipients = ep.GetRecipientInfos();
+                Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedGenerator.Aes128Cbc);
 
-			Assert.AreEqual(ep.EncryptionAlgOid, CmsEnvelopedDataGenerator.Aes128Cbc);
+				var recSel = new RecipientID
+				{
+                    Issuer = ReciECCert.IssuerDN,
+					SerialNumber = ReciECCert.SerialNumber
+	            };
 
-			RecipientID recSel = new RecipientID();
+                RecipientInformation recipient = recipients.GetFirstRecipient(recSel);
 
-//			recSel.SetIssuer(PrincipalUtilities.GetIssuerX509Principal(ReciECCert).GetEncoded());
-			recSel.Issuer = PrincipalUtilities.GetIssuerX509Principal(ReciECCert);
-			recSel.SerialNumber = ReciECCert.SerialNumber;
+                CmsTypedStream recData = recipient.GetContentStream(ReciECKP.Private);
 
-			RecipientInformation recipient = recipients.GetFirstRecipient(recSel);
-
-			CmsTypedStream recData = recipient.GetContentStream(ReciECKP.Private);
-
-			Assert.IsTrue(Arrays.AreEqual(data, CmsTestUtil.StreamToByteArray(recData.ContentStream)));
-
-			ep.Close();
-		}
+                Assert.IsTrue(Arrays.AreEqual(data, CmsTestUtil.StreamToByteArray(recData.ContentStream)));
+            }
+        }
 
 		[Test]
 		public void TestOriginatorInfo()
@@ -531,7 +520,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			env.GetRecipientInfos();
 
-			Assert.AreEqual(CmsEnvelopedDataGenerator.DesEde3Cbc, env.EncryptionAlgOid);
+			Assert.AreEqual(CmsEnvelopedGenerator.DesEde3Cbc, env.EncryptionAlgOid);
 		}
 	}
 }

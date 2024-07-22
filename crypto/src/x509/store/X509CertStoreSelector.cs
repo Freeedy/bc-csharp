@@ -1,31 +1,30 @@
 using System;
-using System.Collections;
+using System.Collections.Generic;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
-using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.X509.Extension;
 
 namespace Org.BouncyCastle.X509.Store
 {
 	public class X509CertStoreSelector
-		: IX509Selector
+		: ISelector<X509Certificate>
 	{
 		// TODO Missing criteria?
 
 		private byte[] authorityKeyIdentifier;
 		private int basicConstraints = -1;
 		private X509Certificate certificate;
-		private DateTimeObject certificateValid;
-		private ISet extendedKeyUsage;
+		private DateTime? certificateValid;
+		private ISet<DerObjectIdentifier> extendedKeyUsage;
         private bool ignoreX509NameOrdering;
 		private X509Name issuer;
 		private bool[] keyUsage;
-		private ISet policy;
-		private DateTimeObject privateKeyValid;
+		private ISet<DerObjectIdentifier> policy;
+		private DateTime? privateKeyValid;
 		private BigInteger serialNumber;
 		private X509Name subject;
 		private byte[] subjectKeyIdentifier;
@@ -61,6 +60,9 @@ namespace Org.BouncyCastle.X509.Store
 			return new X509CertStoreSelector(this);
 		}
 
+        /// <remarks>
+		/// A DER encoding of an ASN.1 AuthorityKeyIdentifier value.
+        /// </remarks>
 		public byte[] AuthorityKeyIdentifier
 		{
 			get { return Arrays.Clone(authorityKeyIdentifier); }
@@ -85,13 +87,13 @@ namespace Org.BouncyCastle.X509.Store
 			set { this.certificate = value; }
 		}
 
-		public DateTimeObject CertificateValid
+		public DateTime? CertificateValid
 		{
 			get { return certificateValid; }
 			set { certificateValid = value; }
 		}
 
-		public ISet ExtendedKeyUsage
+		public ISet<DerObjectIdentifier> ExtendedKeyUsage
 		{
 			get { return CopySet(extendedKeyUsage); }
 			set { extendedKeyUsage = CopySet(value); }
@@ -109,28 +111,22 @@ namespace Org.BouncyCastle.X509.Store
 			set { issuer = value; }
 		}
 
-		[Obsolete("Avoid working with X509Name objects in string form")]
-		public string IssuerAsString
-		{
-			get { return issuer != null ? issuer.ToString() : null; }
-		}
-
 		public bool[] KeyUsage
 		{
-			get { return CopyBoolArray(keyUsage); }
-			set { keyUsage = CopyBoolArray(value); }
+			get { return Arrays.Clone(keyUsage); }
+			set { keyUsage = Arrays.Clone(value); }
 		}
 
 		/// <summary>
 		/// An <code>ISet</code> of <code>DerObjectIdentifier</code> objects.
 		/// </summary>
-		public ISet Policy
+		public ISet<DerObjectIdentifier> Policy
 		{
 			get { return CopySet(policy); }
 			set { policy = CopySet(value); }
 		}
 
-		public DateTimeObject PrivateKeyValid
+		public DateTime? PrivateKeyValid
 		{
 			get { return privateKeyValid; }
 			set { privateKeyValid = value; }
@@ -148,13 +144,10 @@ namespace Org.BouncyCastle.X509.Store
 			set { subject = value; }
 		}
 
-        [Obsolete("Avoid working with X509Name objects in string form")]
-        public string SubjectAsString
-		{
-			get { return subject != null ? subject.ToString() : null; }
-		}
-
-		public byte[] SubjectKeyIdentifier
+        /// <remarks>
+		/// A DER encoding of an ASN.1 SubjectKeyIdentifier (OCTET STRING) value.
+        /// </remarks>
+        public byte[] SubjectKeyIdentifier
 		{
 			get { return Arrays.Clone(subjectKeyIdentifier); }
 			set { subjectKeyIdentifier = Arrays.Clone(value); }
@@ -172,11 +165,8 @@ namespace Org.BouncyCastle.X509.Store
 			set { subjectPublicKeyAlgID = value; }
 		}
 
-		public virtual bool Match(
-			object obj)
+		public virtual bool Match(X509Certificate c)
 		{
-			X509Certificate c = obj as X509Certificate;
-
 			if (c == null)
 				return false;
 
@@ -207,7 +197,7 @@ namespace Org.BouncyCastle.X509.Store
 
 			if (extendedKeyUsage != null)
 			{
-				IList eku = c.GetExtendedKeyUsage();
+				var eku = c.GetExtendedKeyUsage();
 
 				// Note: if no extended key usage set, all key purposes are implicitly allowed
 
@@ -215,7 +205,7 @@ namespace Org.BouncyCastle.X509.Store
 				{
 					foreach (DerObjectIdentifier oid in extendedKeyUsage)
 					{
-						if (!eku.Contains(oid.Id))
+						if (!eku.Contains(oid))
 							return false;
 					}
 				}
@@ -292,45 +282,39 @@ namespace Org.BouncyCastle.X509.Store
 			if (!MatchExtension(subjectKeyIdentifier, c, X509Extensions.SubjectKeyIdentifier))
 				return false;
 
-			if (subjectPublicKey != null && !subjectPublicKey.Equals(GetSubjectPublicKey(c)))
+			SubjectPublicKeyInfo subjectPublicKeyInfo = c.SubjectPublicKeyInfo;
+
+            if (subjectPublicKey != null && !subjectPublicKey.Equals(subjectPublicKeyInfo))
 				return false;
 
 			if (subjectPublicKeyAlgID != null
-				&& !subjectPublicKeyAlgID.Equals(GetSubjectPublicKey(c).AlgorithmID))
+				&& !subjectPublicKeyAlgID.Equals(subjectPublicKeyInfo.Algorithm))
 				return false;
 
 			return true;
 		}
 
-		internal static bool IssuersMatch(
-			X509Name	a,
-			X509Name	b)
+		protected internal int GetHashCodeOfSubjectKeyIdentifier() => Arrays.GetHashCode(subjectKeyIdentifier);
+
+		protected internal bool MatchesIssuer(X509CertStoreSelector other) => IssuersMatch(issuer, other.issuer);
+
+		protected internal bool MatchesSerialNumber(X509CertStoreSelector other) =>
+			Objects.Equals(serialNumber, other.serialNumber);
+
+        protected internal bool MatchesSubjectKeyIdentifier(X509CertStoreSelector other) =>
+			Arrays.AreEqual(subjectKeyIdentifier, other.subjectKeyIdentifier);
+
+		private static bool IssuersMatch(X509Name a, X509Name b)
 		{
 			return a == null ? b == null : a.Equivalent(b, true);
 		}
 
-		private static bool[] CopyBoolArray(
-			bool[] b)
+		private static ISet<T> CopySet<T>(ISet<T> s)
 		{
-			return b == null ? null : (bool[]) b.Clone();
+			return s == null ? null : new HashSet<T>(s);
 		}
 
-		private static ISet CopySet(
-			ISet s)
-		{
-			return s == null ? null : new HashSet(s);
-		}
-
-		private static SubjectPublicKeyInfo GetSubjectPublicKey(
-			X509Certificate c)
-		{
-			return SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(c.GetPublicKey());
-		}
-
-		private static bool MatchExtension(
-			byte[]				b,
-			X509Certificate		c,
-			DerObjectIdentifier	oid)
+		private static bool MatchExtension(byte[] b, X509Certificate c, DerObjectIdentifier	oid)
 		{
 			if (b == null)
 				return true;
