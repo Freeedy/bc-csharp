@@ -22,7 +22,10 @@ namespace Org.BouncyCastle.Asn1.Cms
 			m_content = (Asn1TaggedObjectParser)seq.ReadObject();
 		}
 
-		public DerObjectIdentifier ContentType => m_contentType;
+		public DerObjectIdentifier ContentType
+		{
+			get { return m_contentType; }
+		}
 
 		public IAsn1Convertible GetContent(int tag)
 		{

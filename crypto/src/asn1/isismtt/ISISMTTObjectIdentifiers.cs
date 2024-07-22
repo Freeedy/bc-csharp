@@ -1,7 +1,6 @@
 namespace Org.BouncyCastle.Asn1.IsisMtt
 {
-    // TODO[api] Make static
-    public abstract class IsisMttObjectIdentifiers
+	public abstract class IsisMttObjectIdentifiers
 	{
 		public static readonly DerObjectIdentifier IdIsisMtt = new DerObjectIdentifier("1.3.36.8");
 

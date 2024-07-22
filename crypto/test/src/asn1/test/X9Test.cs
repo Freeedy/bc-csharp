@@ -65,7 +65,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
             X9ECPoint x9P = new X9ECPoint(ecP.Curve, p);
 
-            if (!Arrays.AreEqual(p.GetOctets(), x9P.GetPointEncoding()))
+            if (!Arrays.AreEqual(p.GetOctets(), x9P.Point.GetEncoded()))
             {
                 Fail("point encoding not preserved");
             }
@@ -153,6 +153,12 @@ namespace Org.BouncyCastle.Asn1.Tests
         public override string Name
         {
             get { return "X9"; }
+        }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new X9Test());
         }
 
         [Test]

@@ -1,5 +1,7 @@
 using System;
+using System.Collections;
 
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Utilities;
 
@@ -26,18 +28,10 @@ namespace Org.BouncyCastle.Crypto.Macs
         private readonly byte[] outputBuf;
 
         public HMac(IDigest digest)
-            : this(digest, digest.GetByteLength())
         {
-        }
-
-        public HMac(IDigest digest, int blockLength)
-        {
-            if (blockLength < 16)
-                throw new ArgumentException("must be at least 16 bytes", nameof(blockLength));
-
             this.digest = digest;
             this.digestSize = digest.GetDigestSize();
-            this.blockLength = blockLength;
+            this.blockLength = digest.GetByteLength();
             this.inputPad = new byte[blockLength];
             this.outputBuf = new byte[blockLength + digestSize];
         }
@@ -56,25 +50,19 @@ namespace Org.BouncyCastle.Crypto.Macs
         {
             digest.Reset();
 
-            KeyParameter keyParameter = (KeyParameter)parameters;
+            byte[] key = ((KeyParameter)parameters).GetKey();
+			int keyLength = key.Length;
 
-            int keyLength = keyParameter.KeyLength;
             if (keyLength > blockLength)
             {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                digest.BlockUpdate(keyParameter.Key);
-#else
-                byte[] key = keyParameter.GetKey();
                 digest.BlockUpdate(key, 0, keyLength);
-#endif
-
                 digest.DoFinal(inputPad, 0);
 
 				keyLength = digestSize;
             }
             else
             {
-                keyParameter.CopyTo(inputPad, 0, keyLength);
+				Array.Copy(key, 0, inputPad, 0, keyLength);
             }
 
 			Array.Clear(inputPad, keyLength, blockLength - keyLength);
@@ -83,20 +71,19 @@ namespace Org.BouncyCastle.Crypto.Macs
 			XorPad(inputPad, blockLength, IPAD);
             XorPad(outputBuf, blockLength, OPAD);
 
-			if (digest is IMemoable memoable)
+			if (digest is IMemoable)
 			{
-				opadState = memoable.Copy();
+				opadState = ((IMemoable)digest).Copy();
 
 				((IDigest)opadState).BlockUpdate(outputBuf, 0, blockLength);
+			}
 
-			    digest.BlockUpdate(inputPad, 0, inputPad.Length);
+			digest.BlockUpdate(inputPad, 0, inputPad.Length);
 
-				ipadState = memoable.Copy();
-            }
-            else
-            {
-                digest.BlockUpdate(inputPad, 0, inputPad.Length);
-            }
+			if (digest is IMemoable)
+			{
+				ipadState = ((IMemoable)digest).Copy();
+			}
         }
 
         public virtual int GetMacSize()
@@ -114,24 +101,14 @@ namespace Org.BouncyCastle.Crypto.Macs
             digest.BlockUpdate(input, inOff, len);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void BlockUpdate(ReadOnlySpan<byte> input)
-        {
-            digest.BlockUpdate(input);
-        }
-#endif
-
         public virtual int DoFinal(byte[] output, int outOff)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return DoFinal(output.AsSpan(outOff));
-#else
             digest.DoFinal(outputBuf, blockLength);
 
 			if (opadState != null)
 			{
 				((IMemoable)digest).Reset(opadState);
-				digest.BlockUpdate(outputBuf, blockLength, digestSize);
+				digest.BlockUpdate(outputBuf, blockLength, digest.GetDigestSize());
 			}
 			else
 			{
@@ -152,40 +129,7 @@ namespace Org.BouncyCastle.Crypto.Macs
 			}
 
             return len;
-#endif
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual int DoFinal(Span<byte> output)
-        {
-            digest.DoFinal(outputBuf.AsSpan(blockLength));
-
-            if (opadState != null)
-            {
-                ((IMemoable)digest).Reset(opadState);
-                digest.BlockUpdate(outputBuf.AsSpan(blockLength, digestSize));
-            }
-            else
-            {
-                digest.BlockUpdate(outputBuf);
-            }
-
-            int len = digest.DoFinal(output);
-
-            Array.Clear(outputBuf, blockLength, digestSize);
-
-            if (ipadState != null)
-            {
-                ((IMemoable)digest).Reset(ipadState);
-            }
-            else
-            {
-                digest.BlockUpdate(inputPad);
-            }
-
-            return len;
-        }
-#endif
 
         /**
         * Reset the mac generator.

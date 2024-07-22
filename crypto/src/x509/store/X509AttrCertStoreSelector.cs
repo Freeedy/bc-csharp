@@ -1,10 +1,11 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities.Collections;
+using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.X509.Extension;
 
 namespace Org.BouncyCastle.X509.Store
@@ -17,17 +18,17 @@ namespace Org.BouncyCastle.X509.Store
 	* @see org.bouncycastle.x509.X509Store
 	*/
 	public class X509AttrCertStoreSelector
-		: ISelector<X509V2AttributeCertificate>
+		: IX509Selector
 	{
 		// TODO: name constraints???
 
-		private X509V2AttributeCertificate attributeCert;
-		private DateTime? attributeCertificateValid;
+		private IX509AttributeCertificate attributeCert;
+		private DateTimeObject attributeCertificateValid;
 		private AttributeCertificateHolder holder;
 		private AttributeCertificateIssuer issuer;
 		private BigInteger serialNumber;
-		private ISet<GeneralName> targetNames = new HashSet<GeneralName>();
-		private ISet<GeneralName> targetGroups = new HashSet<GeneralName>();
+		private ISet targetNames = new HashSet();
+		private ISet targetGroups = new HashSet();
 
 		public X509AttrCertStoreSelector()
 		{
@@ -41,17 +42,23 @@ namespace Org.BouncyCastle.X509.Store
 			this.holder = o.holder;
 			this.issuer = o.issuer;
 			this.serialNumber = o.serialNumber;
-			this.targetGroups = new HashSet<GeneralName>(o.targetGroups);
-			this.targetNames = new HashSet<GeneralName>(o.targetNames);
+			this.targetGroups = new HashSet(o.targetGroups);
+			this.targetNames = new HashSet(o.targetNames);
 		}
 
 		/// <summary>
 		/// Decides if the given attribute certificate should be selected.
 		/// </summary>
-		/// <param name="attrCert">The attribute certificate to be checked.</param>
+		/// <param name="obj">The attribute certificate to be checked.</param>
 		/// <returns><code>true</code> if the object matches this selector.</returns>
-		public bool Match(X509V2AttributeCertificate attrCert)
+		public bool Match(
+			object obj)
 		{
+			if (obj == null)
+				throw new ArgumentNullException("obj");
+
+			IX509AttributeCertificate attrCert = obj as IX509AttributeCertificate;
+
 			if (attrCert == null)
 				return false;
 
@@ -72,7 +79,8 @@ namespace Org.BouncyCastle.X509.Store
 
 			if (targetNames.Count > 0 || targetGroups.Count > 0)
 			{
-				Asn1OctetString targetInfoExt = attrCert.GetExtensionValue(X509Extensions.TargetInformation);
+				Asn1OctetString targetInfoExt = attrCert.GetExtensionValue(
+					X509Extensions.TargetInformation);
 
 				if (targetInfoExt != null)
 				{
@@ -108,9 +116,10 @@ namespace Org.BouncyCastle.X509.Store
 								}
 							}
 						}
-
 						if (!found)
+						{
 							return false;
+						}
 					}
 
 					if (targetGroups.Count > 0)
@@ -134,7 +143,9 @@ namespace Org.BouncyCastle.X509.Store
 						}
 
 						if (!found)
+						{
 							return false;
+						}
 					}
 				}
 			}
@@ -149,15 +160,22 @@ namespace Org.BouncyCastle.X509.Store
 
 		/// <summary>The attribute certificate which must be matched.</summary>
 		/// <remarks>If <c>null</c> is given, any will do.</remarks>
-		public X509V2AttributeCertificate AttributeCert
+		public IX509AttributeCertificate AttributeCert
 		{
 			get { return attributeCert; }
 			set { this.attributeCert = value; }
 		}
 
+		[Obsolete("Use AttributeCertificateValid instead")]
+		public DateTimeObject AttribueCertificateValid
+		{
+			get { return attributeCertificateValid; }
+			set { this.attributeCertificateValid = value; }
+		}
+
 		/// <summary>The criteria for validity</summary>
 		/// <remarks>If <c>null</c> is given any will do.</remarks>
-		public DateTime? AttributeCertificateValid
+		public DateTimeObject AttributeCertificateValid
 		{
 			get { return attributeCertificateValid; }
 			set { this.attributeCertificateValid = value; }
@@ -200,7 +218,8 @@ namespace Org.BouncyCastle.X509.Store
 		*
 		* @param name The name as a GeneralName (not <code>null</code>)
 		*/
-		public void AddTargetName(GeneralName name)
+		public void AddTargetName(
+			GeneralName name)
 		{
 			targetNames.Add(name);
 		}
@@ -219,7 +238,8 @@ namespace Org.BouncyCastle.X509.Store
 		* @param name a byte array containing the name in ASN.1 DER encoded form of a GeneralName
 		* @throws IOException if a parsing error occurs.
 		*/
-		public void AddTargetName(byte[] name)
+		public void AddTargetName(
+			byte[] name)
 		{
 			AddTargetName(GeneralName.GetInstance(Asn1Object.FromByteArray(name)));
 		}
@@ -237,7 +257,8 @@ namespace Org.BouncyCastle.X509.Store
 		* @see #AddTargetName(byte[])
 		* @see #AddTargetName(GeneralName)
 		*/
-		public void SetTargetNames(IEnumerable<object> names)
+		public void SetTargetNames(
+			IEnumerable names)
 		{
 			targetNames = ExtractGeneralNames(names);
 		}
@@ -251,9 +272,9 @@ namespace Org.BouncyCastle.X509.Store
 		* @return The collection of target names
 		* @see #setTargetNames(Collection)
 		*/
-		public IEnumerable<GeneralName> GetTargetNames()
+		public IEnumerable GetTargetNames()
 		{
-			return CollectionUtilities.Proxy(targetNames);
+			return new EnumerableProxy(targetNames);
 		}
 
 		/**
@@ -269,7 +290,8 @@ namespace Org.BouncyCastle.X509.Store
 		*
 		* @param group The group as GeneralName form (not <code>null</code>)
 		*/
-		public void AddTargetGroup(GeneralName group)
+		public void AddTargetGroup(
+			GeneralName group)
 		{
 			targetGroups.Add(group);
 		}
@@ -288,7 +310,8 @@ namespace Org.BouncyCastle.X509.Store
 		* @param name a byte array containing the group in ASN.1 DER encoded form of a GeneralName
 		* @throws IOException if a parsing error occurs.
 		*/
-		public void AddTargetGroup(byte[] name)
+		public void AddTargetGroup(
+			byte[] name)
 		{
 			AddTargetGroup(GeneralName.GetInstance(Asn1Object.FromByteArray(name)));
 		}
@@ -306,7 +329,8 @@ namespace Org.BouncyCastle.X509.Store
 		* @see #AddTargetGroup(byte[])
 		* @see #AddTargetGroup(GeneralName)
 		*/
-		public void SetTargetGroups(IEnumerable<object> names)
+		public void SetTargetGroups(
+			IEnumerable names)
 		{
 			targetGroups = ExtractGeneralNames(names);
 		}
@@ -320,20 +344,28 @@ namespace Org.BouncyCastle.X509.Store
 		* @return The collection of target groups.
 		* @see #setTargetGroups(Collection)
 		*/
-		public IEnumerable<GeneralName> GetTargetGroups()
+		public IEnumerable GetTargetGroups()
 		{
-			return CollectionUtilities.Proxy(targetGroups);
+			return new EnumerableProxy(targetGroups);
 		}
 
-		private ISet<GeneralName> ExtractGeneralNames(IEnumerable<object> names)
+		private ISet ExtractGeneralNames(
+			IEnumerable names)
 		{
-			var result = new HashSet<GeneralName>();
+			ISet result = new HashSet();
 
 			if (names != null)
 			{
 				foreach (object o in names)
 				{
-                    result.Add(GeneralName.GetInstance(o));
+					if (o is GeneralName)
+					{
+						result.Add(o);
+					}
+					else
+					{
+						result.Add(GeneralName.GetInstance(Asn1Object.FromByteArray((byte[]) o)));
+					}
 				}
 			}
 

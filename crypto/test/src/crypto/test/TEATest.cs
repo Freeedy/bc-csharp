@@ -42,6 +42,12 @@ namespace Org.BouncyCastle.Crypto.Tests
 			get { return "TEA"; }
 		}
 
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new TeaTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{

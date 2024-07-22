@@ -9,22 +9,24 @@ namespace Org.BouncyCastle.Asn1.X9
     {
         private readonly Asn1Object _params;
 
-		public static X962Parameters GetInstance(object obj)
+		public static X962Parameters GetInstance(
+			object obj)
 		{
-            if (obj == null)
-                return null;
+			if (obj == null || obj is X962Parameters) 
+			{
+				return (X962Parameters)obj;
+			}
 
-			if (obj is X962Parameters x962Parameters)
-				return x962Parameters;
+			if (obj is Asn1Object) 
+			{
+				return new X962Parameters((Asn1Object)obj);
+			}
 
-			if (obj is Asn1Object asn1Object)
-				return new X962Parameters(asn1Object);
-
-			if (obj is byte[] bytes)
+			if (obj is byte[])
 			{
 				try
 				{
-					return new X962Parameters(Asn1Object.FromByteArray(bytes));
+					return new X962Parameters(Asn1Object.FromByteArray((byte[])obj));
 				}
 				catch (Exception e)
 				{
@@ -32,16 +34,10 @@ namespace Org.BouncyCastle.Asn1.X9
 				}
 			}
 
-			throw new ArgumentException("unknown object in GetInstance()");
+			throw new ArgumentException("unknown object in getInstance()");
 		}
 
-        public static X962Parameters GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public static X962Parameters GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public X962Parameters(
+		public X962Parameters(
             X9ECParameters ecParameters)
         {
             this._params = ecParameters.ToAsn1Object();
@@ -59,7 +55,9 @@ namespace Org.BouncyCastle.Asn1.X9
             this._params = obj;
         }
 
-        private X962Parameters(Asn1Object obj)
+        [Obsolete("Use 'GetInstance' instead")]
+        public X962Parameters(
+            Asn1Object obj)
         {
             this._params = obj;
         }

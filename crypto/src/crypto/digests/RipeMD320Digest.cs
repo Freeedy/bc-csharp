@@ -1,6 +1,5 @@
 using System;
 
-using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Digests
@@ -63,27 +62,18 @@ namespace Org.BouncyCastle.Crypto.Digests
             xOff = t.xOff;
         }
 
-        internal override void ProcessWord(byte[] input, int inOff)
+        internal override void ProcessWord(
+            byte[] input,
+            int inOff)
         {
-            X[xOff++] = (int)Pack.LE_To_UInt32(input, inOff);
+            X[xOff++] = (input[inOff] & 0xff) | ((input[inOff + 1] & 0xff) << 8)
+                | ((input[inOff + 2] & 0xff) << 16) | ((input[inOff + 3] & 0xff) << 24);
 
             if (xOff == 16)
             {
                 ProcessBlock();
             }
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        internal override void ProcessWord(ReadOnlySpan<byte> word)
-        {
-            X[xOff++] = (int)Pack.LE_To_UInt32(word);
-
-            if (xOff == 16)
-            {
-                ProcessBlock();
-            }
-        }
-#endif
 
         internal override void ProcessLength(
             long bitLength)
@@ -97,47 +87,36 @@ namespace Org.BouncyCastle.Crypto.Digests
             X[15] = (int)((ulong)bitLength >> 32);
         }
 
+        private void UnpackWord(
+            int word,
+            byte[] outBytes,
+            int outOff)
+        {
+            outBytes[outOff] = (byte)word;
+            outBytes[outOff + 1] = (byte)((uint)word >> 8);
+            outBytes[outOff + 2] = (byte)((uint)word >> 16);
+            outBytes[outOff + 3] = (byte)((uint)word >> 24);
+        }
+
         public override int DoFinal(byte[] output, int outOff)
         {
             Finish();
 
-            Pack.UInt32_To_LE((uint)H0, output, outOff);
-            Pack.UInt32_To_LE((uint)H1, output, outOff + 4);
-            Pack.UInt32_To_LE((uint)H2, output, outOff + 8);
-            Pack.UInt32_To_LE((uint)H3, output, outOff + 12);
-            Pack.UInt32_To_LE((uint)H4, output, outOff + 16);
-            Pack.UInt32_To_LE((uint)H5, output, outOff + 20);
-            Pack.UInt32_To_LE((uint)H6, output, outOff + 24);
-            Pack.UInt32_To_LE((uint)H7, output, outOff + 28);
-            Pack.UInt32_To_LE((uint)H8, output, outOff + 32);
-            Pack.UInt32_To_LE((uint)H9, output, outOff + 36);
+            UnpackWord(H0, output, outOff);
+            UnpackWord(H1, output, outOff + 4);
+            UnpackWord(H2, output, outOff + 8);
+            UnpackWord(H3, output, outOff + 12);
+            UnpackWord(H4, output, outOff + 16);
+            UnpackWord(H5, output, outOff + 20);
+            UnpackWord(H6, output, outOff + 24);
+            UnpackWord(H7, output, outOff + 28);
+            UnpackWord(H8, output, outOff + 32);
+            UnpackWord(H9, output, outOff + 36);
 
             Reset();
 
             return DigestLength;
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override int DoFinal(Span<byte> output)
-        {
-            Finish();
-
-            Pack.UInt32_To_LE((uint)H0, output);
-            Pack.UInt32_To_LE((uint)H1, output[4..]);
-            Pack.UInt32_To_LE((uint)H2, output[8..]);
-            Pack.UInt32_To_LE((uint)H3, output[12..]);
-            Pack.UInt32_To_LE((uint)H4, output[16..]);
-            Pack.UInt32_To_LE((uint)H5, output[20..]);
-            Pack.UInt32_To_LE((uint)H6, output[24..]);
-            Pack.UInt32_To_LE((uint)H7, output[28..]);
-            Pack.UInt32_To_LE((uint)H8, output[32..]);
-            Pack.UInt32_To_LE((uint)H9, output[36..]);
-
-            Reset();
-
-            return DigestLength;
-        }
-#endif
 
         /// <summary> reset the chaining variables to the IV values.</summary>
         public override void  Reset()
@@ -475,5 +454,6 @@ namespace Org.BouncyCastle.Crypto.Digests
 
 			CopyIn(d);
 		}
+
     }
 }

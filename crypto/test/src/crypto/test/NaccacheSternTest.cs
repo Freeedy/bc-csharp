@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using NUnit.Framework;
 
@@ -30,6 +30,8 @@ namespace Org.BouncyCastle.Crypto.Tests
 	public class NaccacheSternTest
 		: SimpleTest
 	{
+		private const bool debug = false;
+
 		static readonly NaccacheSternEngine cryptEng = new NaccacheSternEngine();
 		static readonly NaccacheSternEngine decryptEng = new NaccacheSternEngine();
 
@@ -59,7 +61,7 @@ namespace Org.BouncyCastle.Crypto.Tests
 
 		static readonly BigInteger g = BigInteger.ValueOf(131);
 
-		static readonly IList<BigInteger> smallPrimes = new List<BigInteger>();
+		static readonly IList smallPrimes = new ArrayList();
 
 		// static final BigInteger paperTest = BigInteger.ValueOf(202);
 
@@ -103,7 +105,16 @@ namespace Org.BouncyCastle.Crypto.Tests
 
 			// Initialize Engines with KeyPair
 
+			if (debug)
+			{
+				Console.WriteLine("initializing encryption engine");
+			}
 			cryptEng.Init(true, pair.Public);
+
+			if (debug)
+			{
+				Console.WriteLine("initializing decryption engine");
+			}
 			decryptEng.Init(false, pair.Private);
 
 			byte[] data = paperTest.ToByteArray();
@@ -120,6 +131,12 @@ namespace Org.BouncyCastle.Crypto.Tests
 			//
 			// 768 Bit test
 			//
+
+			if (debug)
+			{
+				Console.WriteLine();
+				Console.WriteLine("768 Bit TEST");
+			}
 
 			// specify key generation parameters
 			NaccacheSternKeyGenerationParameters genParam
@@ -140,7 +157,16 @@ namespace Org.BouncyCastle.Crypto.Tests
 
 			// Initialize Engines with KeyPair
 
+			if (debug)
+			{
+				Console.WriteLine("initializing " + genParam.Strength + " bit encryption engine");
+			}
 			cryptEng.Init(true, pair.Public);
+
+			if (debug)
+			{
+				Console.WriteLine("initializing " + genParam.Strength + " bit decryption engine");
+			}
 			decryptEng.Init(false, pair.Private);
 
 			// Basic data input
@@ -235,6 +261,11 @@ namespace Org.BouncyCastle.Crypto.Tests
 			{
 				// expected
 			}
+
+			if (debug)
+			{
+				Console.WriteLine("All tests successful");
+			}
 		}
 
 		private byte[] enDeCrypt(
@@ -245,6 +276,13 @@ namespace Org.BouncyCastle.Crypto.Tests
 			Array.Copy(input, 0, data, 0, data.Length);
 
 			// Perform encryption like in the paper from Naccache-Stern
+			if (debug)
+			{
+				Console.WriteLine("encrypting data. Data representation\n"
+					//                    + "As string:.... " + new string(data) + "\n"
+					+ "As BigInteger: " + new BigInteger(1, data));
+				Console.WriteLine("data length is " + data.Length);
+			}
 
 			try
 			{
@@ -252,7 +290,19 @@ namespace Org.BouncyCastle.Crypto.Tests
 			}
 			catch (InvalidCipherTextException e)
 			{
+				if (debug)
+				{
+					Console.WriteLine("failed - exception " + e + "\n" + e.Message);
+				}
 				Fail("failed - exception " + e + "\n" + e.Message);
+			}
+
+			if (debug)
+			{
+				Console.WriteLine("enrypted data representation\n"
+						   //                    + "As string:.... " + new string(data) + "\n"
+						   + "As BigInteger: " + new BigInteger(1, data));
+				Console.WriteLine("data length is " + data.Length);
 			}
 
 			try
@@ -261,7 +311,19 @@ namespace Org.BouncyCastle.Crypto.Tests
 			}
 			catch (InvalidCipherTextException e)
 			{
+				if (debug)
+				{
+					Console.WriteLine("failed - exception " + e + "\n" + e.Message);
+				}
 				Fail("failed - exception " + e + "\n" + e.Message);
+			}
+
+			if (debug)
+			{
+				Console.WriteLine("decrypted data representation\n"
+					//                    + "As string:.... " + new string(data) + "\n"
+					+ "As BigInteger: " + new BigInteger(1, data));
+				Console.WriteLine("data length is " + data.Length);
 			}
 
 			return data;
@@ -273,6 +335,15 @@ namespace Org.BouncyCastle.Crypto.Tests
 			string resultText = Perform().ToString();
 
 			Assert.AreEqual(Name + ": Okay", resultText);
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			ITest test = new NaccacheSternTest();
+			ITestResult result = test.Perform();
+
+			Console.WriteLine(result);
 		}
 	}
 }

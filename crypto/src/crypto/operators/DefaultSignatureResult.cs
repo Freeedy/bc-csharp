@@ -2,34 +2,26 @@
 
 namespace Org.BouncyCastle.Crypto.Operators
 {
-    public sealed class DefaultSignatureResult
+    public class DefaultSignatureResult
         : IBlockResult
     {
-        private readonly ISigner m_signer;
+        private readonly ISigner mSigner;
 
         public DefaultSignatureResult(ISigner signer)
         {
-            m_signer = signer;
+            this.mSigner = signer;
         }
 
-        public byte[] Collect() => m_signer.GenerateSignature();
+        public byte[] Collect()
+        {
+            return mSigner.GenerateSignature();
+        }
 
-        public int Collect(byte[] buf, int off)
+        public int Collect(byte[] sig, int sigOff)
         {
             byte[] signature = Collect();
-            signature.CopyTo(buf, off);
+            signature.CopyTo(sig, sigOff);
             return signature.Length;
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int Collect(Span<byte> output)
-        {
-            byte[] signature = Collect();
-            signature.CopyTo(output);
-            return signature.Length;
-        }
-#endif
-
-        public int GetMaxResultLength() => m_signer.GetMaxSignatureSize();
     }
 }

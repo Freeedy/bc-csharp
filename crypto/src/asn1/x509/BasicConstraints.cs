@@ -37,9 +37,9 @@ namespace Org.BouncyCastle.Asn1.X509
         {
 			if (seq.Count > 0)
 			{
-				if (seq[0] is DerBoolean derBoolean)
+				if (seq[0] is DerBoolean)
 				{
-					this.cA = derBoolean;
+					this.cA = DerBoolean.GetInstance(seq[0]);
 				}
 				else
 				{
@@ -82,9 +82,10 @@ namespace Org.BouncyCastle.Asn1.X509
             return cA != null && cA.IsTrue;
         }
 
-        public BigInteger PathLenConstraint => pathLenConstraint?.Value;
-
-        public DerInteger PathLenConstraintInteger => pathLenConstraint;
+		public BigInteger PathLenConstraint
+        {
+            get { return pathLenConstraint == null ? null : pathLenConstraint.Value; }
+        }
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.

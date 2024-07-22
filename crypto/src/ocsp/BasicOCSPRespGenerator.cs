@@ -1,15 +1,16 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Ocsp;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
-using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Security.Certificates;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
+using Org.BouncyCastle.Crypto.Operators;
 
 namespace Org.BouncyCastle.Ocsp
 {
@@ -18,7 +19,7 @@ namespace Org.BouncyCastle.Ocsp
 	 */
 	public class BasicOcspRespGenerator
 	{
-		private readonly List<ResponseObject> list = new List<ResponseObject>();
+		private readonly IList list = Platform.CreateArrayList();
 
 		private X509Extensions responseExtensions;
 		private RespID responderID;
@@ -31,11 +32,30 @@ namespace Org.BouncyCastle.Ocsp
 			internal DerGeneralizedTime    nextUpdate;
 			internal X509Extensions        extensions;
 
-			internal ResponseObject(
+			public ResponseObject(
 				CertificateID		certId,
 				CertificateStatus	certStatus,
 				DateTime			thisUpdate,
-				DateTime?			nextUpdate,
+				X509Extensions		extensions)
+				: this(certId, certStatus, new DerGeneralizedTime(thisUpdate), null, extensions)
+			{
+			}
+
+			public ResponseObject(
+				CertificateID		certId,
+				CertificateStatus	certStatus,
+				DateTime			thisUpdate,
+				DateTime			nextUpdate,
+				X509Extensions		extensions)
+				: this(certId, certStatus, new DerGeneralizedTime(thisUpdate), new DerGeneralizedTime(nextUpdate), extensions)
+			{
+			}
+
+			private ResponseObject(
+				CertificateID		certId,
+				CertificateStatus	certStatus,
+				DerGeneralizedTime	thisUpdate,
+				DerGeneralizedTime	nextUpdate,
 				X509Extensions		extensions)
 			{
 				this.certId = certId;
@@ -55,14 +75,12 @@ namespace Org.BouncyCastle.Ocsp
 						?	new CrlReason(rs.RevocationReason)
 						:	null;
 
-					var revocationTime = Rfc5280Asn1Utilities.CreateGeneralizedTime(rs.RevocationTime);
-					var revokedInfo = new RevokedInfo(revocationTime, revocationReason);
-
-                    this.certStatus = new CertStatus(revokedInfo);
+					this.certStatus = new CertStatus(
+						new RevokedInfo(new DerGeneralizedTime(rs.RevocationTime), revocationReason));
 				}
 
-				this.thisUpdate = Rfc5280Asn1Utilities.CreateGeneralizedTime(thisUpdate);
-				this.nextUpdate = nextUpdate.HasValue ? Rfc5280Asn1Utilities.CreateGeneralizedTime(nextUpdate.Value) : null;
+				this.thisUpdate = thisUpdate;
+				this.nextUpdate = nextUpdate;
 
 				this.extensions = extensions;
 			}
@@ -71,12 +89,12 @@ namespace Org.BouncyCastle.Ocsp
 			{
 				return new SingleResponse(certId.ToAsn1Object(), certStatus, thisUpdate, nextUpdate, extensions);
 			}
-        }
+		}
 
-        /**
+		/**
 		 * basic constructor
 		 */
-        public BasicOcspRespGenerator(
+		public BasicOcspRespGenerator(
 			RespID responderID)
 		{
 			this.responderID = responderID;
@@ -101,7 +119,7 @@ namespace Org.BouncyCastle.Ocsp
 			CertificateID		certID,
 			CertificateStatus	certStatus)
 		{
-			list.Add(new ResponseObject(certID, certStatus, DateTime.UtcNow, null, null));
+			list.Add(new ResponseObject(certID, certStatus, DateTime.UtcNow, null));
 		}
 
 		/**
@@ -116,7 +134,7 @@ namespace Org.BouncyCastle.Ocsp
 			CertificateStatus	certStatus,
 			X509Extensions		singleExtensions)
 		{
-			list.Add(new ResponseObject(certID, certStatus, DateTime.UtcNow, null, singleExtensions));
+			list.Add(new ResponseObject(certID, certStatus, DateTime.UtcNow, singleExtensions));
 		}
 
 		/**
@@ -130,7 +148,7 @@ namespace Org.BouncyCastle.Ocsp
 		public void AddResponse(
 			CertificateID		certID,
 			CertificateStatus	certStatus,
-			DateTime?			nextUpdate,
+			DateTime			nextUpdate,
 			X509Extensions		singleExtensions)
 		{
 			list.Add(new ResponseObject(certID, certStatus, DateTime.UtcNow, nextUpdate, singleExtensions));
@@ -149,7 +167,7 @@ namespace Org.BouncyCastle.Ocsp
 			CertificateID		certID,
 			CertificateStatus	certStatus,
 			DateTime			thisUpdate,
-			DateTime?			nextUpdate,
+			DateTime			nextUpdate,
 			X509Extensions		singleExtensions)
 		{
 			list.Add(new ResponseObject(certID, certStatus, thisUpdate, nextUpdate, singleExtensions));
@@ -166,10 +184,12 @@ namespace Org.BouncyCastle.Ocsp
 			this.responseExtensions = responseExtensions;
 		}
 
-		private BasicOcspResp GenerateResponse(ISignatureFactory signatureFactory, X509Certificate[] chain,
-			DateTime producedAt)
+		private BasicOcspResp GenerateResponse(
+			ISignatureFactory    signatureCalculator,
+			X509Certificate[]		chain,
+			DateTime				producedAt)
 		{
-            AlgorithmIdentifier signingAlgID = (AlgorithmIdentifier)signatureFactory.AlgorithmDetails;
+            AlgorithmIdentifier signingAlgID = (AlgorithmIdentifier)signatureCalculator.AlgorithmDetails;
             DerObjectIdentifier signingAlgorithm = signingAlgID.Algorithm;
 
 			Asn1EncodableVector responses = new Asn1EncodableVector();
@@ -186,33 +206,39 @@ namespace Org.BouncyCastle.Ocsp
 				}
 			}
 
-			var responseData = new ResponseData(
-				responderID.ToAsn1Object(),
-				Rfc5280Asn1Utilities.CreateGeneralizedTime(producedAt),
-				new DerSequence(responses),
-				responseExtensions);
+			ResponseData tbsResp = new ResponseData(responderID.ToAsn1Object(), new DerGeneralizedTime(producedAt), new DerSequence(responses), responseExtensions);
+			DerBitString bitSig = null;
 
-			DerBitString bitSig;
 			try
 			{
-				bitSig = X509.X509Utilities.GenerateSignature(signatureFactory, responseData);
+                IStreamCalculator streamCalculator = signatureCalculator.CreateCalculator();
+
+				byte[] encoded = tbsResp.GetDerEncoded();
+
+                streamCalculator.Stream.Write(encoded, 0, encoded.Length);
+
+                Platform.Dispose(streamCalculator.Stream);
+
+                bitSig = new DerBitString(((IBlockResult)streamCalculator.GetResult()).Collect());
 			}
 			catch (Exception e)
 			{
 				throw new OcspException("exception processing TBSRequest: " + e, e);
 			}
 
-			AlgorithmIdentifier sigAlgID = OcspUtilities.GetSigAlgID(signingAlgorithm);
+			AlgorithmIdentifier sigAlgId = OcspUtilities.GetSigAlgID(signingAlgorithm);
 
 			DerSequence chainSeq = null;
 			if (chain != null && chain.Length > 0)
 			{
-				Asn1EncodableVector v = new Asn1EncodableVector(chain.Length);
+				Asn1EncodableVector v = new Asn1EncodableVector();
 				try
 				{
 					for (int i = 0; i != chain.Length; i++)
 					{
-						v.Add(chain[i].CertificateStructure);
+						v.Add(
+							X509CertificateStructure.GetInstance(
+								Asn1Object.FromByteArray(chain[i].GetEncoded())));
 					}
 				}
 				catch (IOException e)
@@ -227,7 +253,7 @@ namespace Org.BouncyCastle.Ocsp
 				chainSeq = new DerSequence(v);
 			}
 
-			return new BasicOcspResp(new BasicOcspResponse(responseData, sigAlgID, bitSig, chainSeq));
+			return new BasicOcspResp(new BasicOcspResponse(tbsResp, sigAlgId, bitSig, chainSeq));
 		}
 
 		public BasicOcspResp Generate(
@@ -279,7 +305,7 @@ namespace Org.BouncyCastle.Ocsp
 		 *
 		 * @return an IEnumerable containing recognised names.
 		 */
-        public IEnumerable<string> SignatureAlgNames
+        public IEnumerable SignatureAlgNames
 		{
 			get { return OcspUtilities.AlgNames; }
 		}

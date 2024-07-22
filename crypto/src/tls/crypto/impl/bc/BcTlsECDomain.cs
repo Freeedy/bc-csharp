@@ -91,9 +91,9 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
 
                 return new ECPublicKeyParameters(point, m_domainParameters);
             }
-            catch (IOException)
+            catch (IOException e)
             {
-                throw;
+                throw e;
             }
             catch (Exception e)
             {

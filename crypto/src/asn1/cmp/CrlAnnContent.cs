@@ -1,37 +1,40 @@
+using System;
+
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cmp
 {
 	public class CrlAnnContent
 		: Asn1Encodable
 	{
-        public static CrlAnnContent GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is CrlAnnContent crlAnnContent)
-                return crlAnnContent;
-            return new CrlAnnContent(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static CrlAnnContent GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new CrlAnnContent(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly Asn1Sequence m_content;
+		private readonly Asn1Sequence content;
 
 		private CrlAnnContent(Asn1Sequence seq)
 		{
-			m_content = seq;
+			content = seq;
 		}
 
-        public CrlAnnContent(CertificateList crl)
-        {
-            m_content = new DerSequence(crl);
-        }
+		public static CrlAnnContent GetInstance(object obj)
+		{
+			if (obj is CrlAnnContent)
+				return (CrlAnnContent)obj;
 
-        public virtual CertificateList[] ToCertificateListArray() => m_content.MapElements(CertificateList.GetInstance);
+			if (obj is Asn1Sequence)
+				return new CrlAnnContent((Asn1Sequence)obj);
+
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public virtual CertificateList[] ToCertificateListArray()
+		{
+			CertificateList[] result = new CertificateList[content.Count];
+			for (int i = 0; i != result.Length; ++ i)
+			{
+				result[i] = CertificateList.GetInstance(content[i]);
+			}
+			return result;
+		}
 
 		/**
 		 * <pre>
@@ -39,6 +42,9 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		 * </pre>
 		 * @return a basic ASN.1 object representation.
 		 */
-		public override Asn1Object ToAsn1Object() => m_content;
+		public override Asn1Object ToAsn1Object()
+		{
+			return content;
+		}
 	}
 }

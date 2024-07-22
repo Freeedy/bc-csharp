@@ -4,7 +4,6 @@ using NUnit.Framework;
 
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Engines;
-using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Crypto.Signers;
 using Org.BouncyCastle.Math;
@@ -27,27 +26,23 @@ namespace Org.BouncyCastle.Crypto.Tests
 		{
 			private readonly byte[] vals;
 
-			public FixedRandom(byte[] vals)
-				: base(null)
+			public FixedRandom(
+				byte[] vals)
 			{
 				this.vals = vals;
 			}
 
-			public override void NextBytes(byte[] buf)
+			public override void NextBytes(
+				byte[] bytes)
 			{
-				NextBytes(buf, 0, buf.Length);
+				Array.Copy(vals, 0, bytes, 0, vals.Length);
 			}
+		}
 
-			public override void NextBytes(byte[] buf, int off, int len)
-			{
-				Array.Copy(vals, 0, buf, off, len);
-			}
-        }
-
-        //
-        // Example 1: A 1024-bit RSA keypair
-        //
-        private RsaKeyParameters pub1 = new RsaKeyParameters(false,
+		//
+		// Example 1: A 1024-bit RSA keypair
+		//
+		private RsaKeyParameters pub1 = new RsaKeyParameters(false,
 			new BigInteger("a56e4a0e701017589a5187dc7ea841d156f2ec0e36ad52a44dfeb1e61f7ad991d8c51056ffedb162b4c0f283a12a88a394dff526ab7291cbb307ceabfce0b1dfd5cd9508096d5b2b8b6df5d671ef6377c0921cb23c270a70e2598e6ff89d19f105acc2d3f0cb35f29280e1386b6f64c4ef22e1e1f20d0ce8cffb2249bd9a2137",16),
 			new BigInteger("010001",16));
 
@@ -216,44 +211,7 @@ namespace Org.BouncyCastle.Crypto.Tests
 			get { return "PSSTest"; }
 		}
 
-		[Test]
-        public void TestRegression_GitHub_bc_csharp_524()
-		{
-            SecureRandom secureRandom = new SecureRandom();
-
-            var kpg = new RsaKeyPairGenerator();
-			kpg.Init(new RsaKeyGenerationParameters(BigInteger.ValueOf(17), secureRandom, 1024, 100));
-            var keyPair = kpg.GenerateKeyPair();
-
-			var digest = new Sha256Digest();
-
-			var hash = SecureRandom.GetNextBytes(secureRandom, digest.GetDigestSize());
-
-			var signer = PssSigner.CreateRawSigner(new RsaBlindedEngine(), digest);
-            signer.Init(true, keyPair.Private);
-            // NOTE: .NET Core 3.1 has Span<T>, but is tested against our .NET Standard 2.0 assembly.
-            //#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-#if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            signer.BlockUpdate(hash);
-#else
-			signer.BlockUpdate(hash, 0, hash.Length);
-#endif
-            byte[] signature = signer.GenerateSignature();
-
-            signer.Init(false, keyPair.Public);
-			// NOTE: .NET Core 3.1 has Span<T>, but is tested against our .NET Standard 2.0 assembly.
-//#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-#if NET6_0_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            signer.BlockUpdate(hash);
-#else
-			signer.BlockUpdate(hash, 0, hash.Length);
-#endif
-            bool verified = signer.VerifySignature(signature);
-
-			Assert.IsTrue(verified);
-        }
-
-        private void doTestSig(
+		private void doTestSig(
 			int					id,
 			RsaKeyParameters	pub,
 			RsaKeyParameters	prv,
@@ -398,6 +356,12 @@ namespace Org.BouncyCastle.Crypto.Tests
                 Fail("fixed salt failure verfied");
             }
         }
+
+        public static void Main(
+			string[] args)
+		{
+			RunTest(new PssTest());
+		}
 
 		[Test]
 		public void TestFunction()

@@ -1,31 +1,40 @@
 using System;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Crypto
 {
-	 /// <summary>This exception is thrown whenever we find something we don't expect in a message.</summary>
+    /**
+     * this exception is thrown whenever we find something we don't expect in a
+     * message.
+     */
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
+#endif
     public class InvalidCipherTextException
 		: CryptoException
     {
-		public InvalidCipherTextException()
-			: base()
-		{
-		}
+		/**
+		* base constructor.
+		*/
+        public InvalidCipherTextException()
+        {
+        }
 
-		public InvalidCipherTextException(string message)
+		/**
+         * create a InvalidCipherTextException with the given message.
+         *
+         * @param message the message to be carried with the exception.
+         */
+        public InvalidCipherTextException(
+            string message)
 			: base(message)
-		{
-		}
+        {
+        }
 
-		public InvalidCipherTextException(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected InvalidCipherTextException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
-		{
-		}
-	}
+		public InvalidCipherTextException(
+            string		message,
+            Exception	exception)
+			: base(message, exception)
+        {
+        }
+    }
 }

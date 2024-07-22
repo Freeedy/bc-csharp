@@ -24,7 +24,7 @@ namespace Org.BouncyCastle.Asn1.Tests
 
 			try
 			{
-				AdditionalInformationSyntax.GetInstance(new object());
+				AdditionalInformationSyntax.GetInstance(new Object());
 
 				Fail("GetInstance() failed to detect bad object.");
 			}
@@ -58,6 +58,12 @@ namespace Org.BouncyCastle.Asn1.Tests
 			DirectoryString information)
 		{
 			checkMandatoryField("information", information, syntax.Information);
+		}
+
+        public static void Main(
+			string[] args)
+		{
+			RunTest(new AdditionalInformationSyntaxUnitTest());
 		}
 
 		[Test]

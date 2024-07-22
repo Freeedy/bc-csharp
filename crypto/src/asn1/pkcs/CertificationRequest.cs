@@ -14,41 +14,42 @@ namespace Org.BouncyCastle.Asn1.Pkcs
      * }
      * </pre>
      */
-    // TODO[api] Stop subclassing this class
     public class CertificationRequest
         : Asn1Encodable
     {
-		public static CertificationRequest GetInstance(object obj)
+        protected CertificationRequestInfo	reqInfo;
+        protected AlgorithmIdentifier		sigAlgId;
+        protected DerBitString				sigBits;
+
+		public static CertificationRequest GetInstance(
+			object obj)
 		{
-            if (obj == null)
-                return null;
-            if (obj is CertificationRequest certificationRequest)
-				return certificationRequest;
-            return new CertificationRequest(Asn1Sequence.GetInstance(obj));
+			if (obj is CertificationRequest)
+				return (CertificationRequest)obj;
+
+			if (obj != null)
+				return new CertificationRequest((Asn1Sequence)obj);
+
+			return null;
 		}
 
-        public static CertificationRequest GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new CertificationRequest(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        protected CertificationRequestInfo reqInfo;
-        protected AlgorithmIdentifier sigAlgId;
-        protected DerBitString sigBits;
-
-        protected CertificationRequest()
+		protected CertificationRequest()
         {
         }
 
-        public CertificationRequest(CertificationRequestInfo requestInfo, AlgorithmIdentifier algorithm,
-            DerBitString signature)
+		public CertificationRequest(
+            CertificationRequestInfo	requestInfo,
+            AlgorithmIdentifier			algorithm,
+            DerBitString				signature)
         {
             this.reqInfo = requestInfo;
             this.sigAlgId = algorithm;
             this.sigBits = signature;
         }
 
-        internal CertificationRequest(Asn1Sequence seq)
+        [Obsolete("Use 'GetInstance' instead")]
+        public CertificationRequest(
+            Asn1Sequence seq)
         {
 			if (seq.Count != 3)
 				throw new ArgumentException("Wrong number of elements in sequence", "seq");
@@ -58,15 +59,29 @@ namespace Org.BouncyCastle.Asn1.Pkcs
             sigBits = DerBitString.GetInstance(seq[2]);
         }
 
-        // TODO[api] Rename as a property
-        public CertificationRequestInfo GetCertificationRequestInfo() => reqInfo;
+		public CertificationRequestInfo GetCertificationRequestInfo()
+        {
+            return reqInfo;
+        }
 
-		public AlgorithmIdentifier SignatureAlgorithm => sigAlgId;
+		public AlgorithmIdentifier SignatureAlgorithm
+		{
+			get { return sigAlgId; }
+		}
 
-		public DerBitString Signature => sigBits;
+		public DerBitString Signature
+		{
+			get { return sigBits; }
+		}
 
-        public byte[] GetSignatureOctets() => sigBits.GetOctets();
+        public byte[] GetSignatureOctets()
+        {
+            return sigBits.GetOctets();
+        }
 
-        public override Asn1Object ToAsn1Object() => new DerSequence(reqInfo, sigAlgId, sigBits);
+        public override Asn1Object ToAsn1Object()
+        {
+			return new DerSequence(reqInfo, sigAlgId, sigBits);
+        }
     }
 }

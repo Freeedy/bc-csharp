@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.IO;
 using System.Text;
 
@@ -81,6 +82,11 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
         {
             AssertInvalidSignatureVersionIsIgnored(SIG4SIG23);
             AssertInvalidSignatureVersionIsIgnored(SIG23SIG4);
+        }
+
+        public static void Main(string[] args)
+        {
+            RunTest(new PgpSignatureInvalidVersionIgnoredTest());
         }
 
         [Test]

@@ -1,21 +1,22 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using NUnit.Framework;
-
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cmp;
 using Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Asn1.Ess;
 using Org.BouncyCastle.Asn1.Nist;
+using Org.BouncyCastle.Asn1.Oiw;
 using Org.BouncyCastle.Asn1.Pkcs;
 using Org.BouncyCastle.Cms;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Operators;
+using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.X509;
+using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.Tsp.Tests
 {
@@ -24,7 +25,9 @@ namespace Org.BouncyCastle.Tsp.Tests
 	{
 		private static AsymmetricKeyParameter privateKey;
 		private static X509Certificate cert;
-		private static IStore<X509Certificate> certs;
+		private static IX509Store certs;
+		
+		
 
 		static TspTest()
 		{
@@ -41,11 +44,13 @@ namespace Org.BouncyCastle.Tsp.Tests
 
 			cert = TspTestUtil.MakeCertificate(origKP, origDN, signKP, signDN);
 
-			var certList = new List<X509Certificate>();
+			IList certList = new ArrayList();
 			certList.Add(cert);
 			certList.Add(signCert);
 
-			certs = CollectionUtilities.CreateStore(certList);
+			certs = X509StoreFactory.Create(
+				"Certificate/Collection",
+				new X509CollectionStoreParameters(certList));
 		}
 
 		[Test]
@@ -266,8 +271,7 @@ namespace Org.BouncyCastle.Tsp.Tests
 
 			TimeStampRequest request = reqGen.Generate(TspAlgorithms.Sha1, new byte[20]);
 
-			TimeStampResponseGenerator tsRespGen = new TimeStampResponseGenerator(tsTokenGen, TspAlgorithms.Allowed,
-				new List<string>());
+			TimeStampResponseGenerator tsRespGen = new TimeStampResponseGenerator(tsTokenGen, TspAlgorithms.Allowed, new ArrayList());
 
 			TimeStampResponse tsResp = tsRespGen.Generate(request, BigInteger.ValueOf(23), DateTime.UtcNow);
 
@@ -387,9 +391,9 @@ namespace Org.BouncyCastle.Tsp.Tests
 				Assert.Fail("certReq(false) verification of token failed.");
 			}
 
-			IStore<X509Certificate> respCerts = tsToken.GetCertificates();
+			IX509Store respCerts = tsToken.GetCertificates("Collection");
 
-			var certsColl = new List<X509Certificate>(respCerts.EnumerateMatches(null));
+			ICollection certsColl = respCerts.GetMatches(null);
 
 			if (certsColl.Count != 0)
 			{
@@ -473,9 +477,9 @@ namespace Org.BouncyCastle.Tsp.Tests
 			//
 			// test certReq
 			//
-			IStore<X509Certificate> store = tsToken.GetCertificates();
+			IX509Store store = tsToken.GetCertificates("Collection");
 
-			var certificates = new List<X509Certificate>(store.EnumerateMatches(null));
+			ICollection certificates = store.GetMatches(null);
 
 			Assert.AreEqual(0, certificates.Count);
 		}
@@ -542,9 +546,9 @@ namespace Org.BouncyCastle.Tsp.Tests
 			//
 			// test certReq
 			//
-			IStore<X509Certificate> store = tsToken.GetCertificates();
+			IX509Store store = tsToken.GetCertificates("Collection");
 
-			var certificates = new List<X509Certificate>(store.EnumerateMatches(null));
+			ICollection certificates = store.GetMatches(null);
 
 			Assert.AreEqual(2, certificates.Count);
 		}
@@ -600,9 +604,9 @@ namespace Org.BouncyCastle.Tsp.Tests
 			//
 			// test certReq
 			//
-			IStore<X509Certificate> store = tsToken.GetCertificates();
+			IX509Store store = tsToken.GetCertificates("Collection");
 
-			var certificates = new List<X509Certificate>(store.EnumerateMatches(null));
+			ICollection certificates = store.GetMatches(null);
 
 			Assert.AreEqual(0, certificates.Count);
 		}
@@ -649,21 +653,21 @@ namespace Org.BouncyCastle.Tsp.Tests
 		}
 
         internal static SignerInfoGenerator MakeInfoGenerator(AsymmetricKeyParameter key, X509Certificate cert,
-			string digestOID, AttributeTable signedAttr, AttributeTable unsignedAttr)
+			string digestOID, Asn1.Cms.AttributeTable signedAttr, Asn1.Cms.AttributeTable unsignedAttr)
         {
             TspUtil.ValidateCertificate(cert);
 
 			//
 			// Add the ESSCertID attribute
 			//
-			IDictionary<DerObjectIdentifier, object> signedAttrs;
+			IDictionary signedAttrs;
 			if (signedAttr != null)
 			{
 				signedAttrs = signedAttr.ToDictionary();
 			}
 			else
 			{
-				signedAttrs = new Dictionary<DerObjectIdentifier, object>();
+				signedAttrs = new Hashtable();
 			}
 
 			string digestName = TspTestUtil.GetDigestAlgName(digestOID);
@@ -672,10 +676,11 @@ namespace Org.BouncyCastle.Tsp.Tests
 
 			Asn1SignatureFactory sigfact = new Asn1SignatureFactory(signatureName, key);
 			return new SignerInfoGeneratorBuilder()
-				.WithSignedAttributeGenerator(
-					new DefaultSignedAttributeTableGenerator(new AttributeTable(signedAttrs)))
-				.WithUnsignedAttributeGenerator(
-					new SimpleAttributeTableGenerator(unsignedAttr))
+			 .WithSignedAttributeGenerator(
+				new DefaultSignedAttributeTableGenerator(
+					new Asn1.Cms.AttributeTable(signedAttrs)))
+			  .WithUnsignedAttributeGenerator(
+				new SimpleAttributeTableGenerator(unsignedAttr))
 				.Build(sigfact, cert);
 		}
 	}

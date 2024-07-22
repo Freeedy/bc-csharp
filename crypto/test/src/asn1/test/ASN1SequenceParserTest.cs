@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 
 using NUnit.Framework;
@@ -5,6 +6,7 @@ using NUnit.Framework;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Encoders;
+using Org.BouncyCastle.Utilities.Test;
 
 namespace Org.BouncyCastle.Asn1.Tests
 {
@@ -28,11 +30,13 @@ namespace Org.BouncyCastle.Asn1.Tests
 		public void TestDerWriting()
         {
             MemoryStream bOut = new MemoryStream();
-			using (var seqGen = new DerSequenceGenerator(bOut))
-			{
-                seqGen.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen.AddObject(new DerObjectIdentifier("1.1"));
-            }
+            DerSequenceGenerator seqGen = new DerSequenceGenerator(bOut);
+
+			seqGen.AddObject(new DerInteger(BigInteger.Zero));
+
+			seqGen.AddObject(new DerObjectIdentifier("1.1"));
+
+			seqGen.Close();
 
 			Assert.IsTrue(Arrays.AreEqual(seqData, bOut.ToArray()), "basic DER writing test failed.");
         }
@@ -41,29 +45,34 @@ namespace Org.BouncyCastle.Asn1.Tests
 		public void TestNestedDerWriting()
         {
             MemoryStream bOut = new MemoryStream();
-			using (var seqGen1 = new DerSequenceGenerator(bOut))
-			{
-                seqGen1.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+            DerSequenceGenerator seqGen1 = new DerSequenceGenerator(bOut);
 
-                using (var seqGen2 = new DerSequenceGenerator(seqGen1.GetRawOutputStream()))
-                {
-                    seqGen2.AddObject(new DerInteger(BigInteger.One));
-                }
-            }
+			seqGen1.AddObject(new DerInteger(BigInteger.Zero));
 
-            Assert.IsTrue(Arrays.AreEqual(nestedSeqData, bOut.ToArray()), "nested DER writing test failed.");
+			seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+
+			DerSequenceGenerator seqGen2 = new DerSequenceGenerator(seqGen1.GetRawOutputStream());
+
+			seqGen2.AddObject(new DerInteger(BigInteger.One));
+
+			seqGen2.Close();
+
+			seqGen1.Close();
+
+			Assert.IsTrue(Arrays.AreEqual(nestedSeqData, bOut.ToArray()), "nested DER writing test failed.");
         }
 
 		[Test]
 		public void TestDerExplicitTaggedSequenceWriting()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var seqGen = new DerSequenceGenerator(bOut, 1, true))
-            {
-                seqGen.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen.AddObject(new DerObjectIdentifier("1.1"));
-            }
+            DerSequenceGenerator seqGen = new DerSequenceGenerator(bOut, 1, true);
+
+            seqGen.AddObject(new DerInteger(BigInteger.Zero));
+
+            seqGen.AddObject(new DerObjectIdentifier("1.1"));
+
+            seqGen.Close();
 
             Assert.IsTrue(Arrays.AreEqual(expTagSeqData, bOut.ToArray()), "explicit tag writing test failed.");
         }
@@ -72,29 +81,34 @@ namespace Org.BouncyCastle.Asn1.Tests
 		public void TestDerImplicitTaggedSequenceWriting()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var seqGen = new DerSequenceGenerator(bOut, 1, false))
-            {
-                seqGen.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen.AddObject(new DerObjectIdentifier("1.1"));
-            }
+            DerSequenceGenerator seqGen = new DerSequenceGenerator(bOut, 1, false);
 
-            Assert.IsTrue(Arrays.AreEqual(implTagSeqData, bOut.ToArray()), "implicit tag writing test failed.");
+			seqGen.AddObject(new DerInteger(BigInteger.Zero));
+
+			seqGen.AddObject(new DerObjectIdentifier("1.1"));
+
+			seqGen.Close();
+
+			Assert.IsTrue(Arrays.AreEqual(implTagSeqData, bOut.ToArray()), "implicit tag writing test failed.");
         }
 
 		[Test]
 		public void TestNestedExplicitTagDerWriting()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var seqGen1 = new DerSequenceGenerator(bOut))
-            {
-                seqGen1.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+            DerSequenceGenerator  seqGen1 = new DerSequenceGenerator(bOut);
 
-                using (var seqGen2 = new DerSequenceGenerator(seqGen1.GetRawOutputStream(), 1, true))
-                {
-                    seqGen2.AddObject(new DerInteger(BigInteger.ValueOf(1)));
-                }
-            }
+            seqGen1.AddObject(new DerInteger(BigInteger.Zero));
+
+            seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+
+            DerSequenceGenerator seqGen2 = new DerSequenceGenerator(seqGen1.GetRawOutputStream(), 1, true);
+
+            seqGen2.AddObject(new DerInteger(BigInteger.ValueOf(1)));
+
+            seqGen2.Close();
+
+            seqGen1.Close();
 
             Assert.IsTrue(Arrays.AreEqual(nestedSeqExpTagData, bOut.ToArray()), "nested explicit tagged DER writing test failed.");
         }
@@ -103,29 +117,34 @@ namespace Org.BouncyCastle.Asn1.Tests
 		public void TestNestedImplicitTagDerWriting()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var seqGen1 = new DerSequenceGenerator(bOut))
-            {
-                seqGen1.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+            DerSequenceGenerator seqGen1 = new DerSequenceGenerator(bOut);
 
-                using (var seqGen2 = new DerSequenceGenerator(seqGen1.GetRawOutputStream(), 1, false))
-                {
-                    seqGen2.AddObject(new DerInteger(BigInteger.ValueOf(1)));
-                }
-            }
+			seqGen1.AddObject(new DerInteger(BigInteger.Zero));
 
-            Assert.IsTrue(Arrays.AreEqual(nestedSeqImpTagData, bOut.ToArray()), "nested implicit tagged DER writing test failed.");
+			seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+
+			DerSequenceGenerator seqGen2 = new DerSequenceGenerator(seqGen1.GetRawOutputStream(), 1, false);
+
+			seqGen2.AddObject(new DerInteger(BigInteger.ValueOf(1)));
+
+			seqGen2.Close();
+
+			seqGen1.Close();
+
+			Assert.IsTrue(Arrays.AreEqual(nestedSeqImpTagData, bOut.ToArray()), "nested implicit tagged DER writing test failed.");
         }
 
 		[Test]
 		public void TestBerWriting()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var seqGen = new BerSequenceGenerator(bOut))
-            {
-                seqGen.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen.AddObject(new DerObjectIdentifier("1.1"));
-            }
+            BerSequenceGenerator seqGen = new BerSequenceGenerator(bOut);
+
+			seqGen.AddObject(new DerInteger(BigInteger.Zero));
+
+			seqGen.AddObject(new DerObjectIdentifier("1.1"));
+
+			seqGen.Close();
 
 			Assert.IsTrue(Arrays.AreEqual(berSeqData, bOut.ToArray()), "basic BER writing test failed.");
         }
@@ -134,42 +153,49 @@ namespace Org.BouncyCastle.Asn1.Tests
 		public void TestNestedBerDerWriting()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var seqGen1 = new BerSequenceGenerator(bOut))
-            {
-                seqGen1.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+            BerSequenceGenerator seqGen1 = new BerSequenceGenerator(bOut);
 
-                using (var seqGen2 = new DerSequenceGenerator(seqGen1.GetRawOutputStream()))
-                {
-                    seqGen2.AddObject(new DerInteger(BigInteger.ValueOf(1)));
-                }
-            }
+			seqGen1.AddObject(new DerInteger(BigInteger.Zero));
 
-            Assert.IsTrue(Arrays.AreEqual(berDerNestedSeqData, bOut.ToArray()), "nested BER/DER writing test failed.");
+			seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+
+			DerSequenceGenerator seqGen2 = new DerSequenceGenerator(seqGen1.GetRawOutputStream());
+
+			seqGen2.AddObject(new DerInteger(BigInteger.ValueOf(1)));
+
+			seqGen2.Close();
+
+			seqGen1.Close();
+
+			Assert.IsTrue(Arrays.AreEqual(berDerNestedSeqData, bOut.ToArray()), "nested BER/DER writing test failed.");
         }
 
 		[Test]
 		public void TestNestedBerWriting()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var seqGen1 = new BerSequenceGenerator(bOut))
-            {
-                seqGen1.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+            BerSequenceGenerator seqGen1 = new BerSequenceGenerator(bOut);
 
-                using (var seqGen2 = new BerSequenceGenerator(seqGen1.GetRawOutputStream()))
-                {
-                    seqGen2.AddObject(new DerInteger(BigInteger.ValueOf(1)));
-                }
-            }
+			seqGen1.AddObject(new DerInteger(BigInteger.Zero));
 
-            Assert.IsTrue(Arrays.AreEqual(berNestedSeqData, bOut.ToArray()), "nested BER writing test failed.");
+			seqGen1.AddObject(new DerObjectIdentifier("1.1"));
+
+			BerSequenceGenerator seqGen2 = new BerSequenceGenerator(seqGen1.GetRawOutputStream());
+
+			seqGen2.AddObject(new DerInteger(BigInteger.ValueOf(1)));
+
+			seqGen2.Close();
+
+			seqGen1.Close();
+
+			Assert.IsTrue(Arrays.AreEqual(berNestedSeqData, bOut.ToArray()), "nested BER writing test failed.");
         }
 
 		[Test]
 		public void TestDerReading()
         {
             Asn1StreamParser aIn = new Asn1StreamParser(seqData);
+
 			Asn1SequenceParser seq = (Asn1SequenceParser)aIn.ReadObject();
             int count = 0;
 
@@ -180,12 +206,12 @@ namespace Org.BouncyCastle.Asn1.Tests
             {
                 switch (count)
                 {
-                case 0:
-                    Assert.IsTrue(o is DerInteger);
-                    break;
-                case 1:
-                    Assert.IsTrue(o is DerObjectIdentifier);
-                    break;
+                    case 0:
+                        Assert.IsTrue(o is DerInteger);
+                        break;
+                    case 1:
+                        Assert.IsTrue(o is DerObjectIdentifier);
+                        break;
                 }
                 count++;
             }
@@ -193,38 +219,39 @@ namespace Org.BouncyCastle.Asn1.Tests
 			Assert.AreEqual(2, count, "wrong number of objects in sequence");
         }
 
-		private void DoTestNestedReading(
+		private void doTestNestedReading(
             byte[] data)
         {
             Asn1StreamParser aIn = new Asn1StreamParser(data);
+
 			Asn1SequenceParser seq = (Asn1SequenceParser) aIn.ReadObject();
+            object o = null;
             int count = 0;
 
 			Assert.IsNotNull(seq, "null sequence returned");
 
-            object o;
-            while ((o = seq.ReadObject()) != null)
+			while ((o = seq.ReadObject()) != null)
             {
                 switch (count)
                 {
-                case 0:
-                    Assert.IsTrue(o is DerInteger);
-                    break;
-                case 1:
-                    Assert.IsTrue(o is DerObjectIdentifier);
-                    break;
-                case 2:
-                    Assert.IsTrue(o is Asn1SequenceParser);
+                    case 0:
+                        Assert.IsTrue(o is DerInteger);
+                        break;
+                    case 1:
+                        Assert.IsTrue(o is DerObjectIdentifier);
+                        break;
+                    case 2:
+                        Assert.IsTrue(o is Asn1SequenceParser);
 
-					Asn1SequenceParser s = (Asn1SequenceParser)o;
+						Asn1SequenceParser s = (Asn1SequenceParser)o;
 
-					// NB: Must exhaust the nested parser
-					while (s.ReadObject() != null)
-					{
-						// Ignore
-					}
+						// NB: Must exhaust the nested parser
+						while (s.ReadObject() != null)
+						{
+							// Ignore
+						}
 
-					break;
+						break;
                 }
                 count++;
             }
@@ -235,29 +262,30 @@ namespace Org.BouncyCastle.Asn1.Tests
 		[Test]
 		public void TestNestedDerReading()
         {
-            DoTestNestedReading(nestedSeqData);
+            doTestNestedReading(nestedSeqData);
         }
 
 		[Test]
 		public void TestBerReading()
         {
             Asn1StreamParser aIn = new Asn1StreamParser(berSeqData);
+
 			Asn1SequenceParser seq = (Asn1SequenceParser) aIn.ReadObject();
+            object o = null;
             int count = 0;
 
 			Assert.IsNotNull(seq, "null sequence returned");
 
-            object o;
-            while ((o = seq.ReadObject()) != null)
+			while ((o = seq.ReadObject()) != null)
             {
                 switch (count)
                 {
-                case 0:
-                    Assert.IsTrue(o is DerInteger);
-                    break;
-                case 1:
-                    Assert.IsTrue(o is DerObjectIdentifier);
-                    break;
+                    case 0:
+                        Assert.IsTrue(o is DerInteger);
+                        break;
+                    case 1:
+                        Assert.IsTrue(o is DerObjectIdentifier);
+                        break;
                 }
                 count++;
             }
@@ -268,56 +296,59 @@ namespace Org.BouncyCastle.Asn1.Tests
 		[Test]
 		public void TestNestedBerDerReading()
         {
-            DoTestNestedReading(berDerNestedSeqData);
+            doTestNestedReading(berDerNestedSeqData);
         }
 
 		[Test]
 		public void TestNestedBerReading()
         {
-            DoTestNestedReading(berNestedSeqData);
+            doTestNestedReading(berNestedSeqData);
         }
 
 		[Test]
 		public void TestBerExplicitTaggedSequenceWriting()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var seqGen = new BerSequenceGenerator(bOut, 1, true))
-            {
-                seqGen.AddObject(new DerInteger(BigInteger.Zero));
-                seqGen.AddObject(new DerObjectIdentifier("1.1"));
-            }
+            BerSequenceGenerator seqGen = new BerSequenceGenerator(bOut, 1, true);
 
-            Assert.IsTrue(Arrays.AreEqual(berExpTagSeqData, bOut.ToArray()), "explicit BER tag writing test failed.");
+			seqGen.AddObject(new DerInteger(BigInteger.Zero));
+
+			seqGen.AddObject(new DerObjectIdentifier("1.1"));
+
+			seqGen.Close();
+
+			Assert.IsTrue(Arrays.AreEqual(berExpTagSeqData, bOut.ToArray()), "explicit BER tag writing test failed.");
         }
 
 		[Test]
 		public void TestSequenceWithDerNullReading()
 		{
-			DoTestParseWithNull(berSeqWithDERNullData);
+			doTestParseWithNull(berSeqWithDERNullData);
 		}
 
-		private void DoTestParseWithNull(byte[] data)
+		private void doTestParseWithNull(
+			byte[] data)
 		{
 			Asn1StreamParser aIn = new Asn1StreamParser(data);
 			Asn1SequenceParser seq = (Asn1SequenceParser) aIn.ReadObject();
+			object o;
 			int count = 0;
 
 			Assert.IsNotNull(seq, "null sequence returned");
 
-            object o;
-            while ((o = seq.ReadObject()) != null)
+			while ((o = seq.ReadObject()) != null)
 			{
 				switch (count)
 				{
-				case 0:
-					Assert.IsTrue(o is Asn1Null);
-					break;
-				case 1:
-					Assert.IsTrue(o is DerInteger);
-					break;
-				case 2:
-					Assert.IsTrue(o is DerObjectIdentifier);
-					break;
+					case 0:
+						Assert.IsTrue(o is Asn1Null);
+						break;
+					case 1:
+						Assert.IsTrue(o is DerInteger);
+						break;
+					case 2:
+						Assert.IsTrue(o is DerObjectIdentifier);
+						break;
 				}
 				count++;
 			}

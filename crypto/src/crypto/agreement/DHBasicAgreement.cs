@@ -19,17 +19,20 @@ namespace Org.BouncyCastle.Crypto.Agreement
         private DHPrivateKeyParameters	key;
         private DHParameters			dhParams;
 
-        public virtual void Init(ICipherParameters parameters)
+        public virtual void Init(
+            ICipherParameters parameters)
         {
-            if (parameters is ParametersWithRandom withRandom)
+            if (parameters is ParametersWithRandom)
             {
-                parameters = withRandom.Parameters;
+                parameters = ((ParametersWithRandom) parameters).Parameters;
             }
 
-            if (!(parameters is DHPrivateKeyParameters dhPrivateKeyParameters))
-                throw new ArgumentException("DHBasicAgreement expects DHPrivateKeyParameters");
+            if (!(parameters is DHPrivateKeyParameters))
+            {
+                throw new ArgumentException("DHEngine expects DHPrivateKeyParameters");
+            }
 
-            this.key = dhPrivateKeyParameters;
+            this.key = (DHPrivateKeyParameters) parameters;
             this.dhParams = key.Parameters;
         }
 

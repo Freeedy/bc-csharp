@@ -136,11 +136,6 @@ namespace Org.BouncyCastle.Tls
         public const int key_share = 51;
 
         /*
-         * RFC 9146
-         */
-        public const int connection_id = 54;
-
-        /*
          * RFC 5746 3.2.
          */
         public const int renegotiation_info = 0xff01;
@@ -227,8 +222,6 @@ namespace Org.BouncyCastle.Tls
                 return "signature_algorithms_cert";
             case key_share:
                 return "key_share";
-            case connection_id:
-                return "connection_id";
             case renegotiation_info:
                 return "renegotiation_info";
             default:
@@ -284,7 +277,6 @@ namespace Org.BouncyCastle.Tls
             case post_handshake_auth:
             case signature_algorithms_cert:
             case key_share:
-            case connection_id:
             case renegotiation_info:
                 return true;
             default:

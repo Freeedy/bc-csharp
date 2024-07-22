@@ -26,7 +26,7 @@ namespace Org.BouncyCastle.Crypto.Prng
          * </p>
          */
         public SP800SecureRandomBuilder()
-            : this(CryptoServicesRegistrar.GetSecureRandom(), false)
+            : this(new SecureRandom(), false)
         {
         }
 
@@ -42,9 +42,6 @@ namespace Org.BouncyCastle.Crypto.Prng
          */
         public SP800SecureRandomBuilder(SecureRandom entropySource, bool predictionResistant)
         {
-            if (entropySource == null)
-                throw new ArgumentNullException(nameof(entropySource));
-
             this.mRandom = entropySource;
             this.mEntropySourceProvider = new BasicEntropySourceProvider(entropySource, predictionResistant);
         }

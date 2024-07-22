@@ -1,11 +1,12 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
+using System.IO;
 
 using NUnit.Framework;
 
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Utilities.Collections;
+using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.Utilities.Test;
 using Org.BouncyCastle.X509;
 using Org.BouncyCastle.X509.Store;
@@ -27,11 +28,13 @@ namespace Org.BouncyCastle.Tests
 			// Testing CollectionCertStore generation from List
 			X509CertificatePair pair1 = new X509CertificatePair(rootCert, interCert);
 
-			var certList = new List<X509CertificatePair>();
+			IList certList = new ArrayList();
 			certList.Add(pair1);
 			certList.Add(new X509CertificatePair(interCert, finalCert));
 
-			var certStore = CollectionUtilities.CreateStore(certList);
+			IX509Store certStore = X509StoreFactory.Create(
+				"CertificatePair/Collection",
+				new X509CollectionStoreParameters(certList));
 
 			X509CertPairStoreSelector selector = new X509CertPairStoreSelector();
 			X509CertStoreSelector fwSelector = new X509CertStoreSelector();
@@ -41,14 +44,14 @@ namespace Org.BouncyCastle.Tests
 
 			selector.ForwardSelector = fwSelector;
 
-			var col = new List<X509CertificatePair>(certStore.EnumerateMatches(selector));
+			IList col = new ArrayList(certStore.GetMatches(selector));
 
 			if (col.Count != 1 || !col.Contains(pair1))
 			{
 				Fail("failed pair1 test");
 			}
 
-			col = new List<X509CertificatePair>(certStore.EnumerateMatches(null));
+			col = new ArrayList(certStore.GetMatches(null));
 
 			if (col.Count != 2)
 			{
@@ -68,12 +71,14 @@ namespace Org.BouncyCastle.Tests
 			X509Crl interCrl = crlParser.ReadCrl(CertPathTest.interCrlBin);
 
 			// Testing CollectionCertStore generation from List
-			var certList = new List<X509Certificate>();
+			IList certList = new ArrayList();
 			certList.Add(rootCert);
 			certList.Add(interCert);
 			certList.Add(finalCert);
 
-			var certStore = CollectionUtilities.CreateStore(certList);
+			IX509Store certStore = X509StoreFactory.Create(
+				"Certificate/Collection",
+				new X509CollectionStoreParameters(certList));
 
 			// set default to be the same as for SUN X500 name
 			X509Name.DefaultReverse = true;
@@ -81,8 +86,8 @@ namespace Org.BouncyCastle.Tests
 			// Searching for rootCert by subjectDN
 
 			X509CertStoreSelector targetConstraints = new X509CertStoreSelector();
-			targetConstraints.Subject = rootCert.SubjectDN;
-			var certs = new List<X509Certificate>(certStore.EnumerateMatches(targetConstraints));
+			targetConstraints.Subject = PrincipalUtilities.GetSubjectX509Principal(rootCert);
+			IList certs = new ArrayList(certStore.GetMatches(targetConstraints));
 			if (certs.Count != 1 || !certs.Contains(rootCert))
 			{
 				Fail("rootCert not found by subjectDN");
@@ -90,8 +95,8 @@ namespace Org.BouncyCastle.Tests
 
 			// Searching for rootCert by subjectDN encoded as byte
 			targetConstraints = new X509CertStoreSelector();
-			targetConstraints.Subject = rootCert.SubjectDN;
-			certs = new List<X509Certificate>(certStore.EnumerateMatches(targetConstraints));
+			targetConstraints.Subject = PrincipalUtilities.GetSubjectX509Principal(rootCert);
+			certs = new ArrayList(certStore.GetMatches(targetConstraints));
 			if (certs.Count != 1 || !certs.Contains(rootCert))
 			{
 				Fail("rootCert not found by encoded subjectDN");
@@ -103,7 +108,7 @@ namespace Org.BouncyCastle.Tests
 			targetConstraints = new X509CertStoreSelector();
 			targetConstraints.SubjectPublicKey =
 				SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(rootCert.GetPublicKey());
-			certs = new List<X509Certificate>(certStore.EnumerateMatches(targetConstraints));
+			certs = new ArrayList(certStore.GetMatches(targetConstraints));
 			if (certs.Count != 1 || !certs.Contains(rootCert))
 			{
 				Fail("rootCert not found by encoded public key");
@@ -111,8 +116,8 @@ namespace Org.BouncyCastle.Tests
 
 			// Searching for interCert by issuerDN
 			targetConstraints = new X509CertStoreSelector();
-			targetConstraints.Issuer = rootCert.SubjectDN;
-			certs = new List<X509Certificate>(certStore.EnumerateMatches(targetConstraints));
+			targetConstraints.Issuer = PrincipalUtilities.GetSubjectX509Principal(rootCert);
+			certs = new ArrayList(certStore.GetMatches(targetConstraints));
 			if (certs.Count != 2)
 			{
 				Fail("did not found 2 certs");
@@ -127,31 +132,45 @@ namespace Org.BouncyCastle.Tests
 			}
 
 			// Searching for rootCrl by issuerDN
-			var crlList = new List<X509Crl>();
+			IList crlList = new ArrayList();
 			crlList.Add(rootCrl);
 			crlList.Add(interCrl);
-			var crlStore = CollectionUtilities.CreateStore(crlList);
+			IX509Store store = X509StoreFactory.Create(
+				"CRL/Collection",
+				new X509CollectionStoreParameters(crlList));
 
 			X509CrlStoreSelector targetConstraintsCRL = new X509CrlStoreSelector();
 
-			var issuers = new List<X509Name>();
+			ArrayList issuers = new ArrayList();
 			issuers.Add(rootCrl.IssuerDN);
 			targetConstraintsCRL.Issuers = issuers;
 
-			var crls = new List<X509Crl>(crlStore.EnumerateMatches(targetConstraintsCRL));
+			IList crls = new ArrayList(store.GetMatches(targetConstraintsCRL));
 			if (crls.Count != 1 || !crls.Contains(rootCrl))
 			{
 				Fail("rootCrl not found");
 			}
 
+			crls = new ArrayList(certStore.GetMatches(targetConstraintsCRL));
+			if (crls.Count != 0)
+			{
+				Fail("error using wrong selector (CRL)");
+			}
+			certs = new ArrayList(store.GetMatches(targetConstraints));
+			if (certs.Count != 0)
+			{
+				Fail("error using wrong selector (certs)");
+			}
 			// Searching for attribute certificates
 			X509V2AttributeCertificate attrCert = new X509V2AttributeCertificate(AttrCertTest.attrCert);
-			X509V2AttributeCertificate attrCert2 = new X509V2AttributeCertificate(AttrCertTest.certWithBaseCertificateID);
+			IX509AttributeCertificate attrCert2 = new X509V2AttributeCertificate(AttrCertTest.certWithBaseCertificateID);
 
-			var attrList = new List<X509V2AttributeCertificate>();
+			IList attrList = new ArrayList();
 			attrList.Add(attrCert);
 			attrList.Add(attrCert2);
-			var attrStore = CollectionUtilities.CreateStore(attrList);
+			store = X509StoreFactory.Create(
+				"AttributeCertificate/Collection",
+				new X509CollectionStoreParameters(attrList));
 
 			X509AttrCertStoreSelector attrSelector = new X509AttrCertStoreSelector();
 			attrSelector.Holder = attrCert.Holder;
@@ -159,7 +178,7 @@ namespace Org.BouncyCastle.Tests
 			{
 				Fail("holder get not correct");
 			}
-			var attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			IList attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 1 || !attrs.Contains(attrCert))
 			{
 				Fail("attrCert not found on holder");
@@ -169,7 +188,7 @@ namespace Org.BouncyCastle.Tests
 			{
 				Fail("holder get not correct");
 			}
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 1 || !attrs.Contains(attrCert2))
 			{
 				Fail("attrCert2 not found on holder");
@@ -180,7 +199,7 @@ namespace Org.BouncyCastle.Tests
 			{
 				Fail("issuer get not correct");
 			}
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 1 || !attrs.Contains(attrCert))
 			{
 				Fail("attrCert not found on issuer");
@@ -190,7 +209,7 @@ namespace Org.BouncyCastle.Tests
 			{
 				Fail("issuer get not correct");
 			}
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 1 || !attrs.Contains(attrCert2))
 			{
 				Fail("attrCert2 not found on issuer");
@@ -201,7 +220,7 @@ namespace Org.BouncyCastle.Tests
 			{
 				Fail("attrCert get not correct");
 			}
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 1 || !attrs.Contains(attrCert))
 			{
 				Fail("attrCert not found on attrCert");
@@ -212,7 +231,7 @@ namespace Org.BouncyCastle.Tests
 			{
 				Fail("serial number get not correct");
 			}
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 1 || !attrs.Contains(attrCert))
 			{
 				Fail("attrCert not found on serial number");
@@ -222,38 +241,38 @@ namespace Org.BouncyCastle.Tests
 			{
 				Fail("serial number get not correct");
 			}
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 1 || !attrs.Contains(attrCert))
 			{
 				Fail("attrCert not found on serial number");
 			}
 
 			attrSelector = new X509AttrCertStoreSelector();
-			attrSelector.AttributeCertificateValid = attrCert.NotBefore;
+			attrSelector.AttributeCertificateValid = new DateTimeObject(attrCert.NotBefore);
 			if (attrSelector.AttributeCertificateValid.Value != attrCert.NotBefore)
 			{
 				Fail("valid get not correct");
 			}
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 1 || !attrs.Contains(attrCert))
 			{
 				Fail("attrCert not found on valid");
 			}
 			attrSelector = new X509AttrCertStoreSelector();
-			attrSelector.AttributeCertificateValid = attrCert.NotBefore.AddMilliseconds(-100);
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrSelector.AttributeCertificateValid = new DateTimeObject(attrCert.NotBefore.AddMilliseconds(-100));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 0)
 			{
 				Fail("attrCert found on before");
 			}
-			attrSelector.AttributeCertificateValid = attrCert.NotAfter.AddMilliseconds(100);
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrSelector.AttributeCertificateValid = new DateTimeObject(attrCert.NotAfter.AddMilliseconds(100));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 0)
 			{
 				Fail("attrCert found on after");
 			}
 			attrSelector.SerialNumber = BigInteger.ValueOf(10000);
-			attrs = new List<X509V2AttributeCertificate>(attrStore.EnumerateMatches(attrSelector));
+			attrs = new ArrayList(store.GetMatches(attrSelector));
 			if (attrs.Count != 0)
 			{
 				Fail("attrCert found on wrong serial number");
@@ -285,12 +304,24 @@ namespace Org.BouncyCastle.Tests
 				Fail("null attrCert serial");
 			}
 
+			attrs = new ArrayList(certStore.GetMatches(attrSelector));
+			if (attrs.Count != 0)
+			{
+				Fail("error using wrong selector (attrs)");
+			}
+
 			certPairTest();
 		}
 
 		public override string Name
 		{
 			get { return "IX509Store"; }
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new X509StoreTest());
 		}
 
 		[Test]

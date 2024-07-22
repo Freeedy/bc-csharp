@@ -25,22 +25,21 @@ namespace Org.BouncyCastle.Asn1
 
         public static Asn1Null GetInstance(object obj)
         {
-            if (obj == null)
-                return null;
-
-            if (obj is Asn1Null asn1Null)
-                return asn1Null;
-
-            if (obj is IAsn1Convertible asn1Convertible)
+            if (obj == null || obj is Asn1Null)
             {
-                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is Asn1Null converted)
-                    return converted;
+                return (Asn1Null)obj;
             }
-            else if (obj is byte[] bytes)
+            else if (obj is IAsn1Convertible)
+            {
+                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
+                if (asn1Object is Asn1Null)
+                    return (Asn1Null)asn1Object;
+            }
+            else if (obj is byte[])
             {
                 try
                 {
-                    return (Asn1Null)Meta.Instance.FromByteArray(bytes);
+                    return (Asn1Null)Meta.Instance.FromByteArray((byte[])obj);
                 }
                 catch (IOException e)
                 {
@@ -54,22 +53,6 @@ namespace Org.BouncyCastle.Asn1
         public static Asn1Null GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
             return (Asn1Null)Meta.Instance.GetContextInstance(taggedObject, declaredExplicit);
-        }
-
-        public static Asn1Null GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is Asn1Null existing)
-                return existing;
-
-            return null;
-        }
-
-        public static Asn1Null GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return (Asn1Null)Meta.Instance.GetTagged(taggedObject, declaredExplicit);
         }
 
         internal Asn1Null()

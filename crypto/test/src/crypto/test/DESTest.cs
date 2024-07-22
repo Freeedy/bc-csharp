@@ -197,6 +197,12 @@ namespace Org.BouncyCastle.Crypto.Tests
 			get { return "DES"; }
 		}
 
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new DesTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{

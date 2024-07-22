@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+using System;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1.Cms;
 
@@ -9,11 +10,16 @@ namespace Org.BouncyCastle.Cms
 	/// </remarks>
 	public enum CmsAttributeTableParameter
 	{
-		ContentType, Digest, Signature, DigestAlgorithmIdentifier, SignatureAlgorithmIdentifier
-    }
+//		const string ContentType = "contentType";
+//		const string Digest = "digest";
+//		const string Signature = "encryptedDigest";
+//		const string DigestAlgorithmIdentifier = "digestAlgID";
+
+		ContentType, Digest, Signature, DigestAlgorithmIdentifier
+	}
 
 	public interface CmsAttributeTableGenerator
 	{
-		AttributeTable GetAttributes(IDictionary<CmsAttributeTableParameter, object> parameters);
+		AttributeTable GetAttributes(IDictionary parameters);
 	}
 }

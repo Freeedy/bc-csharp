@@ -1,7 +1,6 @@
 using System;
 
 using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Engines
@@ -47,12 +46,18 @@ namespace Org.BouncyCastle.Crypto.Engines
         public RC532Engine()
         {
             _noRounds     = 12;         // the default
+//            _S            = null;
         }
 
         public virtual string AlgorithmName
         {
             get { return "RC5-32"; }
         }
+
+        public virtual bool IsPartialBlockOkay
+		{
+			get { return false; }
+		}
 
         public virtual int GetBlockSize()
         {
@@ -67,17 +72,23 @@ namespace Org.BouncyCastle.Crypto.Engines
         * @exception ArgumentException if the parameters argument is
         * inappropriate.
         */
-        public virtual void Init(bool forEncryption, ICipherParameters parameters)
+        public virtual void Init(
+            bool				forEncryption,
+            ICipherParameters	parameters)
         {
-            if (parameters is RC5Parameters rc5Parameters)
+            if (typeof(RC5Parameters).IsInstanceOfType(parameters))
             {
-                _noRounds = rc5Parameters.Rounds;
+                RC5Parameters p = (RC5Parameters)parameters;
 
-                SetKey(rc5Parameters.GetKey());
+                _noRounds = p.Rounds;
+
+                SetKey(p.GetKey());
             }
-            else if (parameters is KeyParameter keyParameter)
+            else if (typeof(KeyParameter).IsInstanceOfType(parameters))
             {
-                SetKey(keyParameter.GetKey());
+                KeyParameter p = (KeyParameter)parameters;
+
+                SetKey(p.GetKey());
             }
             else
             {
@@ -87,34 +98,28 @@ namespace Org.BouncyCastle.Crypto.Engines
             this.forEncryption = forEncryption;
         }
 
-        public virtual int ProcessBlock(byte[] input, int inOff, byte[]	output, int outOff)
+        public virtual int ProcessBlock(
+            byte[]	input,
+            int		inOff,
+            byte[]	output,
+            int		outOff)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return forEncryption
-                ? EncryptBlock(input.AsSpan(inOff), output.AsSpan(outOff))
-                : DecryptBlock(input.AsSpan(inOff), output.AsSpan(outOff));
-#else
-            return forEncryption
-				? EncryptBlock(input, inOff, output, outOff)
-				: DecryptBlock(input, inOff, output, outOff);
-#endif
+            return (forEncryption)
+				?	EncryptBlock(input, inOff, output, outOff)
+				:	DecryptBlock(input, inOff, output, outOff);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual int ProcessBlock(ReadOnlySpan<byte> input, Span<byte> output)
+        public virtual void Reset()
         {
-            return forEncryption
-                ? EncryptBlock(input, output)
-                : DecryptBlock(input, output);
         }
-#endif
 
         /**
         * Re-key the cipher.
         *
         * @param  key  the key to be used
         */
-        private void SetKey(byte[] key)
+        private void SetKey(
+            byte[] key)
         {
             //
             // KEY EXPANSION:
@@ -128,7 +133,7 @@ namespace Org.BouncyCastle.Crypto.Engines
             //   of K. Any unfilled byte positions in L are zeroed. In the
             //   case that b = c = 0, set c = 1 and L[0] = 0.
             //
-            int[]   L = new int[(key.Length + 3) / 4];
+            int[]   L = new int[(key.Length + (4 - 1)) / 4];
 
             for (int i = 0; i != key.Length; i++)
             {
@@ -170,81 +175,120 @@ namespace Org.BouncyCastle.Crypto.Engines
 
             for (int k = 0; k < iter; k++)
             {
-                A = _S[ii] = Integers.RotateLeft(_S[ii] + A + B, 3);
-                B =  L[jj] = Integers.RotateLeft(L[jj] + A + B, A + B);
+                A = _S[ii] = RotateLeft(_S[ii] + A + B, 3);
+                B =  L[jj] = RotateLeft( L[jj] + A + B, A+B);
                 ii = (ii+1) % _S.Length;
                 jj = (jj+1) %  L.Length;
             }
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        private int EncryptBlock(ReadOnlySpan<byte> input, Span<byte> output)
+        /**
+        * Encrypt the given block starting at the given offset and place
+        * the result in the provided buffer starting at the given offset.
+        *
+        * @param  in     in byte buffer containing data to encrypt
+        * @param  inOff  offset into src buffer
+        * @param  out     out buffer where encrypted data is written
+        * @param  outOff  offset into out buffer
+        */
+        private int EncryptBlock(
+            byte[]  input,
+            int     inOff,
+            byte[]  outBytes,
+            int     outOff)
         {
-            int A = (int)Pack.LE_To_UInt32(input) + _S[0];
-            int B = (int)Pack.LE_To_UInt32(input[4..]) + _S[1];
+            int A = BytesToWord(input, inOff) + _S[0];
+            int B = BytesToWord(input, inOff + 4) + _S[1];
 
             for (int i = 1; i <= _noRounds; i++)
             {
-                A = Integers.RotateLeft(A ^ B, B) + _S[2*i];
-                B = Integers.RotateLeft(B ^ A, A) + _S[2*i+1];
+                A = RotateLeft(A ^ B, B) + _S[2*i];
+                B = RotateLeft(B ^ A, A) + _S[2*i+1];
             }
 
-            Pack.UInt32_To_LE((uint)A, output);
-            Pack.UInt32_To_LE((uint)B, output[4..]);
+            WordToBytes(A, outBytes, outOff);
+            WordToBytes(B, outBytes, outOff + 4);
 
-            return 8;
+            return 2 * 4;
         }
 
-        private int DecryptBlock(ReadOnlySpan<byte> input, Span<byte> output)
+        private int DecryptBlock(
+            byte[]  input,
+            int     inOff,
+            byte[]  outBytes,
+            int     outOff)
         {
-            int A = (int)Pack.LE_To_UInt32(input);
-            int B = (int)Pack.LE_To_UInt32(input[4..]);
+            int A = BytesToWord(input, inOff);
+            int B = BytesToWord(input, inOff + 4);
 
             for (int i = _noRounds; i >= 1; i--)
             {
-                B = Integers.RotateRight(B - _S[2*i+1], A) ^ A;
-                A = Integers.RotateRight(A - _S[2*i],   B) ^ B;
+                B = RotateRight(B - _S[2*i+1], A) ^ A;
+                A = RotateRight(A - _S[2*i],   B) ^ B;
             }
 
-            Pack.UInt32_To_LE((uint)(A - _S[0]), output);
-            Pack.UInt32_To_LE((uint)(B - _S[1]), output[4..]);
+            WordToBytes(A - _S[0], outBytes, outOff);
+            WordToBytes(B - _S[1], outBytes, outOff + 4);
 
-            return 8;
+            return 2 * 4;
         }
-#else
-        private int EncryptBlock(byte[] input, int inOff, byte[] outBytes, int outOff)
+
+
+        //////////////////////////////////////////////////////////////
+        //
+        // PRIVATE Helper Methods
+        //
+        //////////////////////////////////////////////////////////////
+
+        /**
+        * Perform a left "spin" of the word. The rotation of the given
+        * word <em>x</em> is rotated left by <em>y</em> bits.
+        * Only the <em>lg(32)</em> low-order bits of <em>y</em>
+        * are used to determine the rotation amount. Here it is
+        * assumed that the wordsize used is a power of 2.
+        *
+        * @param  x  word to rotate
+        * @param  y    number of bits to rotate % 32
+        */
+        private int RotateLeft(int x, int y) {
+            return ((int)  (  (uint) (x << (y & (32-1))) |
+                              ((uint) x >> (32 - (y & (32-1)))) )
+                   );
+        }
+
+        /**
+        * Perform a right "spin" of the word. The rotation of the given
+        * word <em>x</em> is rotated left by <em>y</em> bits.
+        * Only the <em>lg(32)</em> low-order bits of <em>y</em>
+        * are used to determine the rotation amount. Here it is
+        * assumed that the wordsize used is a power of 2.
+        *
+        * @param  x  word to rotate
+        * @param  y    number of bits to rotate % 32
+        */
+        private int RotateRight(int x, int y) {
+            return ((int) (     ((uint) x >> (y & (32-1))) |
+                                (uint) (x << (32 - (y & (32-1))))   )
+                   );
+        }
+
+        private int BytesToWord(
+            byte[]  src,
+            int     srcOff)
         {
-            int A = (int)Pack.LE_To_UInt32(input, inOff) + _S[0];
-            int B = (int)Pack.LE_To_UInt32(input, inOff + 4) + _S[1];
-
-            for (int i = 1; i <= _noRounds; i++)
-            {
-                A = Integers.RotateLeft(A ^ B, B) + _S[2*i];
-                B = Integers.RotateLeft(B ^ A, A) + _S[2*i+1];
-            }
-
-            Pack.UInt32_To_LE((uint)A, outBytes, outOff);
-            Pack.UInt32_To_LE((uint)B, outBytes, outOff + 4);
-
-            return 8;
+            return (src[srcOff] & 0xff) | ((src[srcOff + 1] & 0xff) << 8)
+                | ((src[srcOff + 2] & 0xff) << 16) | ((src[srcOff + 3] & 0xff) << 24);
         }
 
-        private int DecryptBlock(byte[] input, int inOff, byte[] outBytes, int outOff)
+        private void WordToBytes(
+            int    word,
+            byte[]  dst,
+            int     dstOff)
         {
-            int A = (int)Pack.LE_To_UInt32(input, inOff);
-            int B = (int)Pack.LE_To_UInt32(input, inOff + 4);
-
-            for (int i = _noRounds; i >= 1; i--)
-            {
-                B = Integers.RotateRight(B - _S[2*i+1], A) ^ A;
-                A = Integers.RotateRight(A - _S[2*i],   B) ^ B;
-            }
-
-            Pack.UInt32_To_LE((uint)(A - _S[0]), outBytes, outOff);
-            Pack.UInt32_To_LE((uint)(B - _S[1]), outBytes, outOff + 4);
-
-            return 8;
+            dst[dstOff] = (byte)word;
+            dst[dstOff + 1] = (byte)(word >> 8);
+            dst[dstOff + 2] = (byte)(word >> 16);
+            dst[dstOff + 3] = (byte)(word >> 24);
         }
-#endif
     }
 }

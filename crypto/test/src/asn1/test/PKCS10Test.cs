@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 
 using NUnit.Framework;
 
@@ -45,7 +46,8 @@ namespace Org.BouncyCastle.Asn1.Tests
         {
             try
             {
-                CertificationRequest r = CertificationRequest.GetInstance(req);
+				CertificationRequest r = new CertificationRequest(
+					(Asn1Sequence)Asn1Object.FromByteArray(req));
 				byte[] bytes = r.GetDerEncoded();
 
 				if (!Arrays.AreEqual(bytes, req))
@@ -71,6 +73,15 @@ namespace Org.BouncyCastle.Asn1.Tests
             }
 
             return BasicPkcs10Test("Universal CR", req2);
+        }
+
+        public static void Main(
+            string[] args)
+        {
+            ITest test = new Pkcs10Test();
+            ITestResult result = test.Perform();
+
+            Console.WriteLine(result);
         }
 
         [Test]

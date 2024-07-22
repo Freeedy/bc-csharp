@@ -5,24 +5,34 @@ namespace Org.BouncyCastle.Bcpg
 {
 	/// <remarks>Basic packet for an experimental packet.</remarks>
     public class ExperimentalPacket
-        : ContainedPacket
+        : ContainedPacket //, PublicKeyAlgorithmTag
     {
-        private readonly PacketTag m_tag;
-        private readonly byte[] m_contents;
+        private readonly PacketTag	tag;
+        private readonly byte[]		contents;
 
-		internal ExperimentalPacket(PacketTag tag, BcpgInputStream bcpgIn)
+		internal ExperimentalPacket(
+            PacketTag		tag,
+            BcpgInputStream	bcpgIn)
         {
-            m_tag = tag;
-			m_contents = bcpgIn.ReadAll();
+            this.tag = tag;
+
+			this.contents = bcpgIn.ReadAll();
         }
 
-		public PacketTag Tag => m_tag;
-
-		public byte[] GetContents() => (byte[])m_contents.Clone();
-
-		public override void Encode(BcpgOutputStream bcpgOut)
+		public PacketTag Tag
         {
-            bcpgOut.WritePacket(m_tag, m_contents);
+			get { return tag; }
+        }
+
+		public byte[] GetContents()
+        {
+			return (byte[]) contents.Clone();
+        }
+
+		public override void Encode(
+            BcpgOutputStream bcpgOut)
+        {
+            bcpgOut.WritePacket(tag, contents, true);
         }
     }
 }

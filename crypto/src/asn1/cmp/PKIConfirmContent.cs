@@ -1,38 +1,26 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Cmp
 {
-    /**
-     *  PKIConfirmContent ::= NULL
-     */
-    public class PkiConfirmContent
+	public class PkiConfirmContent
 		: Asn1Encodable
 	{
 		public static PkiConfirmContent GetInstance(object obj)
 		{
-			if (obj == null)
-				return null;
-			if (obj is PkiConfirmContent pkiConfirmContent)
-				return pkiConfirmContent;
-			return new PkiConfirmContent(Asn1Null.GetInstance(obj));
+			if (obj is PkiConfirmContent)
+				return (PkiConfirmContent)obj;
+
+			if (obj is Asn1Null)
+				return new PkiConfirmContent();
+
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
 		}
 
-        public static PkiConfirmContent GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new PkiConfirmContent(Asn1Null.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly Asn1Null m_val;
-
-        public PkiConfirmContent()
-            : this(DerNull.Instance)
-        {
-        }
-
-        private PkiConfirmContent(Asn1Null val)
-        {
-            m_val = val;
-        }
+		public PkiConfirmContent()
+		{
+		}
 
 		/**
 		 * <pre>
@@ -40,6 +28,9 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		 * </pre>
 		 * @return a basic ASN.1 object representation.
 		 */
-		public override Asn1Object ToAsn1Object() => m_val;
+		public override Asn1Object ToAsn1Object()
+		{
+			return DerNull.Instance;
+		}
 	}
 }

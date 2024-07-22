@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
@@ -18,7 +18,7 @@ namespace Org.BouncyCastle.Crypto.Engines
 
 		private NaccacheSternKeyParameters key;
 
-		private IList<BigInteger>[] lookup = null;
+		private IList[] lookup = null;
 
 		public string AlgorithmName
 		{
@@ -31,13 +31,15 @@ namespace Org.BouncyCastle.Crypto.Engines
 		* @see org.bouncycastle.crypto.AsymmetricBlockCipher#init(bool,
 		*      org.bouncycastle.crypto.CipherParameters)
 		*/
-		public virtual void Init(bool forEncryption, ICipherParameters parameters)
+		public virtual void Init(
+			bool				forEncryption,
+			ICipherParameters	parameters)
 		{
 			this.forEncryption = forEncryption;
 
-			if (parameters is ParametersWithRandom withRandom)
+			if (parameters is ParametersWithRandom)
 			{
-				parameters = withRandom.Parameters;
+				parameters = ((ParametersWithRandom) parameters).Parameters;
 			}
 
 			key = (NaccacheSternKeyParameters)parameters;
@@ -46,25 +48,34 @@ namespace Org.BouncyCastle.Crypto.Engines
 			if (!this.forEncryption)
 			{
 				NaccacheSternPrivateKeyParameters priv = (NaccacheSternPrivateKeyParameters)key;
-				var primes = priv.SmallPrimesList;
-				lookup = new IList<BigInteger>[primes.Count];
+				IList primes = priv.SmallPrimesList;
+				lookup = new IList[primes.Count];
 				for (int i = 0; i < primes.Count; i++)
 				{
-					BigInteger actualPrime = primes[i];
+					BigInteger actualPrime = (BigInteger) primes[i];
 					int actualPrimeValue = actualPrime.IntValue;
 
-					lookup[i] = new List<BigInteger>(actualPrimeValue);
+					lookup[i] = Platform.CreateArrayList(actualPrimeValue);
 					lookup[i].Add(BigInteger.One);
 
 					BigInteger accJ = BigInteger.Zero;
+
 					for (int j = 1; j < actualPrimeValue; j++)
 					{
+//						BigInteger bigJ = BigInteger.ValueOf(j);
+//						accJ = priv.PhiN.Multiply(bigJ);
 						accJ = accJ.Add(priv.PhiN);
 						BigInteger comp = accJ.Divide(actualPrime);
 						lookup[i].Add(priv.G.ModPow(comp, priv.Modulus));
 					}
 				}
 			}
+		}
+
+        [Obsolete("Remove: no longer used")]
+        public virtual bool Debug
+		{
+			set {}
 		}
 
 		/**
@@ -142,30 +153,31 @@ namespace Org.BouncyCastle.Crypto.Engines
 			}
 			else
 			{
-				var plain = new List<BigInteger>();
+				IList plain = Platform.CreateArrayList();
 				NaccacheSternPrivateKeyParameters priv = (NaccacheSternPrivateKeyParameters)key;
-				var primes = priv.SmallPrimesList;
+				IList primes = priv.SmallPrimesList;
 				// Get Chinese Remainders of CipherText
 				for (int i = 0; i < primes.Count; i++)
 				{
 					BigInteger exp = input.ModPow(priv.PhiN.Divide((BigInteger)primes[i]), priv.Modulus);
-					var al = lookup[i];
-					if (lookup[i].Count != primes[i].IntValue)
+					IList al = lookup[i];
+					if (lookup[i].Count != ((BigInteger)primes[i]).IntValue)
 					{
 						throw new InvalidCipherTextException("Error in lookup Array for "
-										+ primes[i].IntValue
+										+ ((BigInteger)primes[i]).IntValue
 										+ ": Size mismatch. Expected ArrayList with length "
-										+ primes[i].IntValue + " but found ArrayList of length "
+										+ ((BigInteger)primes[i]).IntValue + " but found ArrayList of length "
 										+ lookup[i].Count);
 					}
 					int lookedup = al.IndexOf(exp);
 
 					if (lookedup == -1)
+					{
 						throw new InvalidCipherTextException("Lookup failed");
-
+					}
 					plain.Add(BigInteger.ValueOf(lookedup));
 				}
-				BigInteger test = ChineseRemainder(plain, primes);
+				BigInteger test = chineseRemainder(plain, primes);
 
 				// Should not be used as an oracle, so reencrypt output to see
 				// if it corresponds to input
@@ -322,21 +334,21 @@ namespace Org.BouncyCastle.Crypto.Engines
 		*            the primes p_i
 		* @return an integer x for that x % p_i == c_i
 		*/
-		private static BigInteger ChineseRemainder(IList<BigInteger> congruences, IList<BigInteger> primes)
+		private static BigInteger chineseRemainder(IList congruences, IList primes)
 		{
 			BigInteger retval = BigInteger.Zero;
 			BigInteger all = BigInteger.One;
 			for (int i = 0; i < primes.Count; i++)
 			{
-				all = all.Multiply(primes[i]);
+				all = all.Multiply((BigInteger)primes[i]);
 			}
 			for (int i = 0; i < primes.Count; i++)
 			{
-				BigInteger a = primes[i];
+				BigInteger a = (BigInteger)primes[i];
 				BigInteger b = all.Divide(a);
 				BigInteger b2 = b.ModInverse(a);
 				BigInteger tmp = b.Multiply(b2);
-				tmp = tmp.Multiply(congruences[i]);
+				tmp = tmp.Multiply((BigInteger)congruences[i]);
 				retval = retval.Add(tmp);
 			}
 

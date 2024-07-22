@@ -1,7 +1,7 @@
 using System;
 
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Macs
@@ -9,11 +9,10 @@ namespace Org.BouncyCastle.Crypto.Macs
 	/**
 	* implementation of GOST 28147-89 MAC
 	*/
-	public class Gost28147Mac
-		: IMac
+	public class Gost28147Mac : IMac
 	{
-		private const int			BlockSize = 8;
-		private const int			MacSize = 4;
+		private const int			blockSize = 8;
+		private const int			macSize = 4;
 		private int					bufOff;
 		private byte[]				buf;
 		private byte[]				mac;
@@ -37,8 +36,8 @@ namespace Org.BouncyCastle.Crypto.Macs
 
 		public Gost28147Mac()
 		{
-			mac = new byte[BlockSize];
-			buf = new byte[BlockSize];
+			mac = new byte[blockSize];
+			buf = new byte[blockSize];
 			bufOff = 0;
 		}
 
@@ -51,19 +50,22 @@ namespace Org.BouncyCastle.Crypto.Macs
 			int[] key = new int[8];
 			for(int i=0; i!=8; i++)
 			{
-				key[i] = (int)Pack.LE_To_UInt32(userKey, i * 4);
+				key[i] = bytesToint(userKey,i*4);
 			}
 
 			return key;
 		}
 
-		public void Init(ICipherParameters parameters)
+		public void Init(
+			ICipherParameters parameters)
 		{
 			Reset();
-			buf = new byte[BlockSize];
+			buf = new byte[blockSize];
             macIV = null;
-            if (parameters is ParametersWithSBox param)
+            if (parameters is ParametersWithSBox)
 			{
+				ParametersWithSBox param = (ParametersWithSBox)parameters;
+
 				//
 				// Set the S-Box
 				//
@@ -77,15 +79,17 @@ namespace Org.BouncyCastle.Crypto.Macs
 					workingKey = GenerateWorkingKey(((KeyParameter)param.Parameters).GetKey());
 				}
 			}
-			else if (parameters is KeyParameter keyParameter)
+			else if (parameters is KeyParameter)
 			{
-				workingKey = GenerateWorkingKey(keyParameter.GetKey());
+				workingKey = GenerateWorkingKey(((KeyParameter)parameters).GetKey());
 			}
-            else if (parameters is ParametersWithIV ivParam)
+            else if (parameters is ParametersWithIV)
             {
-                workingKey = GenerateWorkingKey(((KeyParameter)ivParam.Parameters).GetKey());
-				macIV = ivParam.GetIV(); // don't skip the initial CM5Func
-				Array.Copy(macIV, 0, mac, 0, mac.Length);
+                ParametersWithIV p = (ParametersWithIV)parameters;
+
+                workingKey = GenerateWorkingKey(((KeyParameter)p.Parameters).GetKey());
+                Array.Copy(p.GetIV(), 0, mac, 0, mac.Length);
+                macIV = p.GetIV(); // don't skip the initial CM5Func
             }
 			else
 			{
@@ -101,10 +105,10 @@ namespace Org.BouncyCastle.Crypto.Macs
 
 		public int GetMacSize()
 		{
-			return MacSize;
+			return macSize;
 		}
 
-		private int Gost28147_mainStep(int n1, int key)
+		private int gost28147_mainStep(int n1, int key)
 		{
 			int cm = (key + n1); // CM1
 
@@ -126,222 +130,178 @@ namespace Org.BouncyCastle.Crypto.Macs
 			return omLeft | omRight;
 		}
 
-		private void Gost28147MacFunc(
+		private void gost28147MacFunc(
 			int[]	workingKey,
 			byte[]	input,
 			int		inOff,
 			byte[]	output,
 			int		outOff)
 		{
-			int N1 = (int)Pack.LE_To_UInt32(input, inOff);
-			int N2 = (int)Pack.LE_To_UInt32(input, inOff + 4);
-			int tmp;  //tmp -> for saving N1
+			int N1, N2, tmp;  //tmp -> for saving N1
+			N1 = bytesToint(input, inOff);
+			N2 = bytesToint(input, inOff + 4);
 
 			for (int k = 0; k < 2; k++)  // 1-16 steps
 			{
 				for (int j = 0; j < 8; j++)
 				{
 					tmp = N1;
-					N1 = N2 ^ Gost28147_mainStep(N1, workingKey[j]); // CM2
+					N1 = N2 ^ gost28147_mainStep(N1, workingKey[j]); // CM2
 					N2 = tmp;
 				}
 			}
 
-			Pack.UInt32_To_LE((uint)N1, output, outOff);
-			Pack.UInt32_To_LE((uint)N2, output, outOff + 4);
+			intTobytes(N1, output, outOff);
+			intTobytes(N2, output, outOff + 4);
 		}
 
-		public void Update(byte input)
+		//array of bytes to type int
+		private static int bytesToint(
+			byte[]	input,
+			int		inOff)
+		{
+			return (int)((input[inOff + 3] << 24) & 0xff000000) + ((input[inOff + 2] << 16) & 0xff0000)
+				+ ((input[inOff + 1] << 8) & 0xff00) + (input[inOff] & 0xff);
+		}
+
+		//int to array of bytes
+		private static void intTobytes(
+			int		num,
+			byte[]	output,
+			int		outOff)
+		{
+			output[outOff + 3] = (byte)(num >> 24);
+			output[outOff + 2] = (byte)(num >> 16);
+			output[outOff + 1] = (byte)(num >> 8);
+			output[outOff] =     (byte)num;
+		}
+
+		private static byte[] CM5func(
+			byte[]	buf,
+			int		bufOff,
+			byte[]	mac)
+		{
+			byte[] sum = new byte[buf.Length - bufOff];
+
+			Array.Copy(buf, bufOff, sum, 0, mac.Length);
+
+			for (int i = 0; i != mac.Length; i++)
+			{
+				sum[i] = (byte)(sum[i] ^ mac[i]);
+			}
+
+			return sum;
+		}
+
+		public void Update(
+			byte input)
 		{
 			if (bufOff == buf.Length)
 			{
-				byte[] sum = new byte[buf.Length];
+				byte[] sumbuf = new byte[buf.Length];
+				Array.Copy(buf, 0, sumbuf, 0, mac.Length);
+
 				if (firstStep)
 				{
 					firstStep = false;
                     if (macIV != null)
                     {
-                        Cm5Func(buf, 0, macIV, sum);
+                        sumbuf = CM5func(buf, 0, macIV);
                     }
-					else
-                    {
-						Array.Copy(buf, 0, sum, 0, mac.Length);
-					}
-				}
+                }
 				else
 				{
-					Cm5Func(buf, 0, mac, sum);
+					sumbuf = CM5func(buf, 0, mac);
 				}
 
-				Gost28147MacFunc(workingKey, sum, 0, mac, 0);
+				gost28147MacFunc(workingKey, sumbuf, 0, mac, 0);
 				bufOff = 0;
 			}
 
 			buf[bufOff++] = input;
 		}
 
-		public void BlockUpdate(byte[] input, int inOff, int len)
+		public void BlockUpdate(
+			byte[]	input,
+			int		inOff,
+			int		len)
 		{
 			if (len < 0)
 				throw new ArgumentException("Can't have a negative input length!");
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-			BlockUpdate(input.AsSpan(inOff, len));
-#else
-			int gapLen = BlockSize - bufOff;
+			int gapLen = blockSize - bufOff;
 
 			if (len > gapLen)
 			{
 				Array.Copy(input, inOff, buf, bufOff, gapLen);
 
-				byte[] sum = new byte[buf.Length];
+				byte[] sumbuf = new byte[buf.Length];
+				Array.Copy(buf, 0, sumbuf, 0, mac.Length);
+
 				if (firstStep)
 				{
 					firstStep = false;
                     if (macIV != null)
                     {
-                        Cm5Func(buf, 0, macIV, sum);
+                        sumbuf = CM5func(buf, 0, macIV);
                     }
-					else
-                    {
-						Array.Copy(buf, 0, sum, 0, mac.Length);
-					}
-				}
+                }
 				else
 				{
-					Cm5Func(buf, 0, mac, sum);
+					sumbuf = CM5func(buf, 0, mac);
 				}
 
-				Gost28147MacFunc(workingKey, sum, 0, mac, 0);
+				gost28147MacFunc(workingKey, sumbuf, 0, mac, 0);
 
 				bufOff = 0;
 				len -= gapLen;
 				inOff += gapLen;
 
-				while (len > BlockSize)
+				while (len > blockSize)
 				{
-					Cm5Func(input, inOff, mac, sum);
-					Gost28147MacFunc(workingKey, sum, 0, mac, 0);
+					sumbuf = CM5func(input, inOff, mac);
+					gost28147MacFunc(workingKey, sumbuf, 0, mac, 0);
 
-					len -= BlockSize;
-					inOff += BlockSize;
+					len -= blockSize;
+					inOff += blockSize;
 				}
 			}
 
 			Array.Copy(input, inOff, buf, bufOff, len);
 
 			bufOff += len;
-#endif
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-		public void BlockUpdate(ReadOnlySpan<byte> input)
+		public int DoFinal(
+			byte[]	output,
+			int		outOff)
 		{
-			int gapLen = BlockSize - bufOff;
-
-			if (input.Length > gapLen)
-			{
-				input[..gapLen].CopyTo(buf.AsSpan(bufOff));
-
-				byte[] sum = new byte[buf.Length];
-				if (firstStep)
-				{
-					firstStep = false;
-                    if (macIV != null)
-                    {
-                        Cm5Func(buf, macIV, sum);
-                    }
-                    else
-                    {
-						Array.Copy(buf, 0, sum, 0, mac.Length);
-					}
-				}
-				else
-				{
-					Cm5Func(buf, mac, sum);
-				}
-
-				Gost28147MacFunc(workingKey, sum, 0, mac, 0);
-
-				bufOff = 0;
-				input = input[gapLen..];
-
-				while (input.Length > BlockSize)
-				{
-					Cm5Func(input, mac, sum);
-					Gost28147MacFunc(workingKey, sum, 0, mac, 0);
-
-					input = input[BlockSize..];
-				}
-			}
-
-			input.CopyTo(buf.AsSpan(bufOff));
-
-			bufOff += input.Length;
-		}
-#endif
-
-		public int DoFinal(byte[] output, int outOff)
-		{
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-			return DoFinal(output.AsSpan(outOff));
-#else
 			//padding with zero
-			while (bufOff < BlockSize)
+			while (bufOff < blockSize)
 			{
 				buf[bufOff++] = 0;
 			}
 
-			byte[] sum = new byte[buf.Length];
+			byte[] sumbuf = new byte[buf.Length];
+			Array.Copy(buf, 0, sumbuf, 0, mac.Length);
+
 			if (firstStep)
 			{
 				firstStep = false;
-				Array.Copy(buf, 0, sum, 0, mac.Length);
 			}
 			else
 			{
-				Cm5Func(buf, 0, mac, sum);
+				sumbuf = CM5func(buf, 0, mac);
 			}
 
-			Gost28147MacFunc(workingKey, sum, 0, mac, 0);
+			gost28147MacFunc(workingKey, sumbuf, 0, mac, 0);
 
-			Array.Copy(mac, (mac.Length/2)-MacSize, output, outOff, MacSize);
+			Array.Copy(mac, (mac.Length/2)-macSize, output, outOff, macSize);
 
 			Reset();
 
-			return MacSize;
-#endif
+			return macSize;
 		}
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-		public int DoFinal(Span<byte> output)
-		{
-			//padding with zero
-			while (bufOff < BlockSize)
-			{
-				buf[bufOff++] = 0;
-			}
-
-			byte[] sum = new byte[buf.Length];
-			if (firstStep)
-			{
-				firstStep = false;
-				Array.Copy(buf, 0, sum, 0, mac.Length);
-			}
-			else
-			{
-				Cm5Func(buf, 0, mac, sum);
-			}
-
-			Gost28147MacFunc(workingKey, sum, 0, mac, 0);
-
-			mac.AsSpan((mac.Length / 2) - MacSize, MacSize).CopyTo(output);
-
-			Reset();
-
-			return MacSize;
-		}
-#endif
 
 		public void Reset()
 		{
@@ -351,23 +311,5 @@ namespace Org.BouncyCastle.Crypto.Macs
 
 			firstStep = true;
 		}
-
-		private static void Cm5Func(byte[] buf, int bufOff, byte[] mac, byte[] sum)
-		{
-			for (int i = 0; i < BlockSize; ++i)
-			{
-				sum[i] = (byte)(buf[bufOff + i] ^ mac[i]);
-			}
-		}
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-		private static void Cm5Func(ReadOnlySpan<byte> buffer, ReadOnlySpan<byte> mac, Span<byte> sum)
-		{
-			for (int i = 0; i < BlockSize; ++i)
-			{
-				sum[i] = (byte)(buffer[i] ^ mac[i]);
-			}
-		}
-#endif
 	}
 }

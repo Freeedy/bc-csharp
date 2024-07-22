@@ -1,29 +1,27 @@
 using System;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Cms
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
+#endif
     public class CmsException
 		: Exception
 	{
 		public CmsException()
-			: base()
 		{
 		}
 
-		public CmsException(string message)
-			: base(message)
+		public CmsException(
+			string msg)
+			: base(msg)
 		{
 		}
 
-		public CmsException(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected CmsException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
+		public CmsException(
+			string		msg,
+			Exception	e)
+			: base(msg, e)
 		{
 		}
 	}

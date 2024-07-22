@@ -1,9 +1,19 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
+using System.Text;
 
+using Org.BouncyCastle.Asn1.IsisMtt;
+using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Asn1.X500;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security.Certificates;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.X509;
+using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.Pkix
 {
@@ -13,6 +23,7 @@ namespace Org.BouncyCastle.Pkix
 	* @see CertPathBuilderSpi
 	*/
 	public class PkixCertPathBuilder
+		//		: CertPathBuilderSpi
 	{
 		/**
 		 * Build and validate a CertPath using the given parameter.
@@ -20,16 +31,25 @@ namespace Org.BouncyCastle.Pkix
 		 * @param params PKIXBuilderParameters object containing all information to
 		 *            build the CertPath
 		 */
-		public virtual PkixCertPathBuilderResult Build(PkixBuilderParameters pkixParams)
+		public virtual PkixCertPathBuilderResult Build(
+			PkixBuilderParameters pkixParams)
 		{
 			// search target certificates
 
-			var certSelector = pkixParams.GetTargetConstraintsCert();
+			IX509Selector certSelect = pkixParams.GetTargetCertConstraints();
+			if (!(certSelect is X509CertStoreSelector))
+			{
+				throw new PkixCertPathBuilderException(
+					"TargetConstraints must be an instance of "
+					+ typeof(X509CertStoreSelector).FullName + " for "
+					+ Platform.GetTypeName(this) + " class.");
+			}
 
-			var targets = new HashSet<X509Certificate>();
+			ISet targets = new HashSet();
 			try
 			{
-				CollectionUtilities.CollectMatches(targets, certSelector, pkixParams.GetStoresCert());
+				targets.AddAll(PkixCertPathValidatorUtilities.FindCertificates((X509CertStoreSelector)certSelect, pkixParams.GetStores()));
+				// TODO Should this include an entry for pkixParams.GetAdditionalStores() too?
 			}
 			catch (Exception e)
 			{
@@ -37,11 +57,11 @@ namespace Org.BouncyCastle.Pkix
 					"Error finding target certificate.", e);
 			}
 
-			if (targets.Count < 1)
+			if (targets.IsEmpty)
 				throw new PkixCertPathBuilderException("No certificate found matching targetConstraints.");
 
 			PkixCertPathBuilderResult result = null;
-			var certPathList = new List<X509Certificate>();
+			IList certPathList = Platform.CreateArrayList();
 
 			// check all potential target certificates
 			foreach (X509Certificate cert in targets)
@@ -53,10 +73,14 @@ namespace Org.BouncyCastle.Pkix
 			}
 
 			if (result == null && certPathException != null)
+			{
 				throw new PkixCertPathBuilderException(certPathException.Message, certPathException.InnerException);
+			}
 
 			if (result == null && certPathException == null)
+			{
 				throw new PkixCertPathBuilderException("Unable to find certificate chain.");
+			}
 
 			return result;
 		}
@@ -66,13 +90,15 @@ namespace Org.BouncyCastle.Pkix
 		protected virtual PkixCertPathBuilderResult Build(
 			X509Certificate			tbvCert,
 			PkixBuilderParameters	pkixParams,
-			IList<X509Certificate>	tbvPath)
+			IList					tbvPath)
 		{
-			// If tbvCert is already present in tbvPath, it indicates having run into a cycle in the PKI graph.
+			// If tbvCert is readily present in tbvPath, it indicates having run
+			// into a cycle in the PKI graph.
 			if (tbvPath.Contains(tbvCert))
 				return null;
 
-			// step out, the certificate is not allowed to appear in a certification chain.
+			// step out, the certificate is not allowed to appear in a certification
+			// chain.
 			if (pkixParams.GetExcludedCerts().Contains(tbvCert))
 				return null;
 
@@ -85,6 +111,7 @@ namespace Org.BouncyCastle.Pkix
 
 			tbvPath.Add(tbvCert);
 
+//			X509CertificateParser certParser = new X509CertificateParser();
 			PkixCertPathBuilderResult builderResult = null;
 			PkixCertPathValidator validator = new PkixCertPathValidator();
 
@@ -93,21 +120,25 @@ namespace Org.BouncyCastle.Pkix
 				// check whether the issuer of <tbvCert> is a TrustAnchor
 				if (PkixCertPathValidatorUtilities.IsIssuerTrustAnchor(tbvCert, pkixParams.GetTrustAnchors()))
 				{
-					// exception message from possibly later tried certification chains
-					PkixCertPath certPath;
+					// exception message from possibly later tried certification
+					// chains
+					PkixCertPath certPath = null;
 					try
 					{
 						certPath = new PkixCertPath(tbvPath);
 					}
 					catch (Exception e)
 					{
-						throw new Exception("Certification path could not be constructed from certificate list.", e);
+						throw new Exception(
+							"Certification path could not be constructed from certificate list.",
+							e);
 					}
 
-					PkixCertPathValidatorResult result;
+					PkixCertPathValidatorResult result = null;
 					try
 					{
-						result = validator.Validate(certPath, pkixParams);
+						result = (PkixCertPathValidatorResult)validator.Validate(
+							certPath, pkixParams);
 					}
 					catch (Exception e)
 					{
@@ -115,33 +146,38 @@ namespace Org.BouncyCastle.Pkix
 							"Certification path could not be validated.", e);
 					}
 
-					return new PkixCertPathBuilderResult(certPath, result.TrustAnchor, result.PolicyTree,
-						result.SubjectPublicKey);
+					return new PkixCertPathBuilderResult(certPath, result.TrustAnchor,
+						result.PolicyTree, result.SubjectPublicKey);
 				}
 				else
 				{
 					// add additional X.509 stores from locations in certificate
 					try
 					{
-						PkixCertPathValidatorUtilities.AddAdditionalStoresFromAltNames(tbvCert, pkixParams);
+						PkixCertPathValidatorUtilities.AddAdditionalStoresFromAltNames(
+							tbvCert, pkixParams);
 					}
 					catch (CertificateParsingException e)
 					{
-						throw new Exception("No additiontal X.509 stores can be added from certificate locations.", e);
+						throw new Exception(
+							"No additiontal X.509 stores can be added from certificate locations.",
+							e);
 					}
 
 					// try to get the issuer certificate from one of the stores
-					ISet<X509Certificate> issuers;
+					HashSet issuers = new HashSet();
 					try
 					{
-						issuers = PkixCertPathValidatorUtilities.FindIssuerCerts(tbvCert, pkixParams);
+						issuers.AddAll(PkixCertPathValidatorUtilities.FindIssuerCerts(tbvCert, pkixParams));
 					}
 					catch (Exception e)
 					{
-						throw new Exception("Cannot find issuer certificate for certificate in certification path.", e);
+						throw new Exception(
+							"Cannot find issuer certificate for certificate in certification path.",
+							e);
 					}
 
-					if (issuers.Count < 1)
+					if (issuers.IsEmpty)
 						throw new Exception("No issuer certificate for certificate in certification path found.");
 
 					foreach (X509Certificate issuer in issuers)

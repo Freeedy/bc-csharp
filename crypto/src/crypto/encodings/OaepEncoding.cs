@@ -14,42 +14,42 @@ namespace Org.BouncyCastle.Crypto.Encodings
     public class OaepEncoding
         : IAsymmetricBlockCipher
     {
-        private static int GetMgf1NoMemoLimit(IDigest d)
-        {
-            if (d is IMemoable)
-                return d.GetByteLength() - 1;
+        private byte[] defHash;
+        private IDigest mgf1Hash;
 
-            return int.MaxValue;
-        }
-
-        private readonly IAsymmetricBlockCipher engine;
-        private readonly IDigest mgf1Hash;
-        private readonly int mgf1NoMemoLimit;
-        private readonly byte[] defHash;
-
+        private IAsymmetricBlockCipher engine;
         private SecureRandom random;
         private bool forEncryption;
 
-        public OaepEncoding(IAsymmetricBlockCipher cipher)
+        public OaepEncoding(
+            IAsymmetricBlockCipher cipher)
             : this(cipher, new Sha1Digest(), null)
         {
         }
 
-        public OaepEncoding(IAsymmetricBlockCipher cipher, IDigest hash)
+        public OaepEncoding(
+            IAsymmetricBlockCipher	cipher,
+            IDigest					hash)
             : this(cipher, hash, null)
         {
         }
 
-        public OaepEncoding(IAsymmetricBlockCipher cipher, IDigest hash, byte[] encodingParams)
+        public OaepEncoding(
+            IAsymmetricBlockCipher	cipher,
+            IDigest					hash,
+            byte[]					encodingParams)
             : this(cipher, hash, hash, encodingParams)
         {
         }
 
-        public OaepEncoding(IAsymmetricBlockCipher cipher, IDigest hash, IDigest mgf1Hash, byte[] encodingParams)
+        public OaepEncoding(
+            IAsymmetricBlockCipher	cipher,
+            IDigest					hash,
+            IDigest					mgf1Hash,
+            byte[]					encodingParams)
         {
             this.engine = cipher;
             this.mgf1Hash = mgf1Hash;
-            this.mgf1NoMemoLimit = GetMgf1NoMemoLimit(mgf1Hash);
             this.defHash = new byte[hash.GetDigestSize()];
 
             hash.Reset();
@@ -62,22 +62,33 @@ namespace Org.BouncyCastle.Crypto.Encodings
             hash.DoFinal(defHash, 0);
         }
 
-        public string AlgorithmName => engine.AlgorithmName + "/OAEPPadding";
-
-        public IAsymmetricBlockCipher UnderlyingCipher => engine;
-
-        public void Init(bool forEncryption, ICipherParameters parameters)
+        public IAsymmetricBlockCipher GetUnderlyingCipher()
         {
-            SecureRandom initRandom = null;
-            if (parameters is ParametersWithRandom withRandom)
+            return engine;
+        }
+
+        public string AlgorithmName
+        {
+            get { return engine.AlgorithmName + "/OAEPPadding"; }
+        }
+
+        public void Init(
+            bool				forEncryption,
+            ICipherParameters	param)
+        {
+            if (param is ParametersWithRandom)
             {
-                initRandom = withRandom.Random;
+                ParametersWithRandom rParam = (ParametersWithRandom)param;
+                this.random = rParam.Random;
+            }
+            else
+            {
+                this.random = new SecureRandom();
             }
 
-            this.random = forEncryption ? CryptoServicesRegistrar.GetSecureRandom(initRandom) : null;
-            this.forEncryption = forEncryption;
+            engine.Init(forEncryption, param);
 
-            engine.Init(forEncryption, parameters);
+            this.forEncryption = forEncryption;
         }
 
         public int GetInputBlockSize()
@@ -108,19 +119,29 @@ namespace Org.BouncyCastle.Crypto.Encodings
             }
         }
 
-        public byte[] ProcessBlock(byte[] inBytes, int inOff, int inLen)
+        public byte[] ProcessBlock(
+            byte[]	inBytes,
+            int		inOff,
+            int		inLen)
         {
-            return forEncryption
-                ? EncodeBlock(inBytes, inOff, inLen)
-                : DecodeBlock(inBytes, inOff, inLen);
+            if (forEncryption)
+            {
+                return EncodeBlock(inBytes, inOff, inLen);
+            }
+            else
+            {
+                return DecodeBlock(inBytes, inOff, inLen);
+            }
         }
 
-        private byte[] EncodeBlock(byte[] inBytes, int inOff, int inLen)
+        private byte[] EncodeBlock(
+            byte[]	inBytes,
+            int		inOff,
+            int		inLen)
         {
-            int inputBlockSize = GetInputBlockSize();
-            Check.DataLength(inLen > inputBlockSize, "input data too long");
+            Check.DataLength(inLen > GetInputBlockSize(), "input data too long");
 
-            byte[] block = new byte[inputBlockSize + 1 + 2 * defHash.Length];
+            byte[] block = new byte[GetInputBlockSize() + 1 + 2 * defHash.Length];
 
             //
             // copy in the message
@@ -144,19 +165,33 @@ namespace Org.BouncyCastle.Crypto.Encodings
             //
             // generate the seed.
             //
-            random.NextBytes(block, 0, defHash.Length);
-
-            mgf1Hash.Reset();
+            byte[] seed = SecureRandom.GetNextBytes(random, defHash.Length);
 
             //
             // mask the message block.
             //
-            MaskGeneratorFunction(block, 0, defHash.Length, block, defHash.Length, block.Length - defHash.Length);
+            byte[] mask = MaskGeneratorFunction(seed, 0, seed.Length, block.Length - defHash.Length);
+
+            for (int i = defHash.Length; i != block.Length; i++)
+            {
+                block[i] ^= mask[i - defHash.Length];
+            }
+
+            //
+            // add in the seed
+            //
+            Array.Copy(seed, 0, block, 0, defHash.Length);
 
             //
             // mask the seed.
             //
-            MaskGeneratorFunction(block, defHash.Length, block.Length - defHash.Length, block, 0, defHash.Length);
+            mask = MaskGeneratorFunction(
+                block, defHash.Length, block.Length - defHash.Length, defHash.Length);
+
+            for (int i = 0; i != defHash.Length; i++)
+            {
+                block[i] ^= mask[i];
+            }
 
             return engine.ProcessBlock(block, 0, block.Length);
         }
@@ -165,37 +200,52 @@ namespace Org.BouncyCastle.Crypto.Encodings
         * @exception InvalidCipherTextException if the decrypted block turns out to
         * be badly formatted.
         */
-        private byte[] DecodeBlock(byte[] inBytes, int inOff, int inLen)
+        private byte[] DecodeBlock(
+            byte[]	inBytes,
+            int		inOff,
+            int		inLen)
         {
-            // i.e. wrong when block.length < (2 * defHash.length) + 1
-            int wrongMask = GetOutputBlockSize() >> 31;
+            byte[] data = engine.ProcessBlock(inBytes, inOff, inLen);
+            byte[] block = new byte[engine.GetOutputBlockSize()];
 
             //
             // as we may have zeros in our leading bytes for the block we produced
             // on encryption, we need to make sure our decrypted block comes back
             // the same size.
             //
-            byte[] block = new byte[engine.GetOutputBlockSize()];
+            // i.e. wrong when block.length < (2 * defHash.length) + 1
+            int wrongMask = (block.Length - ((2 * defHash.Length) + 1)) >> 31;
+
+            if (data.Length <= block.Length)
             {
-                byte[] data = engine.ProcessBlock(inBytes, inOff, inLen);
-                wrongMask |= (block.Length - data.Length) >> 31;
-
-                int copyLen = System.Math.Min(block.Length, data.Length);
-                Array.Copy(data, 0, block, block.Length - copyLen, copyLen);
-                Array.Clear(data, 0, data.Length);
+                Array.Copy(data, 0, block, block.Length - data.Length, data.Length);
             }
-
-            mgf1Hash.Reset();
+            else
+            {
+                Array.Copy(data, 0, block, 0, block.Length);
+                wrongMask |= 1;
+            }
 
             //
             // unmask the seed.
             //
-            MaskGeneratorFunction(block, defHash.Length, block.Length - defHash.Length, block, 0, defHash.Length);
+            byte[] mask = MaskGeneratorFunction(
+                block, defHash.Length, block.Length - defHash.Length, defHash.Length);
+
+            for (int i = 0; i != defHash.Length; i++)
+            {
+                block[i] ^= mask[i];
+            }
 
             //
             // unmask the message block.
             //
-            MaskGeneratorFunction(block, 0, defHash.Length, block, defHash.Length, block.Length - defHash.Length);
+            mask = MaskGeneratorFunction(block, 0, defHash.Length, block.Length - defHash.Length);
+
+            for (int i = defHash.Length; i != block.Length; i++)
+            {
+                block[i] ^= mask[i - defHash.Length];
+            }
 
             //
             // check the hash of the encoding params.
@@ -227,7 +277,7 @@ namespace Org.BouncyCastle.Crypto.Encodings
 
             if (wrongMask != 0)
             {
-                Array.Clear(block, 0, block.Length);
+                Arrays.Fill(block, 0);
                 throw new InvalidCipherTextException("data wrong");
             }
 
@@ -244,106 +294,68 @@ namespace Org.BouncyCastle.Crypto.Encodings
             return output;
         }
 
-        private void MaskGeneratorFunction(byte[] z, int zOff, int zLen, byte[] mask, int maskOff, int maskLen)
+        private byte[] MaskGeneratorFunction(
+            byte[] Z,
+            int zOff,
+            int zLen,
+            int length)
         {
-            if (mgf1Hash is IXof xof)
+            if (mgf1Hash is IXof)
             {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                Span<byte> buf = maskLen <= 512
-                    ? stackalloc byte[maskLen]
-                    : new byte[maskLen];
-                xof.BlockUpdate(z, zOff, zLen);
-                xof.OutputFinal(buf);
-                Bytes.XorTo(maskLen, buf, mask.AsSpan(maskOff));
-#else
-                byte[] buf = new byte[maskLen];
-                xof.BlockUpdate(z, zOff, zLen);
-                xof.OutputFinal(buf, 0, maskLen);
-                Bytes.XorTo(maskLen, buf, 0, mask, maskOff);
-#endif
+                byte[] mask = new byte[length];
+                mgf1Hash.BlockUpdate(Z, zOff, zLen);
+                ((IXof)mgf1Hash).DoFinal(mask, 0, mask.Length);
+
+                return mask;
             }
             else
             {
-                MaskGeneratorFunction1(z, zOff, zLen, mask, maskOff, maskLen);
+                return MaskGeneratorFunction1(Z, zOff, zLen, length);
             }
         }
 
         /**
         * mask generator function, as described in PKCS1v2.
         */
-        private void MaskGeneratorFunction1(byte[] z, int zOff, int zLen, byte[] mask, int maskOff, int maskLen)
+        private byte[] MaskGeneratorFunction1(
+            byte[]	Z,
+            int		zOff,
+            int		zLen,
+            int		length)
         {
-            int digestSize = mgf1Hash.GetDigestSize();
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> hash = digestSize <= 128
-                ? stackalloc byte[digestSize]
-                : new byte[digestSize];
-            Span<byte> C = stackalloc byte[4];
-#else
-            byte[] hash = new byte[digestSize];
+            byte[] mask = new byte[length];
+            byte[] hashBuf = new byte[mgf1Hash.GetDigestSize()];
             byte[] C = new byte[4];
-#endif
             int counter = 0;
 
-            int maskEnd = maskOff + maskLen;
-            int maskLimit = maskEnd - digestSize;
-            int maskPos = maskOff;
+            mgf1Hash.Reset();
 
-            mgf1Hash.BlockUpdate(z, zOff, zLen);
-
-            if (zLen > mgf1NoMemoLimit)
+            while (counter < (length / hashBuf.Length))
             {
-                IMemoable memoable = (IMemoable)mgf1Hash;
-                IMemoable memo = memoable.Copy();
+                Pack.UInt32_To_BE((uint)counter, C);
 
-                while (maskPos < maskLimit)
-                {
-                    Pack.UInt32_To_BE((uint)counter++, C);
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                    mgf1Hash.BlockUpdate(C);
-                    mgf1Hash.DoFinal(hash);
-                    memoable.Reset(memo);
-                    Bytes.XorTo(digestSize, hash, mask.AsSpan(maskPos));
-#else
-                    mgf1Hash.BlockUpdate(C, 0, C.Length);
-                    mgf1Hash.DoFinal(hash, 0);
-                    memoable.Reset(memo);
-                    Bytes.XorTo(digestSize, hash, 0, mask, maskPos);
-#endif
-                    maskPos += digestSize;
-                }
-            }
-            else
-            {
-                while (maskPos < maskLimit)
-                {
-                    Pack.UInt32_To_BE((uint)counter++, C);
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                    mgf1Hash.BlockUpdate(C);
-                    mgf1Hash.DoFinal(hash);
-                    mgf1Hash.BlockUpdate(z, zOff, zLen);
-                    Bytes.XorTo(digestSize, hash, mask.AsSpan(maskPos));
-#else
-                    mgf1Hash.BlockUpdate(C, 0, C.Length);
-                    mgf1Hash.DoFinal(hash, 0);
-                    mgf1Hash.BlockUpdate(z, zOff, zLen);
-                    Bytes.XorTo(digestSize, hash, 0, mask, maskPos);
-#endif
-                    maskPos += digestSize;
-                }
+                mgf1Hash.BlockUpdate(Z, zOff, zLen);
+                mgf1Hash.BlockUpdate(C, 0, C.Length);
+                mgf1Hash.DoFinal(hashBuf, 0);
+
+                Array.Copy(hashBuf, 0, mask, counter * hashBuf.Length, hashBuf.Length);
+
+                counter++;
             }
 
-            Pack.UInt32_To_BE((uint)counter, C);
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            mgf1Hash.BlockUpdate(C);
-            mgf1Hash.DoFinal(hash);
-            Bytes.XorTo(maskEnd - maskPos, hash, mask.AsSpan(maskPos));
-#else
-            mgf1Hash.BlockUpdate(C, 0, C.Length);
-            mgf1Hash.DoFinal(hash, 0);
-            Bytes.XorTo(maskEnd - maskPos, hash, 0, mask, maskPos);
-#endif
+            if ((counter * hashBuf.Length) < length)
+            {
+                Pack.UInt32_To_BE((uint)counter, C);
+
+                mgf1Hash.BlockUpdate(Z, zOff, zLen);
+                mgf1Hash.BlockUpdate(C, 0, C.Length);
+                mgf1Hash.DoFinal(hashBuf, 0);
+
+                Array.Copy(hashBuf, 0, mask, counter * hashBuf.Length, mask.Length - (counter * hashBuf.Length));
+            }
+
+            return mask;
         }
     }
 }
+

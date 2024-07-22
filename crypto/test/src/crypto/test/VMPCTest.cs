@@ -95,6 +95,12 @@ namespace Org.BouncyCastle.Crypto.Tests
 			return output;
 		}
 
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new VmpcTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{

@@ -9,7 +9,8 @@ namespace Org.BouncyCastle.Bcpg
     {
         private readonly byte[] levelAndTrustAmount;
 
-		public TrustPacket(BcpgInputStream bcpgIn)
+		public TrustPacket(
+            BcpgInputStream bcpgIn)
         {
             MemoryStream bOut = new MemoryStream();
 
@@ -22,9 +23,10 @@ namespace Org.BouncyCastle.Bcpg
 			levelAndTrustAmount = bOut.ToArray();
         }
 
-		public TrustPacket(int trustCode)
+		public TrustPacket(
+            int trustCode)
         {
-			this.levelAndTrustAmount = new byte[]{ (byte)trustCode };
+			this.levelAndTrustAmount = new byte[]{ (byte) trustCode };
         }
 
 		public byte[] GetLevelAndTrustAmount()
@@ -32,9 +34,10 @@ namespace Org.BouncyCastle.Bcpg
 			return (byte[]) levelAndTrustAmount.Clone();
 		}
 
-		public override void Encode(BcpgOutputStream bcpgOut)
+		public override void Encode(
+            BcpgOutputStream bcpgOut)
         {
-            bcpgOut.WritePacket(PacketTag.Trust, levelAndTrustAmount);
+            bcpgOut.WritePacket(PacketTag.Trust, levelAndTrustAmount, true);
         }
     }
 }

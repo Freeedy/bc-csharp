@@ -55,7 +55,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
  //             byte[] password = new byte[passwordFile.available()];
  //             passwordFile.read(password);
  //             passwordFile.close();
- //             string passphrase = new string(password);            
+ //             String passphrase = new String(password);            
 
                 DoTestKey(keyId, passphrase, true);
 
@@ -133,6 +133,11 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             TestAsciiPassphrase();
             TestCyrillicPassphrase();
             TestUmlautPassphrase();
+        }
+
+        public static void Main(string[] args)
+        {
+            RunTest(new PgpUnicodeTest());
         }
     }
 }

@@ -1,3 +1,6 @@
+using System;
+using System.Collections;
+
 using NUnit.Framework;
 
 using Org.BouncyCastle.Asn1;
@@ -8,12 +11,14 @@ using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Encoders;
+using Org.BouncyCastle.Utilities.IO;
 using Org.BouncyCastle.Utilities.Test;
 using Org.BouncyCastle.X509;
+using Org.BouncyCastle.X509.Store;
 
 namespace Org.BouncyCastle.Cms.Tests
 {
-    [TestFixture]
+	[TestFixture]
 	public class Rfc4134Test
 	{
 		private static readonly byte[] exContent = GetRfc4134Data("ExContent.bin");
@@ -123,11 +128,11 @@ namespace Org.BouncyCastle.Cms.Tests
 			byte[] data = GetRfc4134Data("5.1.bin");
 			CmsEnvelopedData envelopedData = new CmsEnvelopedData(data);
 
-			VerifyEnvelopedData(envelopedData, CmsEnvelopedGenerator.DesEde3Cbc);
+			VerifyEnvelopedData(envelopedData, CmsEnvelopedDataGenerator.DesEde3Cbc);
 
 			CmsEnvelopedDataParser envelopedParser = new CmsEnvelopedDataParser(data);
 
-			VerifyEnvelopedData(envelopedParser, CmsEnvelopedGenerator.DesEde3Cbc);
+			VerifyEnvelopedData(envelopedParser, CmsEnvelopedDataGenerator.DesEde3Cbc);
 		}
 
 		[Test]
@@ -136,11 +141,11 @@ namespace Org.BouncyCastle.Cms.Tests
 			byte[] data = GetRfc4134Data("5.2.bin");
 			CmsEnvelopedData envelopedData = new CmsEnvelopedData(data);
 
-			VerifyEnvelopedData(envelopedData, CmsEnvelopedGenerator.RC2Cbc);
+			VerifyEnvelopedData(envelopedData, CmsEnvelopedDataGenerator.RC2Cbc);
 
 			CmsEnvelopedDataParser envelopedParser = new CmsEnvelopedDataParser(data);
 
-			VerifyEnvelopedData(envelopedParser, CmsEnvelopedGenerator.RC2Cbc);
+			VerifyEnvelopedData(envelopedParser, CmsEnvelopedDataGenerator.RC2Cbc);
 		}
 
 		private void VerifyEnvelopedData(CmsEnvelopedData envelopedData, string symAlgorithmOID)
@@ -154,15 +159,15 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(envelopedData.EncryptionAlgOid, symAlgorithmOID);
 
-			var c = recipients.GetRecipients();
+			ArrayList c = new ArrayList(recipients.GetRecipients());
 			Assert.LessOrEqual(1, c.Count);
 			Assert.GreaterOrEqual(2, c.Count);
 
-			VerifyRecipient(c[0], privKey);
+			VerifyRecipient((RecipientInformation)c[0], privKey);
 
 			if (c.Count == 2)
 			{
-				RecipientInformation recInfo = c[1];
+				RecipientInformation recInfo = (RecipientInformation)c[1];
 
 				Assert.AreEqual(PkcsObjectIdentifiers.IdAlgCmsRC2Wrap.Id, recInfo.KeyEncryptionAlgOid);
 			}
@@ -179,7 +184,7 @@ namespace Org.BouncyCastle.Cms.Tests
 
 			Assert.AreEqual(envelopedParser.EncryptionAlgOid, symAlgorithmOID);
 
-			var c = recipients.GetRecipients();
+			ArrayList c = new ArrayList(recipients.GetRecipients());
 			Assert.LessOrEqual(1, c.Count);
 			Assert.GreaterOrEqual(2, c.Count);
 
@@ -213,9 +218,9 @@ namespace Org.BouncyCastle.Cms.Tests
 
 		private SignerInformation GetFirstSignerInfo(SignerInformationStore store)
 		{
-			var e = store.GetSigners().GetEnumerator();
+			IEnumerator e = store.GetSigners().GetEnumerator();
 			e.MoveNext();
-			return e.Current;
+			return (SignerInformation)e.Current;
 		}
 
 		private void VerifyCounterSignature(SignerInformation signInfo, byte[] certificate)
@@ -242,19 +247,20 @@ namespace Org.BouncyCastle.Cms.Tests
 			Assert.IsTrue(attr.AttrValues[0].Equals(new DerSequence(v)));
 		}
 
-		private static void VerifySignatures(CmsSignedData s, byte[] contentDigest)
+		private void VerifySignatures(CmsSignedData s, byte[] contentDigest)
 		{
-			var x509Certs = s.GetCertificates();
+			IX509Store x509Certs = s.GetCertificates("Collection");
+			IX509Store x509Crls = s.GetCrls("Collection");
 			SignerInformationStore signers = s.GetSignerInfos();
 
 			foreach (SignerInformation signer in signers.GetSigners())
 			{
-				var certCollection = x509Certs.EnumerateMatches(signer.SignerID);
+				ICollection certCollection = x509Certs.GetMatches(signer.SignerID);
 
-				var certEnum = certCollection.GetEnumerator();
+				IEnumerator certEnum = certCollection.GetEnumerator();
 
 				certEnum.MoveNext();
-				X509Certificate cert = certEnum.Current;
+				X509Certificate cert = (X509Certificate) certEnum.Current;
 
 				VerifySigner(signer, cert);
 
@@ -263,34 +269,43 @@ namespace Org.BouncyCastle.Cms.Tests
 					Assert.IsTrue(Arrays.AreEqual(contentDigest, signer.GetContentDigest()));
 				}
 			}
+
+			ICollection certColl = x509Certs.GetMatches(null);
+			ICollection crlColl = x509Crls.GetMatches(null);
+
+			Assert.AreEqual(certColl.Count, s.GetCertificates("Collection").GetMatches(null).Count);
+			Assert.AreEqual(crlColl.Count, s.GetCrls("Collection").GetMatches(null).Count);
 		}
 
-		private static void VerifySignatures(CmsSignedData s) => VerifySignatures(s, null);
+		private void VerifySignatures(CmsSignedData s)
+		{
+			VerifySignatures(s, null);
+		}
 
-		private static void VerifySignatures(CmsSignedDataParser sp)
+		private void VerifySignatures(CmsSignedDataParser sp)
 		{
 	        CmsTypedStream sc = sp.GetSignedContent();
 	        if (sc != null)
 	        {
 	            sc.Drain();
 	        }
-
-			var x509Certs = sp.GetCertificates();
+			
+			IX509Store x509Certs = sp.GetCertificates("Collection");
 			SignerInformationStore signers = sp.GetSignerInfos();
 
 			foreach (SignerInformation signer in signers.GetSigners())
 			{
-				var certCollection = x509Certs.EnumerateMatches(signer.SignerID);
+				ICollection certCollection = x509Certs.GetMatches(signer.SignerID);
 
-				var certEnum = certCollection.GetEnumerator();
+				IEnumerator certEnum = certCollection.GetEnumerator();
 				certEnum.MoveNext();
-				X509Certificate cert = certEnum.Current;
+				X509Certificate cert = (X509Certificate)certEnum.Current;
 
 				VerifySigner(signer, cert);
 			}
 		}
 
-		private static void VerifySigner(SignerInformation signer, X509Certificate cert)
+		private void VerifySigner(SignerInformation signer, X509Certificate cert)
 		{
 			if (cert.GetPublicKey() is DsaPublicKeyParameters)
 			{
@@ -311,7 +326,7 @@ namespace Org.BouncyCastle.Cms.Tests
 			}
 		}
 
-		private static DsaPublicKeyParameters GetInheritedKey(DsaPublicKeyParameters dsaPubKey)
+		private DsaPublicKeyParameters GetInheritedKey(DsaPublicKeyParameters dsaPubKey)
 		{
 			X509Certificate cert = new X509CertificateParser().ReadCertificate(
 				GetRfc4134Data("CarlDSSSelf.cer"));
@@ -321,6 +336,9 @@ namespace Org.BouncyCastle.Cms.Tests
 			return new DsaPublicKeyParameters(dsaPubKey.Y, dsaParams);
 		}
 
-		private static byte[] GetRfc4134Data(string name) => SimpleTest.GetTestData("rfc4134." + name);
+		private static byte[] GetRfc4134Data(string name)
+		{
+			return Streams.ReadAll(SimpleTest.GetTestDataAsStream("rfc4134." + name));
+		}
 	}
 }

@@ -1,6 +1,7 @@
 using System.IO;
 
-using Org.BouncyCastle.Utilities.IO.Compression;
+using Org.BouncyCastle.Apache.Bzip2;
+using Org.BouncyCastle.Utilities.Zlib;
 
 namespace Org.BouncyCastle.Bcpg.OpenPgp
 {
@@ -10,13 +11,14 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
     {
         private readonly CompressedDataPacket data;
 
-		public PgpCompressedData(BcpgInputStream bcpgInput)
+		public PgpCompressedData(
+            BcpgInputStream bcpgInput)
         {
             Packet packet = bcpgInput.ReadPacket();
-            if (!(packet is CompressedDataPacket compressedDataPacket))
+            if (!(packet is CompressedDataPacket))
                 throw new IOException("unexpected packet in stream: " + packet);
 
-            this.data = compressedDataPacket;
+            this.data = (CompressedDataPacket)packet;
         }
 
 		/// <summary>The algorithm used for compression</summary>
@@ -36,16 +38,16 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
         {
             switch (Algorithm)
             {
-			case CompressionAlgorithmTag.Uncompressed:
-				return GetInputStream();
-			case CompressionAlgorithmTag.Zip:
-                return Zip.DecompressInput(GetInputStream());
-            case CompressionAlgorithmTag.ZLib:
-				return ZLib.DecompressInput(GetInputStream());
-			case CompressionAlgorithmTag.BZip2:
-                return Bzip2.DecompressInput(GetInputStream());
-            default:
-                throw new PgpException("can't recognise compression algorithm: " + Algorithm);
+				case CompressionAlgorithmTag.Uncompressed:
+					return GetInputStream();
+				case CompressionAlgorithmTag.Zip:
+					return new ZInputStream(GetInputStream(), true);
+                case CompressionAlgorithmTag.ZLib:
+					return new ZInputStream(GetInputStream());
+				case CompressionAlgorithmTag.BZip2:
+					return new CBZip2InputStream(GetInputStream());
+                default:
+                    throw new PgpException("can't recognise compression algorithm: " + Algorithm);
             }
         }
     }

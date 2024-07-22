@@ -1,37 +1,44 @@
 using System;
 
+using Org.BouncyCastle.Asn1;
+
 namespace Org.BouncyCastle.Asn1.X509
 {
     public class AttributeCertificate
         : Asn1Encodable
     {
-        public static AttributeCertificate GetInstance(object obj)
+        private readonly AttributeCertificateInfo	acinfo;
+        private readonly AlgorithmIdentifier		signatureAlgorithm;
+        private readonly DerBitString				signatureValue;
+
+		/**
+         * @param obj
+         * @return
+         */
+        public static AttributeCertificate GetInstance(
+			object obj)
         {
-            if (obj == null)
-                return null;
-            if (obj is AttributeCertificate attributeCertificate)
-                return attributeCertificate;
-            return new AttributeCertificate(Asn1Sequence.GetInstance(obj));
-        }
+            if (obj is AttributeCertificate)
+                return (AttributeCertificate) obj;
 
-        public static AttributeCertificate GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new AttributeCertificate(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
+			if (obj != null)
+				return new AttributeCertificate(Asn1Sequence.GetInstance(obj));
 
-        private readonly AttributeCertificateInfo acinfo;
-        private readonly AlgorithmIdentifier signatureAlgorithm;
-        private readonly DerBitString signatureValue;
+			return null;
+		}
 
-        public AttributeCertificate(AttributeCertificateInfo acinfo, AlgorithmIdentifier signatureAlgorithm,
-            DerBitString signatureValue)
+		public AttributeCertificate(
+            AttributeCertificateInfo	acinfo,
+            AlgorithmIdentifier			signatureAlgorithm,
+            DerBitString				signatureValue)
         {
             this.acinfo = acinfo;
             this.signatureAlgorithm = signatureAlgorithm;
             this.signatureValue = signatureValue;
         }
 
-		private AttributeCertificate(Asn1Sequence seq)
+		private AttributeCertificate(
+            Asn1Sequence seq)
         {
 			if (seq.Count != 3)
 				throw new ArgumentException("Bad sequence size: " + seq.Count);

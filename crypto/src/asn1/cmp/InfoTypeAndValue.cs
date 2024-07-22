@@ -50,51 +50,54 @@ namespace Org.BouncyCastle.Asn1.Cmp
     public class InfoTypeAndValue
         : Asn1Encodable
     {
-        public static InfoTypeAndValue GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is InfoTypeAndValue infoTypeAndValue)
-                return infoTypeAndValue;
-            return new InfoTypeAndValue(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static InfoTypeAndValue GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new InfoTypeAndValue(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly DerObjectIdentifier m_infoType;
-        private readonly Asn1Encodable m_infoValue;
+        private readonly DerObjectIdentifier infoType;
+        private readonly Asn1Encodable infoValue;
 
         private InfoTypeAndValue(Asn1Sequence seq)
         {
-            int count = seq.Count;
-            if (count < 1 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+            infoType = DerObjectIdentifier.GetInstance(seq[0]);
 
-            m_infoType = DerObjectIdentifier.GetInstance(seq[0]);
-
-            if (count > 1)
+            if (seq.Count > 1)
             {
-                m_infoValue = seq[1];
+                infoValue = (Asn1Encodable)seq[1];
             }
         }
 
-        public InfoTypeAndValue(DerObjectIdentifier infoType)
-            : this(infoType, null)
+        public static InfoTypeAndValue GetInstance(object obj)
         {
+            if (obj is InfoTypeAndValue)
+                return (InfoTypeAndValue)obj;
+
+            if (obj is Asn1Sequence)
+                return new InfoTypeAndValue((Asn1Sequence)obj);
+
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
         }
 
-        public InfoTypeAndValue(DerObjectIdentifier infoType, Asn1Encodable infoValue)
+        public InfoTypeAndValue(
+            DerObjectIdentifier infoType)
         {
-            m_infoType = infoType ?? throw new ArgumentNullException(nameof(infoType));
-            m_infoValue = infoValue;
+            this.infoType = infoType;
+            this.infoValue = null;
         }
 
-        public virtual DerObjectIdentifier InfoType => m_infoType;
+        public InfoTypeAndValue(
+            DerObjectIdentifier infoType,
+            Asn1Encodable       optionalValue)
+        {
+            this.infoType = infoType;
+            this.infoValue = optionalValue;
+        }
 
-        public virtual Asn1Encodable InfoValue => m_infoValue;
+        public virtual DerObjectIdentifier InfoType
+        {
+            get { return infoType; }
+        }
+
+        public virtual Asn1Encodable InfoValue
+        {
+            get { return infoValue; }
+        }
 
         /**
          * <pre>
@@ -107,9 +110,9 @@ namespace Org.BouncyCastle.Asn1.Cmp
          */
         public override Asn1Object ToAsn1Object()
         {
-            return m_infoValue == null
-                ?  new DerSequence(m_infoType)
-                :  new DerSequence(m_infoType, m_infoValue);
+            Asn1EncodableVector v = new Asn1EncodableVector(infoType);
+            v.AddOptional(infoValue);
+            return new DerSequence(v);
         }
     }
 }

@@ -29,16 +29,6 @@ namespace Org.BouncyCastle.Tls.Crypto
             }
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public override void Write(ReadOnlySpan<byte> buffer)
-        {
-            if (!buffer.IsEmpty)
-            {
-                m_mac.Update(buffer);
-            }
-        }
-#endif
-
         public override void WriteByte(byte value)
         {
             m_mac.Update(new byte[]{ value }, 0, 1);

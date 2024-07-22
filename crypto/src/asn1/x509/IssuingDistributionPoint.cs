@@ -1,6 +1,8 @@
 using System;
 using System.Text;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.X509
 {
 	/**
@@ -26,18 +28,27 @@ namespace Org.BouncyCastle.Asn1.X509
 
 		private readonly Asn1Sequence seq;
 
-		public static IssuingDistributionPoint GetInstance(Asn1TaggedObject	obj, bool explicitly)
+		public static IssuingDistributionPoint GetInstance(
+            Asn1TaggedObject	obj,
+            bool				explicitly)
         {
             return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
         }
 
-		public static IssuingDistributionPoint GetInstance(object obj)
+		public static IssuingDistributionPoint GetInstance(
+            object obj)
         {
-			if (obj == null)
-				return null;
-            if (obj is IssuingDistributionPoint issuingDistributionPoint)
-                return issuingDistributionPoint;
-            return new IssuingDistributionPoint(Asn1Sequence.GetInstance(obj));
+            if (obj == null || obj is IssuingDistributionPoint)
+            {
+                return (IssuingDistributionPoint) obj;
+            }
+
+			if (obj is Asn1Sequence)
+            {
+                return new IssuingDistributionPoint((Asn1Sequence) obj);
+            }
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
 		}
 
 		/**
@@ -70,7 +81,7 @@ namespace Org.BouncyCastle.Asn1.X509
 			this._onlyContainsUserCerts = onlyContainsUserCerts;
 			this._onlySomeReasons = onlySomeReasons;
 
-			Asn1EncodableVector vec = new Asn1EncodableVector(6);
+			Asn1EncodableVector vec = new Asn1EncodableVector();
 			if (distributionPoint != null)
 			{	// CHOICE item so explicitly tagged
 				vec.Add(new DerTaggedObject(true, 0, distributionPoint));
@@ -102,7 +113,8 @@ namespace Org.BouncyCastle.Asn1.X509
 		/**
          * Constructor from Asn1Sequence
          */
-        private IssuingDistributionPoint(Asn1Sequence seq)
+        private IssuingDistributionPoint(
+            Asn1Sequence seq)
         {
             this.seq = seq;
 
@@ -112,27 +124,27 @@ namespace Org.BouncyCastle.Asn1.X509
 
 				switch (o.TagNo)
                 {
-				case 0:
-					// CHOICE so explicit
-					_distributionPoint = DistributionPointName.GetInstance(o, true);
-					break;
-				case 1:
-					_onlyContainsUserCerts = DerBoolean.GetInstance(o, false).IsTrue;
-					break;
-				case 2:
-					_onlyContainsCACerts = DerBoolean.GetInstance(o, false).IsTrue;
-					break;
-				case 3:
-					_onlySomeReasons = new ReasonFlags(ReasonFlags.GetInstance(o, false));
-					break;
-				case 4:
-					_indirectCRL = DerBoolean.GetInstance(o, false).IsTrue;
-					break;
-				case 5:
-					_onlyContainsAttributeCerts = DerBoolean.GetInstance(o, false).IsTrue;
-					break;
-				default:
-					throw new ArgumentException("unknown tag in IssuingDistributionPoint");
+					case 0:
+						// CHOICE so explicit
+						_distributionPoint = DistributionPointName.GetInstance(o, true);
+						break;
+					case 1:
+						_onlyContainsUserCerts = DerBoolean.GetInstance(o, false).IsTrue;
+						break;
+					case 2:
+						_onlyContainsCACerts = DerBoolean.GetInstance(o, false).IsTrue;
+						break;
+					case 3:
+						_onlySomeReasons = new ReasonFlags(ReasonFlags.GetInstance(o, false));
+						break;
+					case 4:
+						_indirectCRL = DerBoolean.GetInstance(o, false).IsTrue;
+						break;
+					case 5:
+						_onlyContainsAttributeCerts = DerBoolean.GetInstance(o, false).IsTrue;
+						break;
+					default:
+						throw new ArgumentException("unknown tag in IssuingDistributionPoint");
                 }
             }
         }
@@ -180,46 +192,56 @@ namespace Org.BouncyCastle.Asn1.X509
 
 		public override string ToString()
 		{
+			string sep = Platform.NewLine;
 			StringBuilder buf = new StringBuilder();
-			buf.AppendLine("IssuingDistributionPoint: [");
+
+			buf.Append("IssuingDistributionPoint: [");
+			buf.Append(sep);
 			if (_distributionPoint != null)
 			{
-				AppendObject(buf, "distributionPoint", _distributionPoint.ToString());
+				appendObject(buf, sep, "distributionPoint", _distributionPoint.ToString());
 			}
 			if (_onlyContainsUserCerts)
 			{
-				AppendObject(buf, "onlyContainsUserCerts", _onlyContainsUserCerts.ToString());
+				appendObject(buf, sep, "onlyContainsUserCerts", _onlyContainsUserCerts.ToString());
 			}
 			if (_onlyContainsCACerts)
 			{
-				AppendObject(buf, "onlyContainsCACerts", _onlyContainsCACerts.ToString());
+				appendObject(buf, sep, "onlyContainsCACerts", _onlyContainsCACerts.ToString());
 			}
 			if (_onlySomeReasons != null)
 			{
-				AppendObject(buf, "onlySomeReasons", _onlySomeReasons.ToString());
+				appendObject(buf, sep, "onlySomeReasons", _onlySomeReasons.ToString());
 			}
 			if (_onlyContainsAttributeCerts)
 			{
-				AppendObject(buf, "onlyContainsAttributeCerts", _onlyContainsAttributeCerts.ToString());
+				appendObject(buf, sep, "onlyContainsAttributeCerts", _onlyContainsAttributeCerts.ToString());
 			}
 			if (_indirectCRL)
 			{
-				AppendObject(buf, "indirectCRL", _indirectCRL.ToString());
+				appendObject(buf, sep, "indirectCRL", _indirectCRL.ToString());
 			}
-			buf.AppendLine("]");
+			buf.Append("]");
+			buf.Append(sep);
 			return buf.ToString();
 		}
 
-		private void AppendObject(StringBuilder buf, string name, string val)
+		private void appendObject(
+			StringBuilder	buf,
+			string			sep,
+			string			name,
+			string			val)
 		{
 			string indent = "    ";
+
 			buf.Append(indent);
 			buf.Append(name);
-			buf.AppendLine(":");
+			buf.Append(":");
+			buf.Append(sep);
 			buf.Append(indent);
 			buf.Append(indent);
 			buf.Append(val);
-			buf.AppendLine();
+			buf.Append(sep);
 		}
 	}
 }

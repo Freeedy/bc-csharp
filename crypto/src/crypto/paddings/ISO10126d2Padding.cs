@@ -1,72 +1,76 @@
 using System;
-
+using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Security;
+
 
 namespace Org.BouncyCastle.Crypto.Paddings
 {
-    /// <summary>A padder that adds ISO10126-2 padding to a block.</summary>
-    public class ISO10126d2Padding
-        : IBlockCipherPadding
+
+    /**
+    * A padder that adds ISO10126-2 padding to a block.
+    */
+    public class ISO10126d2Padding: IBlockCipherPadding
     {
-        private SecureRandom m_random = null;
+        private SecureRandom random;
 
-        public void Init(SecureRandom random)
+        /**
+        * Initialise the padder.
+        *
+        * @param random a SecureRandom if available.
+        */
+        public void Init(
+			SecureRandom random)
+            //throws ArgumentException
         {
-            m_random = CryptoServicesRegistrar.GetSecureRandom(random);
+			this.random = (random != null) ? random : new SecureRandom();
         }
 
-        public string PaddingName => "ISO10126-2";
-
-        public int AddPadding(byte[] input, int inOff)
+		/**
+        * Return the name of the algorithm the cipher implements.
+        *
+        * @return the name of the algorithm the cipher implements.
+        */
+        public string PaddingName
         {
-            int count = input.Length - inOff;
-            if (count > 1)
+            get { return "ISO10126-2"; }
+        }
+
+		/**
+        * add the pad bytes to the passed in block, returning the
+        * number of bytes added.
+        */
+        public int AddPadding(
+            byte[]	input,
+            int		inOff)
+        {
+            byte code = (byte)(input.Length - inOff);
+
+            while (inOff < (input.Length - 1))
             {
-                m_random.NextBytes(input, inOff, count - 1);
+                input[inOff] = (byte)random.NextInt();
+                inOff++;
             }
-            input[input.Length - 1] = (byte)count;
 
-            return count;
+            input[inOff] = code;
+
+            return code;
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int AddPadding(Span<byte> block, int position)
-        {
-            int count = block.Length - position;
-            if (count > 1)
-            {
-                m_random.NextBytes(block[position..(block.Length - 1)]);
-            }
-            block[block.Length - 1] = (byte)count;
-
-            return count;
-        }
-#endif
-
+        /**
+        * return the number of pad bytes present in the block.
+        */
         public int PadCount(byte[] input)
+            //throws InvalidCipherTextException
         {
-            int count = input[input.Length - 1];
-            int position = input.Length - count;
+            int count = input[input.Length - 1] & 0xff;
 
-            int failed = (position | (count - 1)) >> 31;
-            if (failed != 0)
+            if (count > input.Length)
+            {
                 throw new InvalidCipherTextException("pad block corrupted");
+            }
 
             return count;
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public int PadCount(ReadOnlySpan<byte> block)
-        {
-            int count = block[block.Length - 1];
-            int position = block.Length - count;
-
-            int failed = (position | (count - 1)) >> 31;
-            if (failed != 0)
-                throw new InvalidCipherTextException("pad block corrupted");
-
-            return count;
-        }
-#endif
     }
+
 }

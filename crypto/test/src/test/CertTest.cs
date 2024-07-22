@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 using System.Text;
 
@@ -12,7 +12,6 @@ using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Asn1.X9;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Generators;
-using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Math.EC;
@@ -1136,14 +1135,14 @@ namespace Org.BouncyCastle.Tests
             //
             // distinguished name table.
             //
-            var ord = new List<DerObjectIdentifier>();
+            IList ord = new ArrayList();
             ord.Add(X509Name.C);
             ord.Add(X509Name.O);
             ord.Add(X509Name.L);
             ord.Add(X509Name.ST);
             ord.Add(X509Name.E);
 
-            var values = new List<string>();
+            IList values = new ArrayList();
             values.Add("AU");
             values.Add("The Legion of the Bouncy Castle");
             values.Add("Melbourne");
@@ -1165,14 +1164,15 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(ord, values));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm("SHA256WithRSAEncryption");
 
-            X509Certificate cert = certGen.Generate(new Asn1SignatureFactory("SHA256WithRSAEncryption", privKey, null));
+            X509Certificate cert = certGen.Generate(privKey);
 
             cert.CheckValidity(DateTime.UtcNow);
 
             cert.Verify(pubKey);
 
-            var dummySet = cert.GetNonCriticalExtensionOids();
+            ISet dummySet = cert.GetNonCriticalExtensionOids();
             if (dummySet != null)
             {
                 Fail("non-critical oid set should be null");
@@ -1194,6 +1194,7 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(ord, values));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm("MD5WithRSAEncryption");
             certGen.AddExtension("2.5.29.15", true,
                 new X509KeyUsage(X509KeyUsage.EncipherOnly));
             certGen.AddExtension("2.5.29.37", true,
@@ -1201,7 +1202,7 @@ namespace Org.BouncyCastle.Tests
             certGen.AddExtension("2.5.29.17", true,
                 new GeneralNames(new GeneralName(GeneralName.Rfc822Name, "test@test.test")));
 
-            cert = certGen.Generate(new Asn1SignatureFactory("MD5WithRSAEncryption", privKey, null));
+            cert = certGen.Generate(privKey);
 
             cert.CheckValidity(DateTime.UtcNow);
 
@@ -1214,25 +1215,15 @@ namespace Org.BouncyCastle.Tests
                 Fail("error generating cert - key usage wrong.");
             }
 
-            var ekus = cert.GetExtendedKeyUsage();
-            if (ekus.Count < 1 || !KeyPurposeID.AnyExtendedKeyUsage.Equals(ekus[0]))
+            IList l = cert.GetExtendedKeyUsage();
+            if (!l[0].Equals(KeyPurposeID.AnyExtendedKeyUsage.Id))
             {
                 Fail("failed extended key usage test");
             }
 
-            foreach (var gn in cert.GetSubjectAlternativeNameExtension().GetNames())
+            foreach (IList gn in cert.GetSubjectAlternativeNames())
             {
-                if (gn.TagNo != GeneralName.Rfc822Name ||
-                    !((IAsn1String)gn.Name).GetString().Equals("test@test.test"))
-                {
-                    Fail("failed subject alternative name extension test");
-                }
-            }
-
-            foreach (var gn in cert.GetSubjectAlternativeNames())
-            {
-                if (!gn[0].Equals(GeneralName.Rfc822Name) ||
-                    !gn[1].Equals("test@test.test"))
+                if (!gn[1].Equals("test@test.test"))
                 {
                     Fail("failed subject alternative names test");
                 }
@@ -1251,7 +1242,9 @@ namespace Org.BouncyCastle.Tests
             certGen1.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen1.SetSubjectDN(new X509Name(ord, values));
             certGen1.SetPublicKey(pubKey);
-            cert = certGen1.Generate(new Asn1SignatureFactory("MD5WithRSAEncryption", privKey, null));
+            certGen1.SetSignatureAlgorithm("MD5WithRSAEncryption");
+
+            cert = certGen1.Generate(privKey);
 
             cert.CheckValidity(DateTime.UtcNow);
 
@@ -1300,14 +1293,14 @@ namespace Org.BouncyCastle.Tests
             //
             // distinguished name table.
             //
-            var ord = new List<DerObjectIdentifier>();
+            IList ord = new ArrayList();
             ord.Add(X509Name.C);
             ord.Add(X509Name.O);
             ord.Add(X509Name.L);
             ord.Add(X509Name.ST);
             ord.Add(X509Name.E);
 
-            var values = new List<string>();
+            IList values = new ArrayList();
             values.Add("AU");
             values.Add("The Legion of the Bouncy Castle");
             values.Add("Melbourne");
@@ -1321,7 +1314,7 @@ namespace Org.BouncyCastle.Tests
             //
             // create the certificate - version 3
             //
-            X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
+            X509V3CertificateGenerator  certGen = new X509V3CertificateGenerator();
 
             certGen.SetSerialNumber(BigInteger.One);
             certGen.SetIssuerDN(new X509Name(ord, values));
@@ -1329,10 +1322,11 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(ord, values));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm("SHA1withDSA");
 
             try
             {
-                X509Certificate cert = certGen.Generate(new Asn1SignatureFactory("SHA1withDSA", privKey, null));
+                X509Certificate cert = certGen.Generate(privKey);
 
                 cert.CheckValidity(DateTime.UtcNow);
 
@@ -1358,10 +1352,11 @@ namespace Org.BouncyCastle.Tests
             certGen1.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen1.SetSubjectDN(new X509Name(ord, values));
             certGen1.SetPublicKey(pubKey);
+            certGen1.SetSignatureAlgorithm("SHA1withDSA");
 
             try
             {
-                X509Certificate cert = certGen1.Generate(new Asn1SignatureFactory("SHA1withDSA", privKey, null));
+                X509Certificate cert = certGen1.Generate(privKey);
 
                 cert.CheckValidity(DateTime.UtcNow);
 
@@ -1432,8 +1427,8 @@ namespace Org.BouncyCastle.Tests
             //
             // distinguished name table.
             //
-            var attrs = new Dictionary<DerObjectIdentifier, string>();
-            var order = new List<DerObjectIdentifier>();
+            IDictionary attrs = new Hashtable();
+            IList order = new ArrayList();
 
             attrs.Add(X509Name.C, "AU");
             attrs.Add(X509Name.O, "The Legion of the Bouncy Castle");
@@ -1470,10 +1465,11 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(order, attrs));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm("SHA1withECDSA");
 
             try
             {
-                X509Certificate cert = certGen.Generate(new Asn1SignatureFactory("SHA1withECDSA", privKey, null));
+                X509Certificate cert = certGen.Generate(privKey);
 
                 cert.CheckValidity(DateTime.UtcNow);
 
@@ -1494,7 +1490,7 @@ namespace Org.BouncyCastle.Tests
 
                 certGen.SetPublicKey(pubKey);
 
-                cert = certGen.Generate(new Asn1SignatureFactory("SHA1withECDSA", privKey, null));
+                cert = certGen.Generate(privKey);
 
                 cert.CheckValidity(DateTime.UtcNow);
 
@@ -1561,8 +1557,8 @@ namespace Org.BouncyCastle.Tests
             //
             // distinguished name table.
             //
-            var attrs = new Dictionary<DerObjectIdentifier, string>();
-            var order = new List<DerObjectIdentifier>();
+            IDictionary attrs = new Hashtable();
+            IList order = new ArrayList();
 
             attrs.Add(X509Name.C, "AU");
             attrs.Add(X509Name.O, "The Legion of the Bouncy Castle");
@@ -1587,8 +1583,10 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(order, attrs));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm(algorithm);
 
-            X509Certificate cert = certGen.Generate(new Asn1SignatureFactory(algorithm, privKey, null));
+
+            X509Certificate cert = certGen.Generate(privKey);
 
             cert.CheckValidity(DateTime.UtcNow);
 
@@ -1609,7 +1607,7 @@ namespace Org.BouncyCastle.Tests
 
             certGen.SetPublicKey(pubKey);
 
-            cert = certGen.Generate(new Asn1SignatureFactory(algorithm, privKey, null));
+            cert = certGen.Generate(privKey);
 
             cert.CheckValidity(DateTime.UtcNow);
 
@@ -1675,13 +1673,14 @@ namespace Org.BouncyCastle.Tests
 
             crlGen.SetThisUpdate(now);
             crlGen.SetNextUpdate(now.AddSeconds(100));
+            crlGen.SetSignatureAlgorithm("SHA256WithRSAEncryption");
 
             crlGen.AddCrlEntry(BigInteger.One, now, CrlReason.PrivilegeWithdrawn);
 
             crlGen.AddExtension(X509Extensions.AuthorityKeyIdentifier, false,
                 new AuthorityKeyIdentifierStructure(pair.Public));
 
-            X509Crl crl = crlGen.Generate(new Asn1SignatureFactory("SHA256WithRSAEncryption", pair.Private, null));
+            X509Crl crl = crlGen.Generate(pair.Private);
 
             if (!crl.IssuerDN.Equivalent(new X509Name("CN=Test CA"), true))
             {
@@ -1746,9 +1745,10 @@ namespace Org.BouncyCastle.Tests
 
             crlGen.SetThisUpdate(now);
             crlGen.SetNextUpdate(now.AddSeconds(100));
+            crlGen.SetSignatureAlgorithm("SHA256WithRSAEncryption");
 
-            var extOids = new List<DerObjectIdentifier>();
-            var extValues = new List<X509Extension>();
+            IList extOids = new ArrayList();
+            IList extValues = new ArrayList();
 
             CrlReason crlReason = new CrlReason(CrlReason.PrivilegeWithdrawn);
 
@@ -1768,7 +1768,7 @@ namespace Org.BouncyCastle.Tests
 
             crlGen.AddExtension(X509Extensions.AuthorityKeyIdentifier, false, new AuthorityKeyIdentifierStructure(pair.Public));
 
-            X509Crl crl = crlGen.Generate(new Asn1SignatureFactory("SHA256WithRSAEncryption", pair.Private, null));
+            X509Crl crl = crlGen.Generate(pair.Private);
 
             if (!crl.IssuerDN.Equivalent(new X509Name("CN=Test CA"), true))
             {
@@ -1833,9 +1833,10 @@ namespace Org.BouncyCastle.Tests
 
             crlGen.SetThisUpdate(now);
             crlGen.SetNextUpdate(now.AddSeconds(100));
+            crlGen.SetSignatureAlgorithm("SHA256WithRSAEncryption");
 
-            var extOids = new List<DerObjectIdentifier>();
-            var extValues = new List<X509Extension>();
+            IList extOids = new ArrayList();
+            IList extValues = new ArrayList();
 
             CrlReason crlReason = new CrlReason(CrlReason.PrivilegeWithdrawn);
 
@@ -1855,7 +1856,7 @@ namespace Org.BouncyCastle.Tests
 
             crlGen.AddExtension(X509Extensions.AuthorityKeyIdentifier, false, new AuthorityKeyIdentifierStructure(pair.Public));
 
-            X509Crl crl = crlGen.Generate(new Asn1SignatureFactory("SHA256WithRSAEncryption", pair.Private, null));
+            X509Crl crl = crlGen.Generate(pair.Private);
 
             if (!crl.IssuerDN.Equivalent(new X509Name("CN=Test CA"), true))
             {
@@ -1914,6 +1915,7 @@ namespace Org.BouncyCastle.Tests
 
             crlGen.SetThisUpdate(now);
             crlGen.SetNextUpdate(now.AddSeconds(100));
+            crlGen.SetSignatureAlgorithm("SHA256WithRSAEncryption");
 
             crlGen.AddCrl(crl);
 
@@ -1921,7 +1923,7 @@ namespace Org.BouncyCastle.Tests
 
             crlGen.AddExtension(X509Extensions.AuthorityKeyIdentifier, false, new AuthorityKeyIdentifierStructure(pair.Public));
 
-            X509Crl newCrl = crlGen.Generate(new Asn1SignatureFactory("SHA256WithRSAEncryption", pair.Private, null));
+            X509Crl newCrl = crlGen.Generate(pair.Private);
 
             int count = 0;
             bool oneFound = false;
@@ -1976,7 +1978,9 @@ namespace Org.BouncyCastle.Tests
                 Fail("crl not returned!");
             }
 
-            var col = new X509CrlParser().ReadCrls(newCrl.GetEncoded());
+//			ICollection col = cFact.generateCRLs(new ByteArrayInputStream(newCrl.getEncoded()));
+            ICollection col = new X509CrlParser().ReadCrls(newCrl.GetEncoded());
+
             if (col.Count != 1)
             {
                 Fail("wrong number of CRLs found in collection");
@@ -2010,14 +2014,14 @@ namespace Org.BouncyCastle.Tests
             //
             // distinguished name table.
             //
-            var attrs = new Dictionary<DerObjectIdentifier, string>();
+            IDictionary attrs = new Hashtable();
             attrs.Add(X509Name.C, "AU");
             attrs.Add(X509Name.O, "The Legion of the Bouncy Castle");
             attrs.Add(X509Name.L, "Melbourne");
             attrs.Add(X509Name.ST, "Victoria");
             attrs.Add(X509Name.E, "feedback-crypto@bouncycastle.org");
 
-            var order = new List<DerObjectIdentifier>();
+            IList order = new ArrayList();
             order.Add(X509Name.C);
             order.Add(X509Name.O);
             order.Add(X509Name.L);
@@ -2039,8 +2043,9 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(order, attrs));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm("GOST3411withGOST3410");
 
-            X509Certificate cert = certGen.Generate(new Asn1SignatureFactory("GOST3411withGOST3410", privKey, null));
+            X509Certificate cert = certGen.Generate(privKey);
 
             cert.CheckValidity(DateTime.UtcNow);
 
@@ -2097,14 +2102,14 @@ namespace Org.BouncyCastle.Tests
             //
             // distinguished name table.
             //
-            var ord = new List<DerObjectIdentifier>();
+            IList ord = new ArrayList();
             ord.Add(X509Name.C);
             ord.Add(X509Name.O);
             ord.Add(X509Name.L);
             ord.Add(X509Name.ST);
             ord.Add(X509Name.E);
 
-            var values = new List<string>();
+            IList values = new ArrayList();
             values.Add("AU");
             values.Add("The Legion of the Bouncy Castle");
             values.Add("Melbourne");
@@ -2122,6 +2127,7 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(ord, values));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm("MD5WithRSAEncryption");
             certGen.AddExtension("2.5.29.15", true,
                 new X509KeyUsage(X509KeyUsage.EncipherOnly));
             certGen.AddExtension("2.5.29.37", true,
@@ -2129,8 +2135,7 @@ namespace Org.BouncyCastle.Tests
             certGen.AddExtension("2.5.29.17", true,
                 new GeneralNames(new GeneralName(GeneralName.Rfc822Name, "test@test.test")));
 
-            X509Certificate baseCert = certGen.Generate(
-                new Asn1SignatureFactory("MD5WithRSAEncryption", privKey, null));
+            X509Certificate baseCert = certGen.Generate(privKey);
 
             //
             // copy certificate
@@ -2143,11 +2148,12 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(ord, values));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm("MD5WithRSAEncryption");
 
             certGen.CopyAndAddExtension(new DerObjectIdentifier("2.5.29.15"), true, baseCert);
             certGen.CopyAndAddExtension("2.5.29.37", false, baseCert);
 
-            X509Certificate cert = certGen.Generate(new Asn1SignatureFactory("MD5WithRSAEncryption", privKey, null));
+            X509Certificate cert = certGen.Generate(privKey);
 
             cert.CheckValidity(DateTime.UtcNow);
 
@@ -2183,7 +2189,7 @@ namespace Org.BouncyCastle.Tests
             {
                 certGen.SetPublicKey(dudPublicKey);
 
-                certGen.Generate(new Asn1SignatureFactory("MD5WithRSAEncryption", privKey, null));
+                certGen.Generate(privKey);
 
                 Fail("key without encoding not detected in v3");
             }
@@ -2237,13 +2243,15 @@ namespace Org.BouncyCastle.Tests
             {
                 Fail("PEM crl not read");
             }
-            var certList = new X509CertificateParser().ReadCertificates(Encoding.ASCII.GetBytes(PemData.CERTIFICATE_2));
-            if (certList.Count != 1 || !certList.Contains(cert))
+            ArrayList col = new ArrayList(
+                new X509CertificateParser().ReadCertificates(Encoding.ASCII.GetBytes(PemData.CERTIFICATE_2)));
+            if (col.Count != 1 || !col.Contains(cert))
             {
                 Fail("PEM cert collection not right");
             }
-            var crlList = new X509CrlParser().ReadCrls(Encoding.ASCII.GetBytes(PemData.CRL_2));
-            if (crlList.Count != 1 || !crlList.Contains(crl))
+            col = new ArrayList(
+                new X509CrlParser().ReadCrls(Encoding.ASCII.GetBytes(PemData.CRL_2)));
+            if (col.Count != 1 || !col.Contains(crl))
             {
                 Fail("PEM crl collection not right");
             }
@@ -2284,13 +2292,13 @@ namespace Org.BouncyCastle.Tests
             {
                 Fail("PKCS7 crl not read");
             }
-            var certList = certParser.ReadCertificates(info.GetEncoded());
-            if (certList.Count != 1 || !certList.Contains(cert))
+            ArrayList col = new ArrayList(certParser.ReadCertificates(info.GetEncoded()));
+            if (col.Count != 1 || !col.Contains(cert))
             {
                 Fail("PKCS7 cert collection not right");
             }
-            var crlList = crlParser.ReadCrls(info.GetEncoded());
-            if (crlList.Count != 1 || !crlList.Contains(crl))
+            col = new ArrayList(crlParser.ReadCrls(info.GetEncoded()));
+            if (col.Count != 1 || !col.Contains(crl))
             {
                 Fail("PKCS7 crl collection not right");
             }
@@ -2332,8 +2340,8 @@ namespace Org.BouncyCastle.Tests
             //
             // sample message
             //
-            var certCol = certParser.ReadCertificates(pkcs7CrlProblem);
-            var crlCol = crlParser.ReadCrls(pkcs7CrlProblem);
+            ICollection certCol = certParser.ReadCertificates(pkcs7CrlProblem);
+            ICollection crlCol = crlParser.ReadCrls(pkcs7CrlProblem);
 
             if (crlCol.Count != 0)
             {
@@ -2357,14 +2365,14 @@ namespace Org.BouncyCastle.Tests
             //
             // distinguished name table.
             //
-            var ord = new List<DerObjectIdentifier>();
+            IList ord = new ArrayList();
             ord.Add(X509Name.C);
             ord.Add(X509Name.O);
             ord.Add(X509Name.L);
             ord.Add(X509Name.ST);
             ord.Add(X509Name.E);
 
-            var values = new List<string>();
+            IList values = new ArrayList();
             values.Add("AU");
             values.Add("The Legion of the Bouncy Castle");
             values.Add("Melbourne");
@@ -2382,6 +2390,7 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name(ord, values));
             certGen.SetPublicKey(pubKey);
+            certGen.SetSignatureAlgorithm(algorithm);
             certGen.AddExtension("2.5.29.15", true,
             new X509KeyUsage(X509KeyUsage.EncipherOnly));
             certGen.AddExtension("2.5.29.37", true,
@@ -2389,7 +2398,7 @@ namespace Org.BouncyCastle.Tests
             certGen.AddExtension("2.5.29.17", true,
             new GeneralNames(new GeneralName(GeneralName.Rfc822Name, "test@test.test")));
 
-            X509Certificate baseCert = certGen.Generate(new Asn1SignatureFactory(algorithm, privKey, null));
+            X509Certificate baseCert = certGen.Generate(privKey);
 
             baseCert.Verify(pubKey);
         }
@@ -2448,7 +2457,8 @@ namespace Org.BouncyCastle.Tests
             certGen.SetNotAfter(DateTime.UtcNow.AddSeconds(50));
             certGen.SetSubjectDN(new X509Name("CN=Test"));
             certGen.SetPublicKey(pubKey);
-            X509Certificate cert = certGen.Generate(new Asn1SignatureFactory("MD5WithRSAEncryption", privKey, null));
+            certGen.SetSignatureAlgorithm("MD5WithRSAEncryption");
+            X509Certificate cert = certGen.Generate(privKey);
 
             X509CertificateStructure certStruct = X509CertificateStructure.GetInstance(
                 Asn1Object.FromByteArray(cert.GetEncoded()));
@@ -2479,12 +2489,12 @@ namespace Org.BouncyCastle.Tests
         {
             X509CertificateParser fact = new X509CertificateParser();
 
-            var certs1 = fact.ReadCertificates(GetTestDataAsStream("cert_chain.data"));
+            ICollection certs1 = fact.ReadCertificates(GetTestDataAsStream("cert_chain.data"));
             IsTrue("certs wrong <cr><nl>", 2 == certs1.Count);
 
             MemoryStream input = new MemoryStream(Streams.ReadAll(GetTestDataAsStream("cert_chain.data")), false);
 
-            var certs2 = new HashSet<X509Certificate>();
+            ISet certs2 = new HashSet();
             while (input.Position < input.Length)
             {
                 X509Certificate c = fact.ReadCertificate(input);
@@ -2498,7 +2508,7 @@ namespace Org.BouncyCastle.Tests
             }
             IsTrue("certs size <cr><nl>", certs1.Count == certs2.Count);
 
-            certs2.ExceptWith(certs1);
+            certs2.RemoveAll(certs1);
             IsTrue("collection not empty", certs2.Count == 0);
         }
 
@@ -2506,10 +2516,10 @@ namespace Org.BouncyCastle.Tests
         {
             X509CrlParser crlParser = new X509CrlParser();
 
-            var crls = crlParser.ReadCrls(GetTestDataAsStream("cert_chain.data"));
+            ICollection crls = crlParser.ReadCrls(GetTestDataAsStream("cert_chain.data"));
             IsTrue("multi crl", crls.Count == 0);
 
-            var crl = crlParser.ReadCrl(GetTestDataAsStream("cert_chain.data"));
+            X509Crl crl = crlParser.ReadCrl(GetTestDataAsStream("cert_chain.data"));
             IsTrue("single crl", crl == null);
         }
 
@@ -2517,12 +2527,12 @@ namespace Org.BouncyCastle.Tests
         {
             X509CertificateParser fact = new X509CertificateParser();
 
-            var certs1 = fact.ReadCertificates(GetTestDataAsStream("cert_chain_nl.data"));
+            ICollection certs1 = fact.ReadCertificates(GetTestDataAsStream("cert_chain_nl.data"));
             IsTrue("certs wrong <nl>", 2 == certs1.Count);
 
             MemoryStream input = new MemoryStream(Streams.ReadAll(GetTestDataAsStream("cert_chain_nl.data")), false);
 
-            var certs2 = new HashSet<X509Certificate>();
+            ISet certs2 = new HashSet();
             while (input.Position < input.Length)
             {
                 X509Certificate c = fact.ReadCertificate(input);
@@ -2536,7 +2546,7 @@ namespace Org.BouncyCastle.Tests
             }
             IsTrue("certs size <nl>", certs1.Count == certs2.Count);
 
-            certs2.ExceptWith(certs1);
+            certs2.RemoveAll(certs1);
             IsTrue("collection not empty", certs2.Count == 0);
         }
 
@@ -2601,6 +2611,12 @@ namespace Org.BouncyCastle.Tests
             doTestNullDerNullCert();
 
             checkCertificate(18, emptyDNCert);
+        }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new CertTest());
         }
 
         [Test]

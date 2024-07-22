@@ -1,6 +1,8 @@
+#if !LIB
 using System;
 using System.IO;
 
+using NUnit.Core;
 using NUnit.Framework;
 
 using Org.BouncyCastle.Utilities;
@@ -415,5 +417,22 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Examples.Tests
 			outStr.SetLength(0);
 			return bRd.ReadLine();
 		}
+
+        public static void Main(string[] args)
+        {
+            Suite.Run(new NullListener(), NUnit.Core.TestFilter.Empty);
+        }
+
+        [Suite]
+        public static TestSuite Suite
+        {
+            get
+            {
+                TestSuite suite = new TestSuite("OpenPGP Example Tests");
+                suite.Add(new AllTests());
+                return suite;
+            }
+        }
 	}
 }
+#endif

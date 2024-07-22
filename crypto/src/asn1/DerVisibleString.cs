@@ -28,24 +28,24 @@ namespace Org.BouncyCastle.Asn1
          *
          * @exception ArgumentException if the object cannot be converted.
          */
-        public static DerVisibleString GetInstance(object obj)
+        public static DerVisibleString GetInstance(
+            object obj)
         {
-            if (obj == null)
-                return null;
-
-            if (obj is DerVisibleString derVisibleString)
-                return derVisibleString;
-
-            if (obj is IAsn1Convertible asn1Convertible)
+            if (obj == null || obj is DerVisibleString)
             {
-                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is DerVisibleString converted)
-                    return converted;
+                return (DerVisibleString)obj;
             }
-            else if (obj is byte[] bytes)
+            else if (obj is IAsn1Convertible)
+            {
+                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
+                if (asn1Object is DerVisibleString)
+                    return (DerVisibleString)asn1Object;
+            }
+            else if (obj is byte[])
             {
                 try
                 {
-                    return (DerVisibleString)Meta.Instance.FromByteArray(bytes);
+                    return (DerVisibleString)Meta.Instance.FromByteArray((byte[])obj);
                 }
                 catch (IOException e)
                 {
@@ -66,22 +66,6 @@ namespace Org.BouncyCastle.Asn1
         public static DerVisibleString GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
         {
             return (DerVisibleString)Meta.Instance.GetContextInstance(taggedObject, declaredExplicit);
-        }
-
-        public static DerVisibleString GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is DerVisibleString existing)
-                return existing;
-
-            return null;
-        }
-
-        public static DerVisibleString GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return (DerVisibleString)Meta.Instance.GetTagged(taggedObject, declaredExplicit);
         }
 
         private readonly byte[] m_contents;
@@ -125,16 +109,6 @@ namespace Org.BouncyCastle.Asn1
         internal override IAsn1Encoding GetEncodingImplicit(int encoding, int tagClass, int tagNo)
         {
             return new PrimitiveEncoding(tagClass, tagNo, m_contents);
-        }
-
-        internal sealed override DerEncoding GetEncodingDer()
-        {
-            return new PrimitiveDerEncoding(Asn1Tags.Universal, Asn1Tags.VisibleString, m_contents);
-        }
-
-        internal sealed override DerEncoding GetEncodingDerImplicit(int tagClass, int tagNo)
-        {
-            return new PrimitiveDerEncoding(tagClass, tagNo, m_contents);
         }
 
         protected override bool Asn1Equals(Asn1Object asn1Object)

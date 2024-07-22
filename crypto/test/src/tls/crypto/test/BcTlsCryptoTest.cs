@@ -1,10 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using NUnit.Framework;
 
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 using Org.BouncyCastle.Tls.Tests;
 using Org.BouncyCastle.Utilities;
@@ -68,7 +69,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Tests
             + "c1 fc eb e1 1a 03 9e c1 76 94 fa c6 e9 85 27 b6 42 f2 ed d5 ce"
             + "61");
 
-        private readonly TlsCrypto m_crypto = new BcTlsCrypto();
+        private readonly TlsCrypto m_crypto = new BcTlsCrypto(new SecureRandom());
 
         protected TlsCredentialedSigner LoadCredentialedSigner(TlsCryptoParameters cryptoParams, string resource,
             SignatureAndHashAlgorithm signatureAndHashAlgorithm)
@@ -119,7 +120,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Tests
             case SignatureAlgorithm.rsa_pss_rsae_sha512:
                 return LoadCredentialedSigner(cryptoParams, "rsa-sign", signatureAndHashAlgorithm);
 
-            // TODO[RFC 9189] Add test resources for these
+            // TODO[draft-smyshlyaev-tls12-gost-suites-10] Add test resources for these
             case SignatureAlgorithm.gostr34102012_256:
             case SignatureAlgorithm.gostr34102012_512:
 
@@ -180,7 +181,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Tests
                 ImplTestDHDomain(new TlsDHConfig(namedGroup, true));
             }
 
-            var groups = new TestTlsDHGroupVerifier().Groups;
+            IList groups = new TestTlsDHGroupVerifier().Groups;
             foreach (DHGroup dhGroup in groups)
             {
                 BigInteger p = dhGroup.P, g = dhGroup.G;
@@ -402,7 +403,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Tests
         {
             int[] hashes = new int[] { CryptoHashAlgorithm.md5, CryptoHashAlgorithm.sha1, CryptoHashAlgorithm.sha224,
                 CryptoHashAlgorithm.sha256, CryptoHashAlgorithm.sha384, CryptoHashAlgorithm.sha512,
-                CryptoHashAlgorithm.sm3, CryptoHashAlgorithm.gostr3411_2012_256 };
+                CryptoHashAlgorithm.sm3 };
 
             for (int i = 0; i < hashes.Length; ++i)
             {
@@ -781,7 +782,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Tests
         private class TestTlsDHGroupVerifier
             : DefaultTlsDHGroupVerifier
         {
-            internal IList<DHGroup> Groups
+            internal IList Groups
             {
                 get { return m_groups; }
             }

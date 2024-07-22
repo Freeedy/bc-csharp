@@ -1,25 +1,10 @@
 using System;
-using System.Text;
 
 namespace Org.BouncyCastle.Asn1.X509
 {
     public class PolicyInformation
         : Asn1Encodable
     {
-        public static PolicyInformation GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is PolicyInformation policyInformation)
-                return policyInformation;
-            return new PolicyInformation(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static PolicyInformation GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new PolicyInformation(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
         private readonly DerObjectIdentifier	policyIdentifier;
         private readonly Asn1Sequence			policyQualifiers;
 
@@ -53,6 +38,17 @@ namespace Org.BouncyCastle.Asn1.X509
             this.policyQualifiers = policyQualifiers;
         }
 
+		public static PolicyInformation GetInstance(
+            object obj)
+        {
+            if (obj == null || obj is PolicyInformation)
+            {
+                return (PolicyInformation) obj;
+            }
+
+			return new PolicyInformation(Asn1Sequence.GetInstance(obj));
+        }
+
 		public DerObjectIdentifier PolicyIdentifier
 		{
 			get { return policyIdentifier; }
@@ -74,33 +70,6 @@ namespace Org.BouncyCastle.Asn1.X509
             Asn1EncodableVector v = new Asn1EncodableVector(policyIdentifier);
             v.AddOptional(policyQualifiers);
             return new DerSequence(v);
-        }
-
-        public override string ToString()
-        {
-            StringBuilder sb = new StringBuilder();
-
-            sb.Append("Policy information: ");
-            sb.Append(policyIdentifier);
-
-            if (policyQualifiers != null)
-            {
-                StringBuilder p = new StringBuilder();
-                for (int i = 0; i < policyQualifiers.Count; i++)
-                {
-                    if (p.Length != 0)
-                    {
-                        p.Append(", ");
-                    }
-                    p.Append(PolicyQualifierInfo.GetInstance(policyQualifiers[i]));
-                }
-
-                sb.Append("[");
-                sb.Append(p);
-                sb.Append("]");
-            }
-
-            return sb.ToString();
         }
     }
 }

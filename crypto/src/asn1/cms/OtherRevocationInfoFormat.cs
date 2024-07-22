@@ -5,42 +5,61 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class OtherRevocationInfoFormat
         : Asn1Encodable
     {
-        public static OtherRevocationInfoFormat GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is OtherRevocationInfoFormat otherRevocationInfoFormat)
-                return otherRevocationInfoFormat;
-            return new OtherRevocationInfoFormat(Asn1Sequence.GetInstance(obj));
-        }
+        private readonly DerObjectIdentifier otherRevInfoFormat;
+        private readonly Asn1Encodable otherRevInfo;
 
-        public static OtherRevocationInfoFormat GetInstance(Asn1TaggedObject obj, bool isExplicit)
+        public OtherRevocationInfoFormat(
+            DerObjectIdentifier otherRevInfoFormat,
+            Asn1Encodable otherRevInfo)
         {
-            return new OtherRevocationInfoFormat(Asn1Sequence.GetInstance(obj, isExplicit));
-        }
-
-        private readonly DerObjectIdentifier m_otherRevInfoFormat;
-        private readonly Asn1Encodable m_otherRevInfo;
-
-        public OtherRevocationInfoFormat(DerObjectIdentifier otherRevInfoFormat, Asn1Encodable otherRevInfo)
-        {
-            m_otherRevInfoFormat = otherRevInfoFormat ?? throw new ArgumentNullException(nameof(otherRevInfoFormat));
-            m_otherRevInfo = otherRevInfo ?? throw new ArgumentNullException(nameof(otherRevInfo));
+            this.otherRevInfoFormat = otherRevInfoFormat;
+            this.otherRevInfo = otherRevInfo;
         }
 
         private OtherRevocationInfoFormat(Asn1Sequence seq)
         {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_otherRevInfoFormat = DerObjectIdentifier.GetInstance(seq[0]);
-            m_otherRevInfo = seq[1];
+            otherRevInfoFormat = DerObjectIdentifier.GetInstance(seq[0]);
+            otherRevInfo = seq[1];
         }
 
-        public virtual DerObjectIdentifier InfoFormat => m_otherRevInfoFormat;
+        /**
+         * return a OtherRevocationInfoFormat object from a tagged object.
+         *
+         * @param obj the tagged object holding the object we want.
+         * @param explicit true if the object is meant to be explicitly
+         *              tagged false otherwise.
+         * @exception IllegalArgumentException if the object held by the
+         *          tagged object cannot be converted.
+         */
+        public static OtherRevocationInfoFormat GetInstance(Asn1TaggedObject obj, bool isExplicit)
+        {
+            return GetInstance(Asn1Sequence.GetInstance(obj, isExplicit));
+        }
 
-        public virtual Asn1Encodable Info => m_otherRevInfo;
+        /**
+         * return a OtherRevocationInfoFormat object from the given object.
+         *
+         * @param obj the object we want converted.
+         * @exception IllegalArgumentException if the object cannot be converted.
+         */
+        public static OtherRevocationInfoFormat GetInstance(object obj)
+        {
+            if (obj is OtherRevocationInfoFormat)
+                return (OtherRevocationInfoFormat)obj;
+            if (obj != null)
+                return new OtherRevocationInfoFormat(Asn1Sequence.GetInstance(obj));
+            return null;
+        }
+
+        public virtual DerObjectIdentifier InfoFormat
+        {
+            get { return otherRevInfoFormat; }
+        }
+
+        public virtual Asn1Encodable Info
+        {
+            get { return otherRevInfo; }
+        }
 
         /** 
          * Produce an object suitable for an ASN1OutputStream.
@@ -50,6 +69,9 @@ namespace Org.BouncyCastle.Asn1.Cms
          *      otherRevInfo ANY DEFINED BY otherRevInfoFormat }
          * </pre>
          */
-        public override Asn1Object ToAsn1Object() => new DerSequence(m_otherRevInfoFormat, m_otherRevInfo);
+        public override Asn1Object ToAsn1Object()
+        {
+            return new DerSequence(otherRevInfoFormat, otherRevInfo);
+        }
     }
 }

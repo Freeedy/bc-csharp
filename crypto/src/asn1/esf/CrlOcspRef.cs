@@ -1,5 +1,7 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Esf
 {
 	/// <remarks>
@@ -15,60 +17,97 @@ namespace Org.BouncyCastle.Asn1.Esf
 	public class CrlOcspRef
 		: Asn1Encodable
 	{
-        public static CrlOcspRef GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is CrlOcspRef crlOcspRef)
-                return crlOcspRef;
-            return new CrlOcspRef(Asn1Sequence.GetInstance(obj));
-        }
+		private readonly CrlListID		crlids;
+		private readonly OcspListID		ocspids;
+		private readonly OtherRevRefs	otherRev;
 
-        public static CrlOcspRef GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new CrlOcspRef(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly CrlListID m_crlids;
-        private readonly OcspListID m_ocspids;
-        private readonly OtherRevRefs m_otherRev;
-
-        private CrlOcspRef(Asn1Sequence seq)
+		public static CrlOcspRef GetInstance(
+			object obj)
 		{
-            int count = seq.Count;
-            if (count < 0 || count > 3)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (obj == null || obj is CrlOcspRef)
+				return (CrlOcspRef) obj;
 
-            int pos = 0;
+			if (obj is Asn1Sequence)
+				return new CrlOcspRef((Asn1Sequence) obj);
 
-			m_crlids = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, CrlListID.GetTagged);
-            m_ocspids = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, OcspListID.GetTagged);
-            m_otherRev = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 2, true, OtherRevRefs.GetTagged);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			throw new ArgumentException(
+				"Unknown object in 'CrlOcspRef' factory: "
+                    + Platform.GetTypeName(obj),
+				"obj");
 		}
 
-        public CrlOcspRef(CrlListID crlids, OcspListID ocspids, OtherRevRefs otherRev)
-        {
-            m_crlids = crlids;
-			m_ocspids = ocspids;
-			m_otherRev = otherRev;
+		private CrlOcspRef(
+			Asn1Sequence seq)
+		{
+			if (seq == null)
+				throw new ArgumentNullException("seq");
+
+			foreach (Asn1TaggedObject taggedObj in seq)
+			{
+				Asn1Object asn1Obj = taggedObj.GetObject();
+
+				switch (taggedObj.TagNo)
+				{
+					case 0:
+						this.crlids = CrlListID.GetInstance(asn1Obj);
+						break;
+					case 1:
+						this.ocspids = OcspListID.GetInstance(asn1Obj);
+						break;
+					case 2:
+						this.otherRev = OtherRevRefs.GetInstance(asn1Obj);
+						break;
+					default:
+						throw new ArgumentException("Illegal tag in CrlOcspRef", "seq");
+				}
+			}
 		}
 
-		public CrlListID CrlIDs => m_crlids;
+		public CrlOcspRef(
+			CrlListID		crlids,
+			OcspListID		ocspids,
+			OtherRevRefs	otherRev)
+		{
+			this.crlids = crlids;
+			this.ocspids = ocspids;
+			this.otherRev = otherRev;
+		}
 
-		public OcspListID OcspIDs => m_ocspids;
+		public CrlListID CrlIDs
+		{
+			get { return crlids; }
+		}
 
-		public OtherRevRefs OtherRev => m_otherRev;
+		public OcspListID OcspIDs
+		{
+			get { return ocspids; }
+		}
+
+		public OtherRevRefs OtherRev
+		{
+			get { return otherRev; }
+		}
 
 		public override Asn1Object ToAsn1Object()
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(3);
-			v.AddOptionalTagged(true, 0, m_crlids);
-            v.AddOptionalTagged(true, 1, m_ocspids);
-            v.AddOptionalTagged(true, 2, m_otherRev);
-			return DerSequence.FromVector(v);
+			Asn1EncodableVector v = new Asn1EncodableVector();
+
+			if (crlids != null)
+			{
+				v.Add(new DerTaggedObject(true, 0, crlids.ToAsn1Object()));
+			}
+
+			if (ocspids != null)
+			{
+				v.Add(new DerTaggedObject(true, 1, ocspids.ToAsn1Object()));
+			}
+
+			if (otherRev != null)
+			{
+				v.Add(new DerTaggedObject(true, 2, otherRev.ToAsn1Object()));
+			}
+
+			return new DerSequence(v);
 		}
 	}
 }

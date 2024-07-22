@@ -21,9 +21,9 @@ namespace Org.BouncyCastle.Tls.Tests
 
             MockDatagramAssociation network = new MockDatagramAssociation(1500);
 
-            ServerTask serverTask = new ServerTask(serverProtocol, network.Server);
+            Server server = new Server(serverProtocol, network.Server);
 
-            Thread serverThread = new Thread(new ThreadStart(serverTask.Run));
+            Thread serverThread = new Thread(new ThreadStart(server.Run));
             serverThread.Start();
 
             DatagramTransport clientTransport = network.Client;
@@ -50,16 +50,16 @@ namespace Org.BouncyCastle.Tls.Tests
 
             dtlsClient.Close();
 
-            serverTask.Shutdown(serverThread);
+            server.Shutdown(serverThread);
         }
 
-        internal class ServerTask
+        internal class Server
         {
             private readonly DtlsServerProtocol m_serverProtocol;
             private readonly DatagramTransport m_serverTransport;
             private volatile bool m_isShutdown = false;
 
-            internal ServerTask(DtlsServerProtocol serverProtocol, DatagramTransport serverTransport)
+            internal Server(DtlsServerProtocol serverProtocol, DatagramTransport serverTransport)
             {
                 this.m_serverProtocol = serverProtocol;
                 this.m_serverTransport = serverTransport;
@@ -74,7 +74,7 @@ namespace Org.BouncyCastle.Tls.Tests
                     byte[] buf = new byte[dtlsServer.GetReceiveLimit()];
                     while (!m_isShutdown)
                     {
-                        int length = dtlsServer.Receive(buf, 0, buf.Length, 100);
+                        int length = dtlsServer.Receive(buf, 0, buf.Length, 1000);
                         if (length >= 0)
                         {
                             dtlsServer.Send(buf, 0, length);

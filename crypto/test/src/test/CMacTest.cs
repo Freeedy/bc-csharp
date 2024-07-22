@@ -260,6 +260,11 @@ namespace Org.BouncyCastle.Tests
 			get { return "CMac"; }
 		}
 
+		public static void Main(string[] args)
+		{
+			RunTest(new CMacTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{

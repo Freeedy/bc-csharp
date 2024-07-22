@@ -5,34 +5,30 @@ namespace Org.BouncyCastle.Asn1.Cms
     public class ScvpReqRes
         : Asn1Encodable
     {
-        public static ScvpReqRes GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is ScvpReqRes scvpReqRes)
-                return scvpReqRes;
-            return new ScvpReqRes(Asn1Sequence.GetInstance(obj));
-        }
+        private readonly ContentInfo request;
+        private readonly ContentInfo response;
 
-        public static ScvpReqRes GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
+        public static ScvpReqRes GetInstance(object  obj)
         {
-            return new ScvpReqRes(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
+            if (obj is ScvpReqRes)
+                return (ScvpReqRes)obj;
+            if (obj != null)
+                return new ScvpReqRes(Asn1Sequence.GetInstance(obj));
+            return null;
         }
-
-        private readonly ContentInfo m_request;
-        private readonly ContentInfo m_response;
 
         private ScvpReqRes(Asn1Sequence seq)
         {
-            int count = seq.Count, pos = 0;
-            if (count < 1 || count > 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            m_request = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, ContentInfo.GetTagged);
-            m_response = ContentInfo.GetInstance(seq[pos++]);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+            if (seq[0] is Asn1TaggedObject)
+            {
+                this.request = ContentInfo.GetInstance(Asn1TaggedObject.GetInstance(seq[0]), true);
+                this.response = ContentInfo.GetInstance(seq[1]);
+            }
+            else
+            {
+                this.request = null;
+                this.response = ContentInfo.GetInstance(seq[0]);
+            }
         }
 
         public ScvpReqRes(ContentInfo response)
@@ -42,13 +38,19 @@ namespace Org.BouncyCastle.Asn1.Cms
 
         public ScvpReqRes(ContentInfo request, ContentInfo response)
         {
-            m_request = request;
-            m_response = response ?? throw new ArgumentNullException(nameof(response));
+            this.request = request;
+            this.response = response;
         }
 
-        public virtual ContentInfo Request => m_request;
+        public virtual ContentInfo Request
+        {
+            get { return request; }
+        }
 
-        public virtual ContentInfo Response => m_response;
+        public virtual ContentInfo Response
+        {
+            get { return response; }
+        }
 
         /**
          * <pre>
@@ -60,10 +62,10 @@ namespace Org.BouncyCastle.Asn1.Cms
          */
         public override Asn1Object ToAsn1Object()
         {
-            if (m_request == null)
-                return new DerSequence(m_response);
-
-            return new DerSequence(new DerTaggedObject(true, 0, m_request), m_response);
+            Asn1EncodableVector v = new Asn1EncodableVector();
+            v.AddOptionalTagged(true, 0, request);
+            v.Add(response);
+            return new DerSequence(v);
         }
     }
 }

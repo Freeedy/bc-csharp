@@ -3,19 +3,18 @@
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Modes;
 using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
 {
-    internal class BcTlsAeadCipherImpl
+    internal sealed class BcTlsAeadCipherImpl
         : TlsAeadCipherImpl
     {
         private readonly bool m_isEncrypting;
-        internal readonly IAeadCipher m_cipher;
+        private readonly IAeadBlockCipher m_cipher;
 
         private KeyParameter key;
 
-        internal BcTlsAeadCipherImpl(IAeadCipher cipher, bool isEncrypting)
+        internal BcTlsAeadCipherImpl(IAeadBlockCipher cipher, bool isEncrypting)
         {
             this.m_cipher = cipher;
             this.m_isEncrypting = isEncrypting;
@@ -25,13 +24,6 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
         {
             this.key = new KeyParameter(key, keyOff, keyLen);
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public void SetKey(ReadOnlySpan<byte> key)
-        {
-            this.key = new KeyParameter(key);
-        }
-#endif
 
         public void Init(byte[] nonce, int macSize, byte[] additionalData)
         {
@@ -43,7 +35,7 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
             return m_cipher.GetOutputSize(inputLength);
         }
 
-        public virtual int DoFinal(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset)
+        public int DoFinal(byte[] input, int inputOffset, int inputLength, byte[] output, int outputOffset)
         {
             int len = m_cipher.ProcessBytes(input, inputOffset, inputLength, output, outputOffset);
 
@@ -57,21 +49,6 @@ namespace Org.BouncyCastle.Tls.Crypto.Impl.BC
             }
 
             return len;
-        }
-
-        public virtual int DoFinal(byte[] additionalData, byte[] input, int inputOffset, int inputLength, byte[] output,
-            int outputOffset)
-        {
-            if (!Arrays.IsNullOrEmpty(additionalData))
-            {
-                m_cipher.ProcessAadBytes(additionalData, 0, additionalData.Length);
-            }
-
-            return DoFinal(input, inputOffset, inputLength, output, outputOffset);
-        }
-
-        public void Reset()
-        {
         }
     }
 }

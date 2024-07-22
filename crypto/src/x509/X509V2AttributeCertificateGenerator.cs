@@ -1,19 +1,26 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Operators;
 using Org.BouncyCastle.Math;
+using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Security.Certificates;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.X509
 {
-    /// <remarks>Class to produce an X.509 Version 2 AttributeCertificate.</remarks>
-    public class X509V2AttributeCertificateGenerator
+	/// <remarks>Class to produce an X.509 Version 2 AttributeCertificate.</remarks>
+	public class X509V2AttributeCertificateGenerator
 	{
 		private readonly X509ExtensionsGenerator extGenerator = new X509ExtensionsGenerator();
 
-		private V2AttributeCertificateInfoGenerator acInfoGen;
+		private V2AttributeCertificateInfoGenerator	acInfoGen;
+		private DerObjectIdentifier sigOID;
+		private AlgorithmIdentifier sigAlgId;
+		private string signatureAlgorithm;
 
 		public X509V2AttributeCertificateGenerator()
 		{
@@ -31,7 +38,7 @@ namespace Org.BouncyCastle.X509
 		public void SetHolder(
 			AttributeCertificateHolder holder)
 		{
-			acInfoGen.SetHolder(holder.m_holder);
+			acInfoGen.SetHolder(holder.holder);
 		}
 
 		/// <summary>Set the issuer.</summary>
@@ -51,13 +58,38 @@ namespace Org.BouncyCastle.X509
 		public void SetNotBefore(
 			DateTime date)
 		{
-			acInfoGen.SetStartDate(Rfc5280Asn1Utilities.CreateGeneralizedTime(date));
+			acInfoGen.SetStartDate(new DerGeneralizedTime(date));
 		}
 
 		public void SetNotAfter(
 			DateTime date)
 		{
-			acInfoGen.SetEndDate(Rfc5280Asn1Utilities.CreateGeneralizedTime(date));
+			acInfoGen.SetEndDate(new DerGeneralizedTime(date));
+		}
+
+        /// <summary>
+        /// Set the signature algorithm. This can be either a name or an OID, names
+        /// are treated as case insensitive.
+        /// </summary>
+        /// <param name="signatureAlgorithm">The algorithm name.</param>
+        [Obsolete("Not needed if Generate used with an ISignatureFactory")]
+        public void SetSignatureAlgorithm(
+			string signatureAlgorithm)
+		{
+			this.signatureAlgorithm = signatureAlgorithm;
+
+			try
+			{
+				sigOID = X509Utilities.GetAlgorithmOid(signatureAlgorithm);
+			}
+			catch (Exception)
+			{
+				throw new ArgumentException("Unknown signature type requested");
+			}
+
+			sigAlgId = X509Utilities.GetSigAlgID(sigOID, signatureAlgorithm);
+
+			acInfoGen.SetSignature(sigAlgId);
 		}
 
 		/// <summary>Add an attribute.</summary>
@@ -67,10 +99,13 @@ namespace Org.BouncyCastle.X509
 			acInfoGen.AddAttribute(AttributeX509.GetInstance(attribute.ToAsn1Object()));
 		}
 
-        public void SetIssuerUniqueId(bool[] iui)
-        {
-            acInfoGen.SetIssuerUniqueID(X509V3CertificateGenerator.BooleanToBitString(iui));
-        }
+		public void SetIssuerUniqueId(
+			bool[] iui)
+		{
+			// TODO convert bool array to bit string
+			//acInfoGen.SetIssuerUniqueID(iui);
+			throw Platform.CreateNotImplementedException("SetIssuerUniqueId()");
+		}
 
 		/// <summary>Add a given extension field for the standard extensions tag.</summary>
 		public void AddExtension(
@@ -94,34 +129,72 @@ namespace Org.BouncyCastle.X509
 			extGenerator.AddExtension(new DerObjectIdentifier(oid), critical, extensionValue);
 		}
 
-		/// <summary>
-		/// Generate a new <see cref="X509V2AttributeCertificate"/> using the provided <see cref="ISignatureFactory"/>.
-		/// </summary>
-		/// <param name="signatureFactory">A <see cref="ISignatureFactory">signature factory</see> with the necessary
-		/// algorithm details.</param>
-		/// <returns>An <see cref="X509V2AttributeCertificate"/>.</returns>
-		public X509V2AttributeCertificate Generate(ISignatureFactory signatureFactory)
+        /// <summary>
+        /// Generate an X509 certificate, based on the current issuer and subject.
+        /// </summary>
+        [Obsolete("Use Generate with an ISignatureFactory")]
+        public IX509AttributeCertificate Generate(
+			AsymmetricKeyParameter privateKey)
+		{
+			return Generate(privateKey, null);
+		}
+
+        /// <summary>
+        /// Generate an X509 certificate, based on the current issuer and subject,
+        /// using the supplied source of randomness, if required.
+        /// </summary>
+        [Obsolete("Use Generate with an ISignatureFactory")]
+        public IX509AttributeCertificate Generate(
+			AsymmetricKeyParameter	privateKey,
+			SecureRandom			random)
         {
-			var sigAlgID = (AlgorithmIdentifier)signatureFactory.AlgorithmDetails;
+            return Generate(new Asn1SignatureFactory(signatureAlgorithm, privateKey, random));
+        }
 
-			acInfoGen.SetSignature(sigAlgID);
-
-			if (!extGenerator.IsEmpty)
+        /// <summary>
+        /// Generate a new X.509 Attribute Certificate using the passed in SignatureCalculator.
+        /// </summary>
+        /// <param name="signatureCalculatorFactory">A signature calculator factory with the necessary algorithm details.</param>
+        /// <returns>An IX509AttributeCertificate.</returns>
+        public IX509AttributeCertificate Generate(ISignatureFactory signatureCalculatorFactory)
+        {
+            if (!extGenerator.IsEmpty)
 			{
 				acInfoGen.SetExtensions(extGenerator.Generate());
 			}
 
-            var acInfo = acInfoGen.GenerateAttributeCertificateInfo();
+            AlgorithmIdentifier sigAlgID = (AlgorithmIdentifier)signatureCalculatorFactory.AlgorithmDetails;
 
-			var signature = X509Utilities.GenerateSignature(signatureFactory, acInfo);
+            acInfoGen.SetSignature(sigAlgID);
 
-			return new X509V2AttributeCertificate(new AttributeCertificate(acInfo, sigAlgID, signature));
+            AttributeCertificateInfo acInfo = acInfoGen.GenerateAttributeCertificateInfo();
+
+            byte[] encoded = acInfo.GetDerEncoded();
+
+            IStreamCalculator streamCalculator = signatureCalculatorFactory.CreateCalculator();
+
+            streamCalculator.Stream.Write(encoded, 0, encoded.Length);
+
+            Platform.Dispose(streamCalculator.Stream);
+
+            try
+			{
+                DerBitString signatureValue = new DerBitString(((IBlockResult)streamCalculator.GetResult()).Collect());
+
+                return new X509V2AttributeCertificate(new AttributeCertificate(acInfo, sigAlgID, signatureValue));
+			}
+			catch (Exception e)
+			{
+				// TODO
+//				throw new ExtCertificateEncodingException("constructed invalid certificate", e);
+				throw new CertificateEncodingException("constructed invalid certificate", e);
+			}
 		}
 
-        /// <summary>
-        /// Allows enumeration of the signature names supported by the generator.
-        /// </summary>
-        public IEnumerable<string> SignatureAlgNames
+		/// <summary>
+		/// Allows enumeration of the signature names supported by the generator.
+		/// </summary>
+		public IEnumerable SignatureAlgNames
 		{
 			get { return X509Utilities.GetAlgNames(); }
 		}

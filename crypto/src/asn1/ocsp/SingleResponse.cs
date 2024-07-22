@@ -1,74 +1,109 @@
 using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Ocsp
 {
     public class SingleResponse
         : Asn1Encodable
     {
-        public static SingleResponse GetInstance(object obj)
+        private readonly CertID              certID;
+        private readonly CertStatus          certStatus;
+        private readonly DerGeneralizedTime  thisUpdate;
+        private readonly DerGeneralizedTime  nextUpdate;
+        private readonly X509Extensions      singleExtensions;
+
+		public SingleResponse(
+            CertID              certID,
+            CertStatus          certStatus,
+            DerGeneralizedTime  thisUpdate,
+            DerGeneralizedTime  nextUpdate,
+            X509Extensions      singleExtensions)
         {
-            if (obj == null)
-                return null;
-            if (obj is SingleResponse singleResponse)
-                return singleResponse;
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new SingleResponse(Asn1Sequence.GetInstance(obj));
-#pragma warning restore CS0618 // Type or member is obsolete
+            this.certID = certID;
+            this.certStatus = certStatus;
+            this.thisUpdate = thisUpdate;
+            this.nextUpdate = nextUpdate;
+            this.singleExtensions = singleExtensions;
         }
 
-        public static SingleResponse GetInstance(Asn1TaggedObject obj, bool explicitly)
+		public SingleResponse(
+            Asn1Sequence seq)
         {
-#pragma warning disable CS0618 // Type or member is obsolete
-            return new SingleResponse(Asn1Sequence.GetInstance(obj, explicitly));
-#pragma warning restore CS0618 // Type or member is obsolete
+            this.certID = CertID.GetInstance(seq[0]);
+            this.certStatus = CertStatus.GetInstance(seq[1]);
+            this.thisUpdate = (DerGeneralizedTime)seq[2];
+
+			if (seq.Count > 4)
+            {
+                this.nextUpdate = DerGeneralizedTime.GetInstance(
+					(Asn1TaggedObject) seq[3], true);
+                this.singleExtensions = X509Extensions.GetInstance(
+					(Asn1TaggedObject) seq[4], true);
+            }
+            else if (seq.Count > 3)
+            {
+                Asn1TaggedObject o = (Asn1TaggedObject) seq[3];
+
+				if (o.TagNo == 0)
+                {
+                    this.nextUpdate = DerGeneralizedTime.GetInstance(o, true);
+                }
+                else
+                {
+                    this.singleExtensions = X509Extensions.GetInstance(o, true);
+                }
+            }
         }
 
-        private readonly CertID m_certID;
-        private readonly CertStatus m_certStatus;
-        private readonly Asn1GeneralizedTime m_thisUpdate;
-        private readonly Asn1GeneralizedTime m_nextUpdate;
-        private readonly X509Extensions m_singleExtensions;
-
-        public SingleResponse(CertID certID, CertStatus certStatus, Asn1GeneralizedTime thisUpdate,
-            Asn1GeneralizedTime nextUpdate, X509Extensions singleExtensions)
+		public static SingleResponse GetInstance(
+            Asn1TaggedObject	obj,
+            bool				explicitly)
         {
-            m_certID = certID ?? throw new ArgumentNullException(nameof(certID));
-            m_certStatus = certStatus ?? throw new ArgumentNullException(nameof(certStatus));
-            m_thisUpdate = thisUpdate ?? throw new ArgumentNullException(nameof(thisUpdate));
-            m_nextUpdate = nextUpdate;
-            m_singleExtensions = singleExtensions;
+            return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
         }
 
-        [Obsolete("Use 'GetInstance' instead")]
-        public SingleResponse(Asn1Sequence seq)
+		public static SingleResponse GetInstance(
+            object obj)
         {
-            int count = seq.Count;
-            if (count < 3 || count > 5)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+            if (obj == null || obj is SingleResponse)
+            {
+                return (SingleResponse)obj;
+            }
 
-            int pos = 0;
+			if (obj is Asn1Sequence)
+            {
+                return new SingleResponse((Asn1Sequence)obj);
+            }
 
-            m_certID = CertID.GetInstance(seq[pos++]);
-            m_certStatus = CertStatus.GetInstance(seq[pos++]);
-            m_thisUpdate = Asn1GeneralizedTime.GetInstance(seq[pos++]);
-            m_nextUpdate = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, Asn1GeneralizedTime.GetTagged);
-            m_singleExtensions = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, X509Extensions.GetTagged);
-
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
         }
 
-        public CertID CertId => m_certID;
+		public CertID CertId
+		{
+			get { return certID; }
+		}
 
-        public CertStatus CertStatus => m_certStatus;
+		public CertStatus CertStatus
+		{
+			get { return certStatus; }
+		}
 
-        public Asn1GeneralizedTime ThisUpdate => m_thisUpdate;
+		public DerGeneralizedTime ThisUpdate
+		{
+			get { return thisUpdate; }
+		}
 
-        public Asn1GeneralizedTime NextUpdate => m_nextUpdate;
+		public DerGeneralizedTime NextUpdate
+		{
+			get { return nextUpdate; }
+		}
 
-        public X509Extensions SingleExtensions => m_singleExtensions;
+		public X509Extensions SingleExtensions
+		{
+			get { return singleExtensions; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -83,10 +118,9 @@ namespace Org.BouncyCastle.Asn1.Ocsp
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(5);
-            v.Add(m_certID, m_certStatus, m_thisUpdate);
-            v.AddOptionalTagged(true, 0, m_nextUpdate);
-            v.AddOptionalTagged(true, 1, m_singleExtensions);
+            Asn1EncodableVector v = new Asn1EncodableVector(certID, certStatus, thisUpdate);
+            v.AddOptionalTagged(true, 0, nextUpdate);
+            v.AddOptionalTagged(true, 1, singleExtensions);
             return new DerSequence(v);
         }
     }

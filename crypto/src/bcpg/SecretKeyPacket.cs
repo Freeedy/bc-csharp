@@ -1,10 +1,11 @@
+using System;
 using System.IO;
 
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Bcpg
 {
-    /// <remarks>Basic packet for a PGP secret key.</remarks>
+	/// <remarks>Basic packet for a PGP secret key.</remarks>
     public class SecretKeyPacket
         : ContainedPacket //, PublicKeyAlgorithmTag
     {
@@ -135,33 +136,35 @@ namespace Org.BouncyCastle.Bcpg
 		public byte[] GetEncodedContents()
         {
             MemoryStream bOut = new MemoryStream();
-            using (var pOut = new BcpgOutputStream(bOut))
+            BcpgOutputStream pOut = new BcpgOutputStream(bOut);
+
+            pOut.Write(pubKeyPacket.GetEncodedContents());
+
+			pOut.WriteByte((byte) s2kUsage);
+
+			if (s2kUsage == UsageChecksum || s2kUsage == UsageSha1)
             {
-                pOut.Write(pubKeyPacket.GetEncodedContents());
-                pOut.WriteByte((byte)s2kUsage);
-
-                if (s2kUsage == UsageChecksum || s2kUsage == UsageSha1)
-                {
-                    pOut.WriteByte((byte)encAlgorithm);
-                    pOut.WriteObject(s2k);
-                }
-
-                if (iv != null)
-                {
-                    pOut.Write(iv);
-                }
-
-                if (secKeyData != null && secKeyData.Length > 0)
-                {
-                    pOut.Write(secKeyData);
-                }
+                pOut.WriteByte((byte) encAlgorithm);
+                pOut.WriteObject(s2k);
             }
+
+			if (iv != null)
+            {
+                pOut.Write(iv);
+            }
+
+            if (secKeyData != null && secKeyData.Length > 0)
+            {
+                pOut.Write(secKeyData);
+            }
+
             return bOut.ToArray();
         }
 
-        public override void Encode(BcpgOutputStream bcpgOut)
+        public override void Encode(
+            BcpgOutputStream bcpgOut)
         {
-            bcpgOut.WritePacket(PacketTag.SecretKey, GetEncodedContents());
+            bcpgOut.WritePacket(PacketTag.SecretKey, GetEncodedContents(), true);
         }
     }
 }

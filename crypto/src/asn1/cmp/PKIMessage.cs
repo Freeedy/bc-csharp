@@ -5,38 +5,40 @@ namespace Org.BouncyCastle.Asn1.Cmp
     public class PkiMessage
         : Asn1Encodable
     {
-        public static PkiMessage GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is PkiMessage pkiMessage)
-                return pkiMessage;
-            return new PkiMessage(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static PkiMessage GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new PkiMessage(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly PkiHeader m_header;
-        private readonly PkiBody m_body;
-        private readonly DerBitString m_protection;
-        private readonly Asn1Sequence m_extraCerts;
+        private readonly PkiHeader header;
+        private readonly PkiBody body;
+        private readonly DerBitString protection;
+        private readonly Asn1Sequence extraCerts;
 
         private PkiMessage(Asn1Sequence seq)
         {
-            int count = seq.Count, pos = 0;
-            if (count < 2 || count > 4)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+            header = PkiHeader.GetInstance(seq[0]);
+            body = PkiBody.GetInstance(seq[1]);
 
-            m_header = PkiHeader.GetInstance(seq[pos++]);
-            m_body = PkiBody.GetInstance(seq[pos++]);
-            m_protection = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, DerBitString.GetTagged);
-            m_extraCerts = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, Asn1Sequence.GetTagged);
+            for (int pos = 2; pos < seq.Count; ++pos)
+            {
+                Asn1TaggedObject tObj = (Asn1TaggedObject)seq[pos].ToAsn1Object();
 
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+                if (tObj.TagNo == 0)
+                {
+                    protection = DerBitString.GetInstance(tObj, true);
+                }
+                else
+                {
+                    extraCerts = Asn1Sequence.GetInstance(tObj, true);
+                }
+            }
+        }
+
+        public static PkiMessage GetInstance(object obj)
+        {
+            if (obj is PkiMessage)
+                return (PkiMessage)obj;
+
+            if (obj != null)
+                return new PkiMessage(Asn1Sequence.GetInstance(obj));
+
+            return null;
         }
 
         /**
@@ -47,31 +49,63 @@ namespace Org.BouncyCastle.Asn1.Cmp
          * @param protection message protection (may be null)
          * @param extraCerts extra certificates (may be null)
          */
-        public PkiMessage(PkiHeader header, PkiBody body, DerBitString protection, CmpCertificate[] extraCerts)
+        public PkiMessage(
+            PkiHeader header,
+            PkiBody body,
+            DerBitString protection,
+            CmpCertificate[] extraCerts)
         {
-            m_header = header ?? throw new ArgumentNullException(nameof(header));
-            m_body = body ?? throw new ArgumentNullException(nameof(body));
-            m_protection = protection;
-            m_extraCerts = DerSequence.FromElementsOptional(extraCerts);
+            this.header = header;
+            this.body = body;
+            this.protection = protection;
+            if (extraCerts != null)
+            {
+                this.extraCerts = new DerSequence(extraCerts);
+            }
         }
 
-        public PkiMessage(PkiHeader header, PkiBody body, DerBitString protection)
+        public PkiMessage(
+            PkiHeader header,
+            PkiBody body,
+            DerBitString protection)
             : this(header, body, protection, null)
         {
         }
 
-        public PkiMessage(PkiHeader header, PkiBody body)
+        public PkiMessage(
+            PkiHeader header,
+            PkiBody body)
             : this(header, body, null, null)
         {
         }
 
-        public virtual PkiHeader Header => m_header;
+        public virtual PkiHeader Header
+        {
+            get { return header; }
+        }
 
-        public virtual PkiBody Body => m_body;
+        public virtual PkiBody Body
+        {
+            get { return body; }
+        }
 
-        public virtual DerBitString Protection => m_protection;
+        public virtual DerBitString Protection
+        {
+            get { return protection; }
+        }
 
-        public virtual CmpCertificate[] GetExtraCerts() => m_extraCerts?.MapElements(CmpCertificate.GetInstance);
+        public virtual CmpCertificate[] GetExtraCerts()
+        {
+            if (extraCerts == null)
+                return null;
+
+            CmpCertificate[] results = new CmpCertificate[extraCerts.Count];
+            for (int i = 0; i < results.Length; ++i)
+            {
+                results[i] = CmpCertificate.GetInstance(extraCerts[i]);
+            }
+            return results;
+        }
 
         /**
          * <pre>
@@ -87,10 +121,9 @@ namespace Org.BouncyCastle.Asn1.Cmp
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(4);
-            v.Add(m_header, m_body);
-            v.AddOptionalTagged(true, 0, m_protection);
-            v.AddOptionalTagged(true, 1, m_extraCerts);
+            Asn1EncodableVector v = new Asn1EncodableVector(header, body);
+            v.AddOptionalTagged(true, 0, protection);
+            v.AddOptionalTagged(true, 1, extraCerts);
             return new DerSequence(v);
         }
     }

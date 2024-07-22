@@ -1,30 +1,14 @@
 using System;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Security.Certificates
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
-    public class CrlException
-		: GeneralSecurityException
+#endif
+    public class CrlException : GeneralSecurityException
 	{
-		public CrlException()
-			: base()
-		{
-		}
-
-		public CrlException(string message)
-			: base(message)
-		{
-		}
-
-		public CrlException(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected CrlException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
-		{
-		}
+		public CrlException() : base() { }
+		public CrlException(string msg) : base(msg) {}
+		public CrlException(string msg, Exception e) : base(msg, e) {}
 	}
 }

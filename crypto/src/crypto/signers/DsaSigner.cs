@@ -12,7 +12,7 @@ namespace Org.BouncyCastle.Crypto.Signers
      * Cryptography", pages 452 - 453.
      */
     public class DsaSigner
-        : IDsa
+        : IDsaExt
     {
         protected readonly IDsaKCalculator kCalculator;
 
@@ -48,23 +48,25 @@ namespace Org.BouncyCastle.Crypto.Signers
 
             if (forSigning)
             {
-                if (parameters is ParametersWithRandom rParam)
+                if (parameters is ParametersWithRandom)
                 {
+                    ParametersWithRandom rParam = (ParametersWithRandom)parameters;
+
                     providedRandom = rParam.Random;
                     parameters = rParam.Parameters;
                 }
 
-                if (!(parameters is DsaPrivateKeyParameters dsaPrivateKeyParameters))
+                if (!(parameters is DsaPrivateKeyParameters))
                     throw new InvalidKeyException("DSA private key required for signing");
 
-                this.key = dsaPrivateKeyParameters;
+                this.key = (DsaPrivateKeyParameters)parameters;
             }
             else
             {
-                if (!(parameters is DsaPublicKeyParameters dsaPublicKeyParameters))
+                if (!(parameters is DsaPublicKeyParameters))
                     throw new InvalidKeyException("DSA public key required for verification");
 
-                this.key = dsaPublicKeyParameters;
+                this.key = (DsaPublicKeyParameters)parameters;
             }
 
             this.random = InitSecureRandom(forSigning && !kCalculator.IsDeterministic, providedRandom);
@@ -153,7 +155,7 @@ namespace Org.BouncyCastle.Crypto.Signers
 
         protected virtual SecureRandom InitSecureRandom(bool needed, SecureRandom provided)
         {
-            return !needed ? null : CryptoServicesRegistrar.GetSecureRandom(provided);
+            return !needed ? null : (provided != null) ? provided : new SecureRandom();
         }
     }
 }

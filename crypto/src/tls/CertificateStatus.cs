@@ -1,9 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Ocsp;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Tls
 {
@@ -42,15 +43,15 @@ namespace Org.BouncyCastle.Tls
             }
         }
 
-        /// <summary>an <see cref="IList{T}"/> of (possibly null) <see cref="Asn1.Ocsp.OcspResponse"/>.</summary>
-        public IList<OcspResponse> OcspResponseList
+        /// <summary>an <see cref="IList"/> of (possibly null) <see cref="Asn1.Ocsp.OcspResponse"/>.</summary>
+        public IList OcspResponseList
         {
             get
             {
                 if (!IsCorrectType(CertificateStatusType.ocsp_multi, m_response))
                     throw new InvalidOperationException("'response' is not an OCSPResponseList");
 
-                return (IList<OcspResponse>)m_response;
+                return (IList)m_response;
             }
         }
 
@@ -72,10 +73,10 @@ namespace Org.BouncyCastle.Tls
             }
             case CertificateStatusType.ocsp_multi:
             {
-                var ocspResponseList = (IList<OcspResponse>)m_response;
+                IList ocspResponseList = (IList)m_response;
                 int count = ocspResponseList.Count;
 
-                var derEncodings = new List<byte[]>(count);
+                IList derEncodings = Platform.CreateArrayList(count);
                 long totalLength = 0;
                 foreach (OcspResponse ocspResponse in ocspResponseList)
                 {
@@ -146,7 +147,7 @@ namespace Org.BouncyCastle.Tls
                 byte[] ocsp_response_list = TlsUtilities.ReadOpaque24(input, 1);
                 MemoryStream buf = new MemoryStream(ocsp_response_list, false);
 
-                var ocspResponseList = new List<OcspResponse>();
+                IList ocspResponseList = Platform.CreateArrayList();
                 while (buf.Position < buf.Length)
                 {
                     if (ocspResponseList.Count >= certificateCount)
@@ -164,7 +165,8 @@ namespace Org.BouncyCastle.Tls
                     }
                 }
 
-                response = ocspResponseList;
+                // Match IList capacity to actual size
+                response = Platform.CreateArrayList(ocspResponseList);
                 break;
             }
             default:
@@ -174,7 +176,7 @@ namespace Org.BouncyCastle.Tls
             return new CertificateStatus(status_type, response);
         }
 
-        private static bool IsCorrectType(short statusType, object response)
+        private static bool IsCorrectType(short statusType, Object response)
         {
             switch (statusType)
             {
@@ -189,7 +191,20 @@ namespace Org.BouncyCastle.Tls
 
         private static bool IsOcspResponseList(object response)
         {
-            return response is IList<OcspResponse> v && v.Count > 0;
+            if (!(response is IList))
+                return false;
+
+            IList v = (IList)response;
+            int count = v.Count;
+            if (count < 1)
+                return false;
+
+            foreach (object e in v)
+            {
+                if (null != e && !(e is OcspResponse))
+                    return false;
+            }
+            return true;
         }
 
         /// <exception cref="IOException"/>

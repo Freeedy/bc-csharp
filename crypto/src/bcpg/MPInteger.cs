@@ -1,66 +1,59 @@
 using System;
+using System.IO;
 
 using Org.BouncyCastle.Math;
-using Org.BouncyCastle.Math.EC;
 
 namespace Org.BouncyCastle.Bcpg
 {
 	/// <remarks>A multiple precision integer</remarks>
-    public sealed class MPInteger
+    public class MPInteger
         : BcpgObject
     {
-        private readonly BigInteger m_val;
+        private readonly BigInteger val;
 
-        public MPInteger(BcpgInputStream bcpgIn)
+        public MPInteger(
+            BcpgInputStream bcpgIn)
         {
 			if (bcpgIn == null)
-				throw new ArgumentNullException(nameof(bcpgIn));
+				throw new ArgumentNullException("bcpgIn");
 
-			int lengthInBits = (bcpgIn.ReadByte() << 8) | bcpgIn.ReadByte();
-            int lengthInBytes = (lengthInBits + 7) / 8;
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> bytes = lengthInBytes <= 512
-                ? stackalloc byte[lengthInBytes]
-                : new byte[lengthInBytes];
-#else
-            byte[] bytes = new byte[lengthInBytes];
-#endif
+			int length = (bcpgIn.ReadByte() << 8) | bcpgIn.ReadByte();
+            byte[] bytes = new byte[(length + 7) / 8];
 
             bcpgIn.ReadFully(bytes);
-            m_val = new BigInteger(1, bytes);
+
+            this.val = new BigInteger(1, bytes);
         }
 
-		public MPInteger(BigInteger val)
+		public MPInteger(
+            BigInteger val)
         {
 			if (val == null)
-				throw new ArgumentNullException(nameof(val));
+				throw new ArgumentNullException("val");
 			if (val.SignValue < 0)
-				throw new ArgumentException("Values must be positive", nameof(val));
+				throw new ArgumentException("Values must be positive", "val");
 
-			m_val = val;
+			this.val = val;
         }
 
-        public BigInteger Value => m_val;
-
-        public override void Encode(BcpgOutputStream bcpgOut)
+		public BigInteger Value
         {
-            bcpgOut.WriteShort((short)m_val.BitLength);
-            bcpgOut.Write(m_val.ToByteArrayUnsigned());
+            get { return val; }
         }
 
-        internal static BigInteger ToMpiBigInteger(ECPoint point)
+        public override void Encode(
+            BcpgOutputStream bcpgOut)
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            int encodedLength = point.GetEncodedLength(false);
-            Span<byte> encoding = encodedLength <= 512
-                ? stackalloc byte[encodedLength]
-                : new byte[encodedLength];
-            point.EncodeTo(false, encoding);
-#else
-            byte[] encoding = point.GetEncoded(false);
-#endif
-            return new BigInteger(1, encoding);
+			bcpgOut.WriteShort((short) val.BitLength);
+			bcpgOut.Write(val.ToByteArrayUnsigned());
         }
+
+		internal static void Encode(
+			BcpgOutputStream	bcpgOut,
+			BigInteger			val)
+		{
+			bcpgOut.WriteShort((short) val.BitLength);
+			bcpgOut.Write(val.ToByteArrayUnsigned());
+		}
     }
 }

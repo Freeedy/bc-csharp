@@ -1,21 +1,29 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Macs;
 using Org.BouncyCastle.Security;
-using Org.BouncyCastle.Utilities.Collections;
 using Org.BouncyCastle.Utilities.Encoders;
 using Org.BouncyCastle.Utilities.Test;
 
 namespace Org.BouncyCastle.Crypto.Tests.Cavp
 {
-    internal class Vector : Dictionary<string, object>
+    internal class Vector : Hashtable
     {
-        private IDictionary<string, string> mHeader = null;
+        private Hashtable mHeader = null;
 
-        public Vector(IDictionary<string, string> header)
+        public Vector(Hashtable header)
         {
             this.mHeader = header;
+        }
+
+        public Hashtable Header
+        {
+            get { return mHeader; }
+            set { this.mHeader = value; }
         }
 
         public string ValueAsString(string name)
@@ -25,7 +33,7 @@ namespace Org.BouncyCastle.Crypto.Tests.Cavp
 
         public string HeaderAsString(string name)
         {
-            return CollectionUtilities.GetValueOrNull(mHeader, name);
+            return Header[name] as string;
         }
 
         public byte[] ValueAsBytes(string name)
@@ -41,8 +49,13 @@ namespace Org.BouncyCastle.Crypto.Tests.Cavp
 
         public byte[] HeaderAsBytes(string name)
         {
-            string value = HeaderAsString(name);
-            return value == null ? null : Hex.Decode(value);
+            string value = Header[name] as string;
+            if (value != null)
+            {
+                return Hex.Decode(value);
+            }
+
+            return null;
         }
 
         public int ValueAsInt(string name)
@@ -51,7 +64,7 @@ namespace Org.BouncyCastle.Crypto.Tests.Cavp
             if (value == null)
                 throw new InvalidOperationException(name + " was null");
 
-            return int.Parse(value);
+            return Int32.Parse(value);
         }
 
         public int ValueAsInt(string name, int def)
@@ -60,23 +73,23 @@ namespace Org.BouncyCastle.Crypto.Tests.Cavp
             if (value == null)
                 return def;
 
-            return int.Parse(value);
+            return Int32.Parse(value);
         }
     }
 
     internal class CavpReader
     {
-        public static IList<Vector> ReadVectorFile(string name)
+        public static ArrayList ReadVectorFile(string name)
         {
-            var vectors = new List<Vector>();
-            IDictionary<string, string> header = null;
+            ArrayList vectors = new ArrayList();
+            Hashtable header = null;
             Vector currentVector = null;
 
             int headerState = 0;
 
             using (StreamReader r = new StreamReader(SimpleTest.GetTestDataAsStream("crypto.cavp." + name)))
             {
-                string line;
+                String line;
                 while (null != (line = r.ReadLine()))
                 {
                     // Reading a header or waiting to encounter a header
@@ -135,7 +148,7 @@ namespace Org.BouncyCastle.Crypto.Tests.Cavp
                     //
                     if (headerState == 0 && line.StartsWith("[") && line.EndsWith("]"))
                     {
-                        header = new Dictionary<string, string>();
+                        header = new Hashtable();
                         headerState = 1;
                     }
 

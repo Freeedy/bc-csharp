@@ -5,24 +5,26 @@ using Org.BouncyCastle.Utilities.IO;
 
 namespace Org.BouncyCastle.Asn1
 {
-    [Obsolete("Check for 'Asn1OctetStringParser' instead")]
     public class BerOctetStringParser
         : Asn1OctetStringParser
     {
-        private readonly Asn1StreamParser m_parser;
+        private readonly Asn1StreamParser _parser;
 
         internal BerOctetStringParser(Asn1StreamParser parser)
         {
-            m_parser = parser;
+            _parser = parser;
         }
 
-        public Stream GetOctetStream() => new ConstructedOctetStream(m_parser);
+        public Stream GetOctetStream()
+        {
+            return new ConstructedOctetStream(_parser);
+        }
 
         public Asn1Object ToAsn1Object()
         {
             try
             {
-                return Parse(m_parser);
+                return Parse(_parser);
             }
             catch (IOException e)
             {
@@ -30,7 +32,9 @@ namespace Org.BouncyCastle.Asn1
             }
         }
 
-        internal static BerOctetString Parse(Asn1StreamParser sp) =>
-            new BerOctetString(Streams.ReadAll(new ConstructedOctetStream(sp)));
+        internal static BerOctetString Parse(Asn1StreamParser sp)
+        {
+            return new BerOctetString(Streams.ReadAll(new ConstructedOctetStream(sp)));
+        }
     }
 }

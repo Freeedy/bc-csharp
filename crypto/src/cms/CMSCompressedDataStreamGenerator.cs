@@ -4,9 +4,9 @@ using System.IO;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Asn1.X509;
-using Org.BouncyCastle.Crypto.IO;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.IO;
+using Org.BouncyCastle.Utilities.Zlib;
 
 namespace Org.BouncyCastle.Cms
 {
@@ -27,10 +27,10 @@ namespace Org.BouncyCastle.Cms
 	*/
 	public class CmsCompressedDataStreamGenerator
 	{
-        public static readonly string ZLib = CmsObjectIdentifiers.ZlibCompress.Id;
+		public const string ZLib = "1.2.840.113549.1.9.16.3.8";
 
-        private int _bufferSize;
-
+		private int _bufferSize;
+		
 		/**
 		* base constructor
 		*/
@@ -43,27 +43,24 @@ namespace Org.BouncyCastle.Cms
 		*
 		* @param bufferSize length of octet strings to buffer the data.
 		*/
-		public void SetBufferSize(int bufferSize)
+		public void SetBufferSize(
+			int bufferSize)
 		{
 			_bufferSize = bufferSize;
 		}
 
-        public Stream Open(Stream outStream)
-        {
-            return Open(outStream, CmsObjectIdentifiers.Data.Id, ZLib);
-        }
-
-        public Stream Open(Stream outStream, string compressionOid)
+		public Stream Open(
+			Stream	outStream,
+			string	compressionOID)
 		{
-			return Open(outStream, CmsObjectIdentifiers.Data.Id, compressionOid);
+			return Open(outStream, CmsObjectIdentifiers.Data.Id, compressionOID);
 		}
 
-		public Stream Open(Stream outStream, string contentOid, string compressionOid)
+		public Stream Open(
+			Stream	outStream,
+			string	contentOID,
+			string	compressionOID)
 		{
-			if (ZLib != compressionOid)
-				throw new ArgumentException("Unsupported compression algorithm: " + compressionOid,
-					nameof(compressionOid));
-
 			BerSequenceGenerator sGen = new BerSequenceGenerator(outStream);
 
 			sGen.AddObject(CmsObjectIdentifiers.CompressedData);
@@ -75,46 +72,43 @@ namespace Org.BouncyCastle.Cms
 				sGen.GetRawOutputStream(), 0, true);
 
 			// CMSVersion
-			cGen.AddObject(DerInteger.Zero);
+			cGen.AddObject(new DerInteger(0));
 
 			// CompressionAlgorithmIdentifier
-			cGen.AddObject(new AlgorithmIdentifier(CmsObjectIdentifiers.ZlibCompress));
+			cGen.AddObject(new AlgorithmIdentifier(new DerObjectIdentifier(ZLib)));
 
 			//
 			// Encapsulated ContentInfo
 			//
 			BerSequenceGenerator eiGen = new BerSequenceGenerator(cGen.GetRawOutputStream());
 
-			eiGen.AddObject(new DerObjectIdentifier(contentOid));
+			eiGen.AddObject(new DerObjectIdentifier(contentOID));
 
-            BerOctetStringGenerator octGen = new BerOctetStringGenerator(eiGen.GetRawOutputStream(), 0, true);
-            Stream octetStream = octGen.GetOctetOutputStream(_bufferSize);
+			Stream octetStream = CmsUtilities.CreateBerOctetOutputStream(
+				eiGen.GetRawOutputStream(), 0, true, _bufferSize);
 
-            return new CmsCompressedOutputStream(
-				Utilities.IO.Compression.ZLib.CompressOutput(octetStream, -1), sGen, cGen, eiGen, octGen);
+			return new CmsCompressedOutputStream(
+				new ZOutputStream(octetStream, JZlib.Z_DEFAULT_COMPRESSION), sGen, cGen, eiGen);
 		}
 
 		private class CmsCompressedOutputStream
 			: BaseOutputStream
 		{
-			private Stream _out;
+			private ZOutputStream _out;
 			private BerSequenceGenerator _sGen;
 			private BerSequenceGenerator _cGen;
 			private BerSequenceGenerator _eiGen;
-			private BerOctetStringGenerator _octGen;
 
-            internal CmsCompressedOutputStream(
-				Stream					outStream,
+			internal CmsCompressedOutputStream(
+				ZOutputStream			outStream,
 				BerSequenceGenerator	sGen,
 				BerSequenceGenerator	cGen,
-				BerSequenceGenerator	eiGen,
-                BerOctetStringGenerator octGen)
+				BerSequenceGenerator	eiGen)
 			{
 				_out = outStream;
 				_sGen = sGen;
 				_cGen = cGen;
 				_eiGen = eiGen;
-				_octGen = octGen;
 			}
 
 			public override void Write(byte[] buffer, int offset, int count)
@@ -122,33 +116,39 @@ namespace Org.BouncyCastle.Cms
 				_out.Write(buffer, offset, count);
 			}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            public override void Write(ReadOnlySpan<byte> buffer)
-			{
-                _out.Write(buffer);
-            }
-#endif
-
-            public override void WriteByte(byte value)
+			public override void WriteByte(byte value)
 			{
 				_out.WriteByte(value);
 			}
 
+#if PORTABLE
             protected override void Dispose(bool disposing)
             {
                 if (disposing)
                 {
-                    _out.Dispose();
+                    Platform.Dispose(_out);
 
-					// TODO Parent context(s) should really be be closed explicitly
+                    // TODO Parent context(s) should really be be closed explicitly
 
-					_octGen.Dispose();
-                    _eiGen.Dispose();
-				    _cGen.Dispose();
-				    _sGen.Dispose();
+                    _eiGen.Close();
+				    _cGen.Close();
+				    _sGen.Close();
                 }
                 base.Dispose(disposing);
             }
+#else
+			public override void Close()
+			{
+                Platform.Dispose(_out);
+
+                // TODO Parent context(s) should really be be closed explicitly
+
+                _eiGen.Close();
+				_cGen.Close();
+				_sGen.Close();
+				base.Close();
+			}
+#endif
 		}
 	}
 }

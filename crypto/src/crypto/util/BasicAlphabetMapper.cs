@@ -1,5 +1,7 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
+
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Utilities
 {
@@ -10,8 +12,8 @@ namespace Org.BouncyCastle.Crypto.Utilities
     public class BasicAlphabetMapper
        : IAlphabetMapper
     {
-        private readonly IDictionary<char, int> m_indexMap = new Dictionary<char, int>();
-        private readonly IList<char> m_charMap = new List<char>();
+        private readonly IDictionary indexMap = Platform.CreateHashtable();
+        private readonly IDictionary charMap = Platform.CreateHashtable();
 
         /**
          * Base constructor.
@@ -32,32 +34,30 @@ namespace Org.BouncyCastle.Crypto.Utilities
         {
             for (int i = 0; i != alphabet.Length; i++)
             {
-                if (m_indexMap.ContainsKey(alphabet[i]))
+                if (indexMap.Contains(alphabet[i]))
+                {
                     throw new ArgumentException("duplicate key detected in alphabet: " + alphabet[i]);
-
-                m_indexMap.Add(alphabet[i], i);
-                m_charMap.Add(alphabet[i]);
+                }
+                indexMap.Add(alphabet[i], i);
+                charMap.Add(i, alphabet[i]);
             }
         }
 
         public int Radix
         {
-            get { return m_charMap.Count; }
+            get { return indexMap.Count; }
         }
 
         public byte[] ConvertToIndexes(char[] input)
         {
             byte[] outBuf;
 
-            if (m_charMap.Count <= 256)
+            if (indexMap.Count <= 256)
             {
                 outBuf = new byte[input.Length];
                 for (int i = 0; i != input.Length; i++)
                 {
-                    if (!m_indexMap.TryGetValue(input[i], out var idx))
-                        throw new InvalidOperationException();
-
-                    outBuf[i] = (byte)idx;
+                    outBuf[i] = (byte)(int)indexMap[input[i]];
                 }
             }
             else
@@ -65,11 +65,9 @@ namespace Org.BouncyCastle.Crypto.Utilities
                 outBuf = new byte[input.Length * 2];
                 for (int i = 0; i != input.Length; i++)
                 {
-                    if (!m_indexMap.TryGetValue(input[i], out var idx))
-                        throw new InvalidOperationException();
-
-                    outBuf[i * 2 + 0] = (byte)(idx >> 8);
-                    outBuf[i * 2 + 1] = (byte)idx;
+                    int idx = (int)indexMap[input[i]];
+                    outBuf[i * 2] = (byte)((idx >> 8) & 0xff);
+                    outBuf[i * 2 + 1] = (byte)(idx & 0xff);
                 }
             }
 
@@ -80,12 +78,12 @@ namespace Org.BouncyCastle.Crypto.Utilities
         {
             char[] outBuf;
 
-            if (m_charMap.Count <= 256)
+            if (charMap.Count <= 256)
             {
                 outBuf = new char[input.Length];
                 for (int i = 0; i != input.Length; i++)
                 {
-                    outBuf[i] = m_charMap[input[i]];
+                    outBuf[i] = (char)charMap[input[i] & 0xff];
                 }
             }
             else
@@ -98,7 +96,7 @@ namespace Org.BouncyCastle.Crypto.Utilities
                 outBuf = new char[input.Length / 2];
                 for (int i = 0; i != input.Length; i += 2)
                 {
-                    outBuf[i / 2] = m_charMap[(input[i] << 8) | input[i + 1]];
+                    outBuf[i / 2] = (char)charMap[((input[i] << 8) & 0xff00) | (input[i + 1] & 0xff)];
                 }
             }
 

@@ -2,7 +2,6 @@
 
 namespace Org.BouncyCastle.Crypto
 {
-    // TODO[api] Add 'out A' type parameter for AlgorithmDetails return type
     public interface IMacFactory
     {
         /// <summary>The algorithm details object for this calculator.</summary>
@@ -14,6 +13,6 @@ namespace Org.BouncyCastle.Crypto
         /// and producing the signature block.
         /// </summary>
         /// <returns>A calculator producing an IBlockResult with a signature in it.</returns>
-        IStreamCalculator<IBlockResult> CreateCalculator();
+        IStreamCalculator CreateCalculator();
     }
 }

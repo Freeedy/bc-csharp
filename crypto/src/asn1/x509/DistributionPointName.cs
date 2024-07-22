@@ -1,6 +1,8 @@
 using System;
 using System.Text;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.X509
 {
     /**
@@ -15,90 +17,114 @@ namespace Org.BouncyCastle.Asn1.X509
     public class DistributionPointName
         : Asn1Encodable, IAsn1Choice
     {
-        public const int FullName = 0;
-        public const int NameRelativeToCrlIssuer = 1;
+        internal readonly Asn1Encodable	name;
+        internal readonly int			type;
 
-		public static DistributionPointName GetInstance(object obj)
+		public const int FullName					= 0;
+        public const int NameRelativeToCrlIssuer	= 1;
+
+		public static DistributionPointName GetInstance(
+            Asn1TaggedObject	obj,
+            bool				explicitly)
         {
-            if (obj == null)
-                return null;
-            if (obj is DistributionPointName distributionPointName)
-                return distributionPointName;
-            return new DistributionPointName(Asn1TaggedObject.GetInstance(obj));
+            return GetInstance(Asn1TaggedObject.GetInstance(obj, true));
+        }
+
+		public static DistributionPointName GetInstance(
+            object obj)
+        {
+            if (obj == null || obj is DistributionPointName)
+            {
+                return (DistributionPointName) obj;
+            }
+
+			if (obj is Asn1TaggedObject)
+            {
+                return new DistributionPointName((Asn1TaggedObject) obj);
+            }
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
 		}
 
-		public static DistributionPointName GetInstance(Asn1TaggedObject obj, bool explicitly) =>
-            Asn1Utilities.GetInstanceChoice(obj, explicitly, GetInstance);
-
-        public static DistributionPointName GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        private readonly int m_type;
-        private readonly Asn1Encodable m_name;
-
-        public DistributionPointName(GeneralNames name)
-            : this(FullName, name)
+        public DistributionPointName(
+            int				type,
+            Asn1Encodable	name)
         {
+            this.type = type;
+            this.name = name;
         }
 
-        public DistributionPointName(int type, Asn1Encodable name)
+		public DistributionPointName(
+			GeneralNames name)
+			:	this(FullName, name)
+		{
+		}
+
+		public int PointType
         {
-            m_type = type;
-            m_name = name;
+			get { return type; }
         }
 
-        [Obsolete("Use 'Type' instead")]
-		public int PointType => m_type;
-
-		public Asn1Encodable Name => m_name;
-
-        public int Type => m_type;
-
-        public DistributionPointName(Asn1TaggedObject obj)
+		public Asn1Encodable Name
         {
-            m_type = obj.TagNo;
+			get { return name; }
+        }
 
-			if (m_type == FullName)
+		public DistributionPointName(
+            Asn1TaggedObject obj)
+        {
+            this.type = obj.TagNo;
+
+			if (type == FullName)
             {
-                m_name = GeneralNames.GetInstance(obj, false);
+                this.name = GeneralNames.GetInstance(obj, false);
             }
             else
             {
-                m_name = Asn1Set.GetInstance(obj, false);
+                this.name = Asn1Set.GetInstance(obj, false);
             }
         }
 
 		public override Asn1Object ToAsn1Object()
         {
-            return new DerTaggedObject(false, m_type, m_name);
+            return new DerTaggedObject(false, type, name);
         }
 
 		public override string ToString()
 		{
+			string sep = Platform.NewLine;
 			StringBuilder buf = new StringBuilder();
-			buf.AppendLine("DistributionPointName: [");
-			if (m_type == FullName)
+			buf.Append("DistributionPointName: [");
+			buf.Append(sep);
+			if (type == FullName)
 			{
-				AppendObject(buf, "fullName", m_name.ToString());
+				appendObject(buf, sep, "fullName", name.ToString());
 			}
 			else
 			{
-				AppendObject(buf, "nameRelativeToCRLIssuer", m_name.ToString());
+				appendObject(buf, sep, "nameRelativeToCRLIssuer", name.ToString());
 			}
-			buf.AppendLine("]");
+			buf.Append("]");
+			buf.Append(sep);
 			return buf.ToString();
 		}
 
-		private void AppendObject(StringBuilder buf, string name, string val)
+		private void appendObject(
+			StringBuilder	buf,
+			string			sep,
+			string			name,
+			string			val)
 		{
 			string indent = "    ";
+
 			buf.Append(indent);
 			buf.Append(name);
-			buf.AppendLine(":");
+			buf.Append(":");
+			buf.Append(sep);
 			buf.Append(indent);
 			buf.Append(indent);
 			buf.Append(val);
-            buf.AppendLine();
-        }
-    }
+			buf.Append(sep);
+		}
+	}
 }

@@ -31,24 +31,29 @@ namespace Org.BouncyCastle.Asn1
         private static readonly char[] table
 			= { '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
+        /**
+		 * return a Bit string from the passed in object
+		 *
+		 * @exception ArgumentException if the object cannot be converted.
+		 */
 		public static DerBitString GetInstance(object obj)
 		{
-            if (obj == null)
-                return null;
-
-			if (obj is DerBitString derBitString)
-				return derBitString;
-
-            if (obj is IAsn1Convertible asn1Convertible)
+			if (obj == null || obj is DerBitString)
+			{
+				return (DerBitString)obj;
+			}
+            //else if (obj is Asn1BitStringParser)
+            else if (obj is IAsn1Convertible)
             {
-                if (!(obj is Asn1Object) && asn1Convertible.ToAsn1Object() is DerBitString converted)
-                    return converted;
+                Asn1Object asn1Object = ((IAsn1Convertible)obj).ToAsn1Object();
+                if (asn1Object is DerBitString)
+                    return (DerBitString)asn1Object;
             }
-            else if (obj is byte[] bytes)
+            else if (obj is byte[])
             {
                 try
                 {
-                    return GetInstance(FromByteArray(bytes));
+                    return GetInstance(FromByteArray((byte[])obj));
                 }
                 catch (IOException e)
                 {
@@ -59,26 +64,27 @@ namespace Org.BouncyCastle.Asn1
             throw new ArgumentException("illegal object in GetInstance: " + Platform.GetTypeName(obj));
 		}
 
-        public static DerBitString GetInstance(Asn1TaggedObject obj, bool isExplicit)
-        {
-            return (DerBitString)Meta.Instance.GetContextInstance(obj, isExplicit);
-        }
+		/**
+		 * return a Bit string from a tagged object.
+		 *
+		 * @param obj the tagged object holding the object we want
+		 * @param explicitly true if the object is meant to be explicitly
+		 *              tagged false otherwise.
+		 * @exception ArgumentException if the tagged object cannot
+		 *               be converted.
+		 */
+		public static DerBitString GetInstance(Asn1TaggedObject obj, bool isExplicit)
+		{
+			Asn1Object o = obj.GetObject();
 
-        public static DerBitString GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
+			if (isExplicit || o is DerBitString)
+			{
+				return GetInstance(o);
+			}
 
-            if (element is DerBitString existing)
-                return existing;
-
-            return null;
-        }
-
-        public static DerBitString GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return (DerBitString)Meta.Instance.GetTagged(taggedObject, declaredExplicit);
-        }
+            // Not copied because assumed to be a tagged implicit primitive from the parser
+			return CreatePrimitive(((Asn1OctetString)o).GetOctets());
+		}
 
         internal readonly byte[] contents;
 
@@ -111,23 +117,6 @@ namespace Org.BouncyCastle.Asn1
             this.contents = Arrays.Prepend(data, (byte)padBits);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public DerBitString(ReadOnlySpan<byte> data)
-            : this(data, 0)
-        {
-        }
-
-        public DerBitString(ReadOnlySpan<byte> data, int padBits)
-        {
-            if (padBits < 0 || padBits > 7)
-                throw new ArgumentException("must be in the range 0 to 7", "padBits");
-            if (data.IsEmpty && padBits != 0)
-                throw new ArgumentException("if 'data' is empty, 'padBits' must be 0");
-
-            this.contents = Arrays.Prepend(data, (byte)padBits);
-        }
-#endif
-
         public DerBitString(int namedBits)
         {
             if (namedBits == 0)
@@ -136,7 +125,7 @@ namespace Org.BouncyCastle.Asn1
                 return;
             }
 
-            int bits = 32 - Integers.NumberOfLeadingZeros(namedBits);
+            int bits = BigInteger.BitLen(namedBits);
             int bytes = (bits + 7) / 8;
             Debug.Assert(0 < bytes && bytes <= 4);
 
@@ -204,24 +193,6 @@ namespace Org.BouncyCastle.Asn1
 
             return Arrays.CopyOfRange(contents, 1, contents.Length);
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        internal ReadOnlyMemory<byte> GetOctetsMemory()
-        {
-            if (contents[0] != 0)
-                throw new InvalidOperationException("attempt to get non-octet aligned data from BIT STRING");
-
-            return contents.AsMemory(1);
-        }
-
-        internal ReadOnlySpan<byte> GetOctetsSpan()
-        {
-            if (contents[0] != 0)
-                throw new InvalidOperationException("attempt to get non-octet aligned data from BIT STRING");
-
-            return contents.AsSpan(1);
-        }
-#endif
 
         public virtual byte[] GetBytes()
 		{
@@ -292,38 +263,6 @@ namespace Org.BouncyCastle.Asn1
             }
 
             return new PrimitiveEncoding(tagClass, tagNo, contents);
-        }
-
-        internal sealed override DerEncoding GetEncodingDer()
-        {
-            int padBits = contents[0];
-            if (padBits != 0)
-            {
-                int last = contents.Length - 1;
-                byte lastBer = contents[last];
-                byte lastDer = (byte)(lastBer & (0xFF << padBits));
-
-                if (lastBer != lastDer)
-                    return new PrimitiveDerEncodingSuffixed(Asn1Tags.Universal, Asn1Tags.BitString, contents, lastDer);
-            }
-
-            return new PrimitiveDerEncoding(Asn1Tags.Universal, Asn1Tags.BitString, contents);
-        }
-
-        internal sealed override DerEncoding GetEncodingDerImplicit(int tagClass, int tagNo)
-        {
-            int padBits = contents[0];
-            if (padBits != 0)
-            {
-                int last = contents.Length - 1;
-                byte lastBer = contents[last];
-                byte lastDer = (byte)(lastBer & (0xFF << padBits));
-
-                if (lastBer != lastDer)
-                    return new PrimitiveDerEncodingSuffixed(tagClass, tagNo, contents, lastDer);
-            }
-
-            return new PrimitiveDerEncoding(tagClass, tagNo, contents);
         }
 
         protected override int Asn1GetHashCode()

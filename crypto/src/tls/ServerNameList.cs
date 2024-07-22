@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Utilities;
@@ -9,10 +9,10 @@ namespace Org.BouncyCastle.Tls
 {
     public sealed class ServerNameList
     {
-        private readonly IList<ServerName> m_serverNameList;
+        private readonly IList m_serverNameList;
 
-        /// <param name="serverNameList">an <see cref="IList{T}"/> of <see cref="ServerName"/>.</param>
-        public ServerNameList(IList<ServerName> serverNameList)
+        /// <param name="serverNameList">an <see cref="IList"/> of <see cref="ServerName"/>.</param>
+        public ServerNameList(IList serverNameList)
         {
             if (null == serverNameList)
                 throw new ArgumentNullException("serverNameList");
@@ -20,8 +20,8 @@ namespace Org.BouncyCastle.Tls
             this.m_serverNameList = serverNameList;
         }
 
-        /// <returns>an <see cref="IList{T}"/> of <see cref="ServerName"/>.</returns>
-        public IList<ServerName> ServerNames
+        /// <returns>an <see cref="IList"/> of <see cref="ServerName"/>.</returns>
+        public IList ServerNames
         {
             get { return m_serverNameList; }
         }
@@ -43,10 +43,10 @@ namespace Org.BouncyCastle.Tls
                 entry.Encode(buf);
             }
 
-            int length = Convert.ToInt32(buf.Length);
+            int length = (int)buf.Length;
             TlsUtilities.CheckUint16(length);
             TlsUtilities.WriteUint16(length, output);
-            buf.WriteTo(output);
+            Streams.WriteBufTo(buf, output);
         }
 
         /// <summary>Parse a <see cref="ServerNameList"/> from a <see cref="Stream"/>.</summary>
@@ -60,7 +60,7 @@ namespace Org.BouncyCastle.Tls
             MemoryStream buf = new MemoryStream(data, false);
 
             short[] nameTypesSeen = TlsUtilities.EmptyShorts;
-            var server_name_list = new List<ServerName>();
+            IList server_name_list = Platform.CreateArrayList();
             while (buf.Position < buf.Length)
             {
                 ServerName entry = ServerName.Parse(buf);

@@ -6,7 +6,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
     public class PgpSignatureList
 		: PgpObject
     {
-        private readonly PgpSignature[] sigs;
+        private PgpSignature[] sigs;
 
 		public PgpSignatureList(
             PgpSignature[] sigs)
@@ -24,6 +24,19 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 		{
 			get { return sigs[index]; }
 		}
+
+		[Obsolete("Use 'object[index]' syntax instead")]
+		public PgpSignature Get(
+            int index)
+        {
+            return this[index];
+        }
+
+		[Obsolete("Use 'Count' property instead")]
+		public int Size
+        {
+			get { return sigs.Length; }
+        }
 
 		public int Count
 		{

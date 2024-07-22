@@ -24,9 +24,10 @@ namespace Org.BouncyCastle.Crypto.Generators
 		*
 		* @param param the parameters to be used for key generation
 		*/
-		protected override void EngineInit(KeyGenerationParameters parameters)
+		protected override void engineInit(
+			KeyGenerationParameters parameters)
 		{
-			base.EngineInit(parameters);
+			base.engineInit(parameters);
 
 			if (strength == 0 || strength == (56 / 8))
 			{
@@ -39,7 +40,7 @@ namespace Org.BouncyCastle.Crypto.Generators
 			}
 		}
 
-		protected override byte[] EngineGenerateKey()
+		protected override byte[] engineGenerateKey()
         {
             byte[] newKey = new byte[DesParameters.DesKeyLength];
 
@@ -52,20 +53,5 @@ namespace Org.BouncyCastle.Crypto.Generators
 
 			return newKey;
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        protected override KeyParameter EngineGenerateKeyParameter()
-        {
-            return KeyParameter.Create(strength, random, (bytes, random) =>
-            {
-                do
-                {
-                    random.NextBytes(bytes);
-                    DesParameters.SetOddParity(bytes);
-                }
-                while (DesParameters.IsWeakKey(bytes));
-            });
-        }
-#endif
     }
 }

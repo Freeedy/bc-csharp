@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Collections;
 
 namespace Org.BouncyCastle.Asn1.X509
 {
@@ -29,6 +29,14 @@ namespace Org.BouncyCastle.Asn1.X509
 			this.seq = seq;
 		}
 
+#if !(SILVERLIGHT || PORTABLE)
+        public PolicyMappings(
+            Hashtable mappings)
+            : this((IDictionary)mappings)
+        {
+        }
+#endif
+
         /**
 		 * Creates a new <code>PolicyMappings</code> instance.
 		 *
@@ -36,14 +44,14 @@ namespace Org.BouncyCastle.Asn1.X509
 		 * <code>string</code> oids
 		 * to other <code>string</code> oids.
 		 */
-		public PolicyMappings(IDictionary<string, string> mappings)
+		public PolicyMappings(
+			IDictionary mappings)
 		{
-			Asn1EncodableVector v = new Asn1EncodableVector(mappings.Count);
+			Asn1EncodableVector v = new Asn1EncodableVector();
 
-			foreach (var entry in mappings)
+			foreach (string idp in mappings.Keys)
 			{
-				string idp = entry.Key;
-				string sdp = entry.Value;
+				string sdp = (string) mappings[idp];
 
 				v.Add(
 					new DerSequence(

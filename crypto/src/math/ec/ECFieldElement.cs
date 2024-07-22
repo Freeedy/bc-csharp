@@ -96,25 +96,8 @@ namespace Org.BouncyCastle.Math.EC
 
         public virtual byte[] GetEncoded()
         {
-            return BigIntegers.AsUnsignedByteArray(GetEncodedLength(), ToBigInteger());
+            return BigIntegers.AsUnsignedByteArray((FieldSize + 7) / 8, ToBigInteger());
         }
-
-        public virtual int GetEncodedLength()
-        {
-            return (FieldSize + 7) / 8;
-        }
-
-        public virtual void EncodeTo(byte[] buf, int off)
-        {
-            BigIntegers.AsUnsignedByteArray(ToBigInteger(), buf, off, GetEncodedLength());
-        }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void EncodeTo(Span<byte> buf)
-        {
-            BigIntegers.AsUnsignedByteArray(ToBigInteger(), buf[..GetEncodedLength()]);
-        }
-#endif
     }
 
     public abstract class AbstractFpFieldElement
@@ -145,8 +128,17 @@ namespace Org.BouncyCastle.Math.EC
             return null;
         }
 
+        [Obsolete("Use ECCurve.FromBigInteger to construct field elements")]
+        public FpFieldElement(BigInteger q, BigInteger x)
+            : this(q, CalculateResidue(q), x)
+        {
+        }
+
         internal FpFieldElement(BigInteger q, BigInteger r, BigInteger x)
         {
+            if (x == null || x.SignValue < 0 || x.CompareTo(q) >= 0)
+                throw new ArgumentException("value invalid in Fp field element", "x");
+
             this.q = q;
             this.r = r;
             this.x = x;
@@ -279,7 +271,7 @@ namespace Org.BouncyCastle.Math.EC
                 return this;
 
             if (!q.TestBit(0))
-                throw new NotImplementedException("even value of q");
+                throw Platform.CreateNotImplementedException("even value of q");
 
             if (q.TestBit(1)) // q == 4m + 3
             {
@@ -516,24 +508,29 @@ namespace Org.BouncyCastle.Math.EC
             return x3;
         }
 
-        public override bool Equals(object obj) => obj is FpFieldElement that && Equals(that);
-
-        public virtual bool Equals(FpFieldElement other)
+        public override bool Equals(
+            object obj)
         {
-            if (this == other)
+            if (obj == this)
                 return true;
 
-            return q.Equals(other.q)
-                && x.Equals(other.x);
+            FpFieldElement other = obj as FpFieldElement;
+
+            if (other == null)
+                return false;
+
+            return Equals(other);
+        }
+
+        public virtual bool Equals(
+            FpFieldElement other)
+        {
+            return q.Equals(other.q) && base.Equals(other);
         }
 
         public override int GetHashCode()
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return HashCode.Combine(q, x);
-#else
-            return q.GetHashCode() ^ x.GetHashCode();
-#endif
+            return q.GetHashCode() ^ base.GetHashCode();
         }
     }
 
@@ -651,6 +648,71 @@ namespace Org.BouncyCastle.Math.EC
          * The <code>LongArray</code> holding the bits.
          */
         internal LongArray x;
+
+        /**
+         * Constructor for Ppb.
+         * @param m  The exponent <code>m</code> of
+         * <code>F<sub>2<sup>m</sup></sub></code>.
+         * @param k1 The integer <code>k1</code> where <code>x<sup>m</sup> +
+         * x<sup>k3</sup> + x<sup>k2</sup> + x<sup>k1</sup> + 1</code>
+         * represents the reduction polynomial <code>f(z)</code>.
+         * @param k2 The integer <code>k2</code> where <code>x<sup>m</sup> +
+         * x<sup>k3</sup> + x<sup>k2</sup> + x<sup>k1</sup> + 1</code>
+         * represents the reduction polynomial <code>f(z)</code>.
+         * @param k3 The integer <code>k3</code> where <code>x<sup>m</sup> +
+         * x<sup>k3</sup> + x<sup>k2</sup> + x<sup>k1</sup> + 1</code>
+         * represents the reduction polynomial <code>f(z)</code>.
+         * @param x The BigInteger representing the value of the field element.
+         */
+        [Obsolete("Use ECCurve.FromBigInteger to construct field elements")]
+        public F2mFieldElement(
+            int			m,
+            int			k1,
+            int			k2,
+            int			k3,
+            BigInteger	x)
+        {
+            if (x == null || x.SignValue < 0 || x.BitLength > m)
+                throw new ArgumentException("value invalid in F2m field element", "x");
+
+            if ((k2 == 0) && (k3 == 0))
+            {
+                this.representation = Tpb;
+                this.ks = new int[] { k1 };
+            }
+            else
+            {
+                if (k2 >= k3)
+                    throw new ArgumentException("k2 must be smaller than k3");
+                if (k2 <= 0)
+                    throw new ArgumentException("k2 must be larger than 0");
+
+                this.representation = Ppb;
+                this.ks = new int[] { k1, k2, k3 };
+            }
+
+            this.m = m;
+            this.x = new LongArray(x);
+        }
+
+        /**
+         * Constructor for Tpb.
+         * @param m  The exponent <code>m</code> of
+         * <code>F<sub>2<sup>m</sup></sub></code>.
+         * @param k The integer <code>k</code> where <code>x<sup>m</sup> +
+         * x<sup>k</sup> + 1</code> represents the reduction
+         * polynomial <code>f(z)</code>.
+         * @param x The BigInteger representing the value of the field element.
+         */
+        [Obsolete("Use ECCurve.FromBigInteger to construct field elements")]
+        public F2mFieldElement(
+            int			m,
+            int			k,
+            BigInteger	x)
+            : this(m, k, 0, 0, x)
+        {
+            // Set k1 to k, and set k2 and k3 to 0
+        }
 
         internal F2mFieldElement(int m, int[] ks, LongArray x)
         {
@@ -780,9 +842,9 @@ namespace Org.BouncyCastle.Math.EC
             LongArray ab = ax.Multiply(bx, m, ks);
             LongArray xy = xx.Multiply(yx, m, ks);
 
-            if (LongArray.AreAliased(ref ab, ref ax) || LongArray.AreAliased(ref ab, ref bx))
+            if (ab == ax || ab == bx)
             {
-                ab = ab.Copy();
+                ab = (LongArray)ab.Copy();
             }
 
             ab.AddShiftedByWords(xy, 0);
@@ -822,9 +884,9 @@ namespace Org.BouncyCastle.Math.EC
             LongArray aa = ax.Square(m, ks);
             LongArray xy = xx.Multiply(yx, m, ks);
 
-            if (LongArray.AreAliased(ref aa, ref ax))
+            if (aa == ax)
             {
-                aa = aa.Copy();
+                aa = (LongArray)aa.Copy();
             }
 
             aa.AddShiftedByWords(xy, 0);
@@ -905,26 +967,32 @@ namespace Org.BouncyCastle.Math.EC
             get { return this.ks.Length >= 3 ? this.ks[2] : 0; }
         }
 
-        public override bool Equals(object obj) => obj is F2mFieldElement that && Equals(that);
-
-        public virtual bool Equals(F2mFieldElement other)
+        public override bool Equals(
+            object obj)
         {
-            if (this == other)
+            if (obj == this)
                 return true;
 
-            return this.m == other.m
-                && this.representation == other.representation
+            F2mFieldElement other = obj as F2mFieldElement;
+
+            if (other == null)
+                return false;
+
+            return Equals(other);
+        }
+
+        public virtual bool Equals(
+            F2mFieldElement other)
+        {
+            return ((this.m == other.m)
+                && (this.representation == other.representation)
                 && Arrays.AreEqual(this.ks, other.ks)
-                && this.x.Equals(other.x);
+                && (this.x.Equals(other.x)));
         }
 
         public override int GetHashCode()
         {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return HashCode.Combine(x, m, Arrays.GetHashCode(ks));
-#else
             return x.GetHashCode() ^ m ^ Arrays.GetHashCode(ks);
-#endif
         }
     }
 }

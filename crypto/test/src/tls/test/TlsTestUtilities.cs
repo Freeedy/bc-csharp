@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -46,7 +46,16 @@ namespace Org.BouncyCastle.Tls.Tests
 
         internal static bool EqualsIgnoreCase(string a, string b)
         {
-            return string.Equals(a, b, StringComparison.InvariantCultureIgnoreCase);
+            return ToUpperInvariant(a) == ToUpperInvariant(b);
+        }
+
+        internal static string ToUpperInvariant(string s)
+        {
+#if PORTABLE
+            return s.ToUpperInvariant();
+#else
+            return s.ToUpper(CultureInfo.InvariantCulture);
+#endif
         }
 
         internal static string Fingerprint(X509CertificateStructure c)
@@ -54,7 +63,7 @@ namespace Org.BouncyCastle.Tls.Tests
             byte[] der = c.GetEncoded();
             byte[] hash = Sha256DigestOf(der);
             byte[] hexBytes = Hex.Encode(hash);
-            string hex = Encoding.ASCII.GetString(hexBytes).ToUpperInvariant();
+            string hex = ToUpperInvariant(Encoding.ASCII.GetString(hexBytes));
 
             StringBuilder fp = new StringBuilder();
             int i = 0;
@@ -159,11 +168,6 @@ namespace Org.BouncyCastle.Tls.Tests
                 return "rsa_pss_384";
             case SignatureAlgorithm.rsa_pss_pss_sha512:
                 return "rsa_pss_512";
-
-            // TODO[RFC 9189] Choose names here and apply reverse mappings in GetCACertResource(String)
-            case SignatureAlgorithm.gostr34102012_256:
-            case SignatureAlgorithm.gostr34102012_512:
-
             default:
                 throw new TlsFatalAlert(AlertDescription.internal_error);
             }
@@ -235,8 +239,7 @@ namespace Org.BouncyCastle.Tls.Tests
         }
 
         internal static TlsCredentialedSigner LoadSignerCredentials(TlsContext context,
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms, short signatureAlgorithm,
-            string certResource, string keyResource)
+            IList supportedSignatureAlgorithms, short signatureAlgorithm, string certResource, string keyResource)
         {
             if (supportedSignatureAlgorithms == null)
             {
@@ -263,7 +266,7 @@ namespace Org.BouncyCastle.Tls.Tests
         }
 
         internal static TlsCredentialedSigner LoadSignerCredentialsServer(TlsContext context,
-            IList<SignatureAndHashAlgorithm> supportedSignatureAlgorithms, short signatureAlgorithm)
+            IList supportedSignatureAlgorithms, short signatureAlgorithm)
         {
             string sigName = GetResourceName(signatureAlgorithm);
 
@@ -295,7 +298,7 @@ namespace Org.BouncyCastle.Tls.Tests
                     TlsCertificate certificate = LoadCertificateResource(crypto, resources[i]);
 
                     // TODO[tls13] Add possibility of specifying e.g. CertificateStatus 
-                    IDictionary<int, byte[]> extensions = null;
+                    IDictionary extensions = null;
 
                     certificateEntryList[i] = new CertificateEntry(certificate, extensions);
                 }
@@ -362,7 +365,8 @@ namespace Org.BouncyCastle.Tls.Tests
             if (pem.Type.Equals("EC PRIVATE KEY"))
             {
                 ECPrivateKeyStructure pKey = ECPrivateKeyStructure.GetInstance(pem.Content);
-                AlgorithmIdentifier algId = new AlgorithmIdentifier(X9ObjectIdentifiers.IdECPublicKey, pKey.Parameters);
+                AlgorithmIdentifier algId = new AlgorithmIdentifier(X9ObjectIdentifiers.IdECPublicKey,
+                    pKey.GetParameters());
                 PrivateKeyInfo privInfo = new PrivateKeyInfo(algId, pKey);
                 return PrivateKeyFactory.CreateKey(privInfo);
             }
@@ -370,12 +374,13 @@ namespace Org.BouncyCastle.Tls.Tests
         }
 
         internal static PemObject LoadPemResource(string resource)
+           
         {
             Stream s = SimpleTest.GetTestDataAsStream("tls." + resource);
-            using (var p = new PemReader(new StreamReader(s)))
-            {
-                return p.ReadPemObject();
-            }
+            PemReader p = new PemReader(new StreamReader(s));
+            PemObject o = p.ReadPemObject();
+            p.Reader.Close();
+            return o;
         }
 
         internal static bool AreSameCertificate(TlsCrypto crypto, TlsCertificate cert, string resource)

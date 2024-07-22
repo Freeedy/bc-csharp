@@ -1,47 +1,70 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Ocsp
 {
     public class ResponseBytes
         : Asn1Encodable
     {
-        public static ResponseBytes GetInstance(object obj)
+        private readonly DerObjectIdentifier responseType;
+        private readonly Asn1OctetString response;
+
+		public static ResponseBytes GetInstance(
+			Asn1TaggedObject	obj,
+			bool				explicitly)
+		{
+			return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
+		}
+
+		public static ResponseBytes GetInstance(
+			object obj)
+		{
+			if (obj == null || obj is ResponseBytes)
+			{
+				return (ResponseBytes)obj;
+			}
+
+			if (obj is Asn1Sequence)
+			{
+				return new ResponseBytes((Asn1Sequence)obj);
+			}
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public ResponseBytes(
+            DerObjectIdentifier	responseType,
+            Asn1OctetString		response)
         {
-            if (obj == null)
-                return null;
-            if (obj is ResponseBytes responseBytes)
-                return responseBytes;
-            return new ResponseBytes(Asn1Sequence.GetInstance(obj));
+			if (responseType == null)
+				throw new ArgumentNullException("responseType");
+			if (response == null)
+				throw new ArgumentNullException("response");
+
+			this.responseType = responseType;
+            this.response = response;
         }
 
-        public static ResponseBytes GetInstance(Asn1TaggedObject obj, bool explicitly) =>
-            new ResponseBytes(Asn1Sequence.GetInstance(obj, explicitly));
-
-        public static ResponseBytes GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new ResponseBytes(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
-
-        private readonly DerObjectIdentifier m_responseType;
-        private readonly Asn1OctetString m_response;
-
-        public ResponseBytes(DerObjectIdentifier responseType, Asn1OctetString response)
+		private ResponseBytes(
+            Asn1Sequence seq)
         {
-			m_responseType = responseType ?? throw new ArgumentNullException(nameof(responseType));
-            m_response = response ?? throw new ArgumentNullException(nameof(response));
+			if (seq.Count != 2)
+				throw new ArgumentException("Wrong number of elements in sequence", "seq");
+
+			this.responseType = DerObjectIdentifier.GetInstance(seq[0]);
+            this.response = Asn1OctetString.GetInstance(seq[1]);
         }
 
-        private ResponseBytes(Asn1Sequence seq)
-        {
-            int count = seq.Count;
-            if (count != 2)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+		public DerObjectIdentifier ResponseType
+		{
+			get { return responseType; }
+		}
 
-            m_responseType = DerObjectIdentifier.GetInstance(seq[0]);
-            m_response = Asn1OctetString.GetInstance(seq[1]);
-        }
-
-        public DerObjectIdentifier ResponseType => m_responseType;
-
-        public Asn1OctetString Response => m_response;
+		public Asn1OctetString Response
+		{
+			get { return response; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -53,7 +76,7 @@ namespace Org.BouncyCastle.Asn1.Ocsp
          */
         public override Asn1Object ToAsn1Object()
         {
-			return new DerSequence(m_responseType, m_response);
+			return new DerSequence(responseType, response);
         }
     }
 }

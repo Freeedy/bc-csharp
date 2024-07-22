@@ -1,68 +1,78 @@
 using System;
 
 using Org.BouncyCastle.Asn1.Ocsp;
-using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Esf
 {
-    /// <remarks>
-    /// RFC 3126: 4.2.2 Complete Revocation Refs Attribute Definition
-    /// <code>
-    /// OcspIdentifier ::= SEQUENCE {
-    ///		ocspResponderID		ResponderID,
-    ///			-- As in OCSP response data
-    ///		producedAt			GeneralizedTime
-    ///			-- As in OCSP response data
-    /// }
-    /// </code>
-    /// </remarks>
-    public class OcspIdentifier
+	/// <remarks>
+	/// RFC 3126: 4.2.2 Complete Revocation Refs Attribute Definition
+	/// <code>
+	/// OcspIdentifier ::= SEQUENCE {
+	///		ocspResponderID		ResponderID,
+	///			-- As in OCSP response data
+	///		producedAt			GeneralizedTime
+	///			-- As in OCSP response data
+	/// }
+	/// </code>
+	/// </remarks>
+	public class OcspIdentifier
 		: Asn1Encodable
 	{
-		public static OcspIdentifier GetInstance(object obj)
+		private readonly ResponderID		ocspResponderID;
+		private readonly DerGeneralizedTime	producedAt;
+
+		public static OcspIdentifier GetInstance(
+			object obj)
 		{
-			if (obj == null)
-				return null;
-			if (obj is OcspIdentifier ocspIdentifier)
-				return ocspIdentifier;
-			return new OcspIdentifier(Asn1Sequence.GetInstance(obj));
+			if (obj == null || obj is OcspIdentifier)
+				return (OcspIdentifier) obj;
+
+			if (obj is Asn1Sequence)
+				return new OcspIdentifier((Asn1Sequence) obj);
+
+			throw new ArgumentException(
+				"Unknown object in 'OcspIdentifier' factory: "
+                    + Platform.GetTypeName(obj),
+				"obj");
 		}
 
-        public static OcspIdentifier GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new OcspIdentifier(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly ResponderID m_ocspResponderID;
-        private readonly Asn1GeneralizedTime m_producedAt;
-
-        private OcspIdentifier(Asn1Sequence seq)
+		private OcspIdentifier(
+			Asn1Sequence seq)
 		{
-			int count = 2;
-			if (count != 2)
-				throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
+			if (seq == null)
+				throw new ArgumentNullException("seq");
+			if (seq.Count != 2)
+				throw new ArgumentException("Bad sequence size: " + seq.Count, "seq");
 
-			m_ocspResponderID = ResponderID.GetInstance(seq[0]);
-			m_producedAt = Asn1GeneralizedTime.GetInstance(seq[1]);
+			this.ocspResponderID = ResponderID.GetInstance(seq[0].ToAsn1Object());
+			this.producedAt = (DerGeneralizedTime) seq[1].ToAsn1Object();
 		}
 
-		public OcspIdentifier(ResponderID ocspResponderID, DateTime producedAt)
-			: this(ocspResponderID, Rfc5280Asn1Utilities.CreateGeneralizedTime(producedAt))
+		public OcspIdentifier(
+			ResponderID	ocspResponderID,
+			DateTime	producedAt)
 		{
+			if (ocspResponderID == null)
+				throw new ArgumentNullException();
+
+			this.ocspResponderID = ocspResponderID;
+			this.producedAt = new DerGeneralizedTime(producedAt);
 		}
 
-        public OcspIdentifier(ResponderID ocspResponderID, Asn1GeneralizedTime producedAt)
-        {
-            m_ocspResponderID = ocspResponderID ?? throw new ArgumentNullException(nameof(ocspResponderID));
-            m_producedAt = producedAt ?? throw new ArgumentNullException(nameof(producedAt));
-        }
+		public ResponderID OcspResponderID
+		{
+			get { return ocspResponderID; }
+		}
 
-		public ResponderID OcspResponderID => m_ocspResponderID;
+		public DateTime ProducedAt
+		{
+			get { return producedAt.ToDateTime(); }
+		}
 
-		public Asn1GeneralizedTime ProducedAtData => m_producedAt;
-
-		public DateTime ProducedAt => m_producedAt.ToDateTime();
-
-		public override Asn1Object ToAsn1Object() => new DerSequence(m_ocspResponderID, m_producedAt);
+		public override Asn1Object ToAsn1Object()
+		{
+			return new DerSequence(ocspResponderID, producedAt);
+		}
 	}
 }

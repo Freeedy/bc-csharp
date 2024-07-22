@@ -1,7 +1,5 @@
-using System;
 using System.IO;
 
-using Org.BouncyCastle.Crypto.Utilities;
 using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Bcpg
@@ -44,7 +42,7 @@ namespace Org.BouncyCastle.Bcpg
         /// <summary>Return the generic data making up the packet.</summary>
         public byte[] GetData()
         {
-            return (byte[])data.Clone();
+            return (byte[]) data.Clone();
         }
 
 		public void Encode(
@@ -52,31 +50,35 @@ namespace Org.BouncyCastle.Bcpg
         {
             int bodyLen = data.Length + 1;
 
-            if (isLongLength || bodyLen > 8383)
+            if (isLongLength)
             {
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-                Span<byte> buf = stackalloc byte[5];
-                buf[0] = 0xFF;
-                Pack.UInt32_To_BE((uint)bodyLen, buf, 1);
-                os.Write(buf);
-#else
                 os.WriteByte(0xff);
                 os.WriteByte((byte)(bodyLen >> 24));
                 os.WriteByte((byte)(bodyLen >> 16));
                 os.WriteByte((byte)(bodyLen >> 8));
                 os.WriteByte((byte)bodyLen);
-#endif
-            }
-            else if (bodyLen < 192)
-            {
-                os.WriteByte((byte)bodyLen);
             }
             else
             {
-                bodyLen -= 192;
+                if (bodyLen < 192)
+                {
+                    os.WriteByte((byte)bodyLen);
+                }
+                else if (bodyLen <= 8383)
+                {
+                    bodyLen -= 192;
 
-                os.WriteByte((byte)(((bodyLen >> 8) & 0xff) + 192));
-                os.WriteByte((byte)bodyLen);
+                    os.WriteByte((byte)(((bodyLen >> 8) & 0xff) + 192));
+                    os.WriteByte((byte)bodyLen);
+                }
+                else
+                {
+                    os.WriteByte(0xff);
+                    os.WriteByte((byte)(bodyLen >> 24));
+                    os.WriteByte((byte)(bodyLen >> 16));
+                    os.WriteByte((byte)(bodyLen >> 8));
+                    os.WriteByte((byte)bodyLen);
+                }
             }
 
             if (critical)
@@ -101,7 +103,8 @@ namespace Org.BouncyCastle.Bcpg
             if (obj == this)
                 return true;
 
-            if (!(obj is SignatureSubpacket other))
+            SignatureSubpacket other = obj as SignatureSubpacket;
+            if (null == other)
                 return false;
 
             return this.type == other.type

@@ -36,7 +36,7 @@ namespace Org.BouncyCastle.Asn1.X509
 			throw new ArgumentException("unknown object in GetInstance: " + Platform.GetTypeName(obj), "obj");
 		}
 
-		private Asn1GeneralizedTime _notBefore, _notAfter;
+		private DerGeneralizedTime _notBefore, _notAfter;
 
 		private PrivateKeyUsagePeriod(
 			Asn1Sequence seq)
@@ -45,28 +45,28 @@ namespace Org.BouncyCastle.Asn1.X509
 			{
 				if (tObj.TagNo == 0)
 				{
-					_notBefore = Asn1GeneralizedTime.GetInstance(tObj, false);
+					_notBefore = DerGeneralizedTime.GetInstance(tObj, false);
 				}
 				else if (tObj.TagNo == 1)
 				{
-					_notAfter = Asn1GeneralizedTime.GetInstance(tObj, false);
+					_notAfter = DerGeneralizedTime.GetInstance(tObj, false);
 				}
 			}
 		}
 
-		public Asn1GeneralizedTime NotBefore
+		public DerGeneralizedTime NotBefore
 		{
 			get { return _notBefore; }
 		}
 
-		public Asn1GeneralizedTime NotAfter
+		public DerGeneralizedTime NotAfter
 		{
 			get { return _notAfter; }
 		}
 
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(2);
+            Asn1EncodableVector v = new Asn1EncodableVector();
             v.AddOptionalTagged(false, 0, _notBefore);
             v.AddOptionalTagged(false, 1, _notAfter);
             return new DerSequence(v);

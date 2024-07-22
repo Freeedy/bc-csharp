@@ -24,8 +24,8 @@ namespace Org.BouncyCastle.Tls.Tests
             MockPskTlsClient client = new MockPskTlsClient(null);
             MockPskTlsServer server = new MockPskTlsServer();
 
-            ServerTask serverTask = new ServerTask(serverProtocol, server);
-            Thread serverThread = new Thread(new ThreadStart(serverTask.Run));
+            Server serverRun = new Server(serverProtocol, server);
+            Thread serverThread = new Thread(new ThreadStart(serverRun.Run));
             serverThread.Start();
 
             clientProtocol.Connect(client);
@@ -47,12 +47,12 @@ namespace Org.BouncyCastle.Tls.Tests
             serverThread.Join();
         }
 
-        internal class ServerTask
+        internal class Server
         {
             private readonly TlsServerProtocol m_serverProtocol;
             private readonly TlsServer m_server;
 
-            internal ServerTask(TlsServerProtocol serverProtocol, TlsServer server)
+            internal Server(TlsServerProtocol serverProtocol, TlsServer server)
             {
                 this.m_serverProtocol = serverProtocol;
                 this.m_server = server;

@@ -1,4 +1,5 @@
-using System.Collections.Generic;
+using System;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
@@ -10,56 +11,51 @@ using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.X509;
 
 namespace Org.BouncyCastle.Cms
 {
-    internal class KeyAgreeRecipientInfoGenerator
-		: RecipientInfoGenerator
+	internal class KeyAgreeRecipientInfoGenerator : RecipientInfoGenerator
 	{
-        private readonly List<KeyAgreeRecipientIdentifier> m_recipientIDs = new List<KeyAgreeRecipientIdentifier>();
-        private readonly List<AsymmetricKeyParameter> m_recipientKeys = new List<AsymmetricKeyParameter>();
+		private static readonly CmsEnvelopedHelper Helper = CmsEnvelopedHelper.Instance;
 
-        private DerObjectIdentifier m_keyAgreementOid;
-		private DerObjectIdentifier m_keyEncryptionOid;
-		private AsymmetricCipherKeyPair m_senderKeyPair;
+		private DerObjectIdentifier			keyAgreementOID;
+		private DerObjectIdentifier			keyEncryptionOID;
+		private IList					    recipientCerts;
+		private AsymmetricCipherKeyPair		senderKeyPair;
 
-		internal KeyAgreeRecipientInfoGenerator(IEnumerable<X509Certificate> recipientCerts)
+		internal KeyAgreeRecipientInfoGenerator()
 		{
-			foreach (var recipientCert in recipientCerts)
-			{
-				m_recipientIDs.Add(new KeyAgreeRecipientIdentifier(CmsUtilities.GetIssuerAndSerialNumber(recipientCert)));
-				m_recipientKeys.Add(recipientCert.GetPublicKey());
-            }
-        }
-
-        internal KeyAgreeRecipientInfoGenerator(byte[] subjectKeyID, AsymmetricKeyParameter publicKey)
-        {
-            m_recipientIDs.Add(new KeyAgreeRecipientIdentifier(new RecipientKeyIdentifier(subjectKeyID)));
-            m_recipientKeys.Add(publicKey);
-        }
-
-        internal DerObjectIdentifier KeyAgreementOid
-		{
-			set { m_keyAgreementOid = value; }
 		}
 
-		internal DerObjectIdentifier KeyEncryptionOid
+		internal DerObjectIdentifier KeyAgreementOID
 		{
-			set { m_keyEncryptionOid = value; }
+			set { this.keyAgreementOID = value; }
+		}
+
+		internal DerObjectIdentifier KeyEncryptionOID
+		{
+			set { this.keyEncryptionOID = value; }
+		}
+
+		internal ICollection RecipientCerts
+		{
+			set { this.recipientCerts = Platform.CreateArrayList(value); }
 		}
 
 		internal AsymmetricCipherKeyPair SenderKeyPair
 		{
-			set { m_senderKeyPair = value; }
+			set { this.senderKeyPair = value; }
 		}
 
 		public RecipientInfo Generate(KeyParameter contentEncryptionKey, SecureRandom random)
 		{
 			byte[] keyBytes = contentEncryptionKey.GetKey();
 
-			AsymmetricKeyParameter senderPublicKey = m_senderKeyPair.Public;
-			ICipherParameters senderPrivateParams = m_senderKeyPair.Private;
+			AsymmetricKeyParameter senderPublicKey = senderKeyPair.Public;
+			ICipherParameters senderPrivateParams = senderKeyPair.Private;
+
 
 			OriginatorIdentifierOrKey originator;
 			try
@@ -72,13 +68,14 @@ namespace Org.BouncyCastle.Cms
 				throw new InvalidKeyException("cannot extract originator public key: " + e);
 			}
 
+
 			Asn1OctetString ukm = null;
-            if (CmsUtilities.IsMqv(m_keyAgreementOid))
+			if (keyAgreementOID.Id.Equals(CmsEnvelopedGenerator.ECMqvSha1Kdf))
 			{
 				try
 				{
 					IAsymmetricCipherKeyPairGenerator ephemKPG =
-						GeneratorUtilities.GetKeyPairGenerator(m_keyAgreementOid);
+						GeneratorUtilities.GetKeyPairGenerator(keyAgreementOID);
 					ephemKPG.Init(
 						((ECPublicKeyParameters)senderPublicKey).CreateKeyGenerationParameters(random));
 
@@ -103,16 +100,34 @@ namespace Org.BouncyCastle.Cms
 				}
 			}
 
-			DerSequence paramSeq = new DerSequence(m_keyEncryptionOid, DerNull.Instance);
-			AlgorithmIdentifier keyEncAlg = new AlgorithmIdentifier(m_keyAgreementOid, paramSeq);
 
-			Asn1EncodableVector recipientEncryptedKeys = new Asn1EncodableVector(m_recipientIDs.Count);
-            for (int i = 0; i < m_recipientIDs.Count; ++i)
+			DerSequence paramSeq = new DerSequence(
+				keyEncryptionOID,
+				DerNull.Instance);
+			AlgorithmIdentifier keyEncAlg = new AlgorithmIdentifier(keyAgreementOID, paramSeq);
+
+
+			Asn1EncodableVector recipientEncryptedKeys = new Asn1EncodableVector();
+			foreach (X509Certificate recipientCert in recipientCerts)
 			{
-				var recipientID = m_recipientIDs[i];
-				ICipherParameters recipientPublicParams = m_recipientKeys[i];
+				TbsCertificateStructure tbsCert;
+				try
+				{
+					tbsCert = TbsCertificateStructure.GetInstance(
+						Asn1Object.FromByteArray(recipientCert.GetTbsCertificate()));
+				}
+				catch (Exception)
+				{
+					throw new ArgumentException("can't extract TBS structure from certificate");
+				}
 
-				if (m_keyAgreementOid.Id.Equals(CmsEnvelopedGenerator.ECMqvSha1Kdf))
+				// TODO Should there be a SubjectKeyIdentifier-based alternative?
+				IssuerAndSerialNumber issuerSerial = new IssuerAndSerialNumber(
+					tbsCert.Issuer, tbsCert.SerialNumber.Value);
+				KeyAgreeRecipientIdentifier karid = new KeyAgreeRecipientIdentifier(issuerSerial);
+
+				ICipherParameters recipientPublicParams = recipientCert.GetPublicKey();
+				if (keyAgreementOID.Id.Equals(CmsEnvelopedGenerator.ECMqvSha1Kdf))
 				{
 					recipientPublicParams = new MqvPublicParameters(
 						(ECPublicKeyParameters)recipientPublicParams,
@@ -121,33 +136,36 @@ namespace Org.BouncyCastle.Cms
 
 				// Use key agreement to choose a wrap key for this recipient
 				IBasicAgreement keyAgreement = AgreementUtilities.GetBasicAgreementWithKdf(
-					m_keyAgreementOid, m_keyEncryptionOid);
+					keyAgreementOID, keyEncryptionOID.Id);
 				keyAgreement.Init(new ParametersWithRandom(senderPrivateParams, random));
 				BigInteger agreedValue = keyAgreement.CalculateAgreement(recipientPublicParams);
 
-				int keyEncryptionKeySize = GeneratorUtilities.GetDefaultKeySize(m_keyEncryptionOid) / 8;
+				int keyEncryptionKeySize = GeneratorUtilities.GetDefaultKeySize(keyEncryptionOID) / 8;
 				byte[] keyEncryptionKeyBytes = X9IntegerConverter.IntegerToBytes(agreedValue, keyEncryptionKeySize);
 				KeyParameter keyEncryptionKey = ParameterUtilities.CreateKeyParameter(
-					m_keyEncryptionOid, keyEncryptionKeyBytes);
+					keyEncryptionOID, keyEncryptionKeyBytes);
 
 				// Wrap the content encryption key with the agreement key
-				IWrapper keyWrapper = WrapperUtilities.GetWrapper(m_keyEncryptionOid.Id);
+				IWrapper keyWrapper = Helper.CreateWrapper(keyEncryptionOID.Id);
 				keyWrapper.Init(true, new ParametersWithRandom(keyEncryptionKey, random));
 				byte[] encryptedKeyBytes = keyWrapper.Wrap(keyBytes, 0, keyBytes.Length);
 
 	        	Asn1OctetString encryptedKey = new DerOctetString(encryptedKeyBytes);
 
-				recipientEncryptedKeys.Add(new RecipientEncryptedKey(recipientID, encryptedKey));
+				recipientEncryptedKeys.Add(new RecipientEncryptedKey(karid, encryptedKey));
 			}
 
 			return new RecipientInfo(new KeyAgreeRecipientInfo(originator, ukm, keyEncAlg,
 				new DerSequence(recipientEncryptedKeys)));
 		}
 
-		private static OriginatorPublicKey CreateOriginatorPublicKey(AsymmetricKeyParameter publicKey) =>
-			CreateOriginatorPublicKey(SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(publicKey));
-
-        private static OriginatorPublicKey CreateOriginatorPublicKey(SubjectPublicKeyInfo originatorKeyInfo) =>
-			new OriginatorPublicKey(originatorKeyInfo.Algorithm, originatorKeyInfo.PublicKey);
-    }
+		private static OriginatorPublicKey CreateOriginatorPublicKey(
+			AsymmetricKeyParameter publicKey)
+		{
+			SubjectPublicKeyInfo spki = SubjectPublicKeyInfoFactory.CreateSubjectPublicKeyInfo(publicKey);
+			return new OriginatorPublicKey(
+                new AlgorithmIdentifier(spki.AlgorithmID.Algorithm, DerNull.Instance),
+				spki.PublicKeyData.GetBytes());
+		}
+	}
 }

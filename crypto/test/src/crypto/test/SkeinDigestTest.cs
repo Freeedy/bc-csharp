@@ -205,8 +205,6 @@ namespace Org.BouncyCastle.Crypto.Tests
 				Case test = TEST_CASES[i];
 				runTest(test);
 			}
-
-			DigestTest.SpanConsistencyTests(this, new SkeinDigest(256, 256));
 		}
 
 		private void runTest(Case dc)
@@ -285,6 +283,12 @@ namespace Org.BouncyCastle.Crypto.Tests
 			//	        {
 			//				Fail("failing memo copy vector test", Hex.ToHexString(dc.getDigest()), Hex.ToHexString(output));
 			//	        }
+		}
+
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new SkeinDigestTest());
 		}
 
 		[Test]

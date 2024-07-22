@@ -1,10 +1,17 @@
 using System;
 using System.IO;
+using System.Text;
 
+#if !LIB
+using NUnit.Core;
+#endif
 using NUnit.Framework;
 
 using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Generators;
+using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.Utilities.Test;
 
 namespace Org.BouncyCastle.OpenSsl.Tests
 {
@@ -28,6 +35,43 @@ namespace Org.BouncyCastle.OpenSsl.Tests
 			}
 		}
 
+#if !LIB
+        public static void Main(string[] args)
+        {
+            Suite.Run(new NullListener(), NUnit.Core.TestFilter.Empty);
+        }
+
+        [Suite]
+        public static TestSuite Suite
+        {
+            get
+            {
+                TestSuite suite = new TestSuite("OpenSSL Tests");
+                suite.Add(new AllTests());
+                return suite;
+            }
+        }
+#endif
+
+        [Test]
+		public void TestOpenSsl()
+		{
+			Org.BouncyCastle.Utilities.Test.ITest[] tests = new Org.BouncyCastle.Utilities.Test.ITest[]{
+				new ReaderTest(),
+				new WriterTest()
+			};
+
+			foreach (Org.BouncyCastle.Utilities.Test.ITest test in tests)
+			{
+				SimpleTestResult result = (SimpleTestResult)test.Perform();
+
+				if (!result.IsSuccessful())
+				{
+					Assert.Fail(result.ToString());
+				}
+			}
+		}
+
 		[Test]
 		public void TestPkcs8Encrypted()
 		{
@@ -44,24 +88,23 @@ namespace Org.BouncyCastle.OpenSsl.Tests
 
 		private void EncryptedTest(AsymmetricKeyParameter privKey, string algorithm)
 		{
+			StringWriter sw = new StringWriter();
+			PemWriter pWrt = new PemWriter(sw);
 			Pkcs8Generator pkcs8 = new Pkcs8Generator(privKey, algorithm);
 			pkcs8.Password = "hello".ToCharArray();
 
-            StringWriter sw = new StringWriter();
-			using (var pWrt = new PemWriter(sw))
-			{
-                pWrt.WriteObject(pkcs8);
-            }
+			pWrt.WriteObject(pkcs8);
+			pWrt.Writer.Close();
 
-			string result = sw.ToString();
+			String result = sw.ToString();
 
-			using (var pRd = new PemReader(new StringReader(result), new Password("hello".ToCharArray())))
-			{
-                AsymmetricKeyParameter rdKey = (AsymmetricKeyParameter)pRd.ReadObject();
+			PemReader pRd = new PemReader(new StringReader(result), new Password("hello".ToCharArray()));
 
-                Assert.AreEqual(privKey, rdKey);
-            }
-        }
+			AsymmetricKeyParameter rdKey = (AsymmetricKeyParameter)pRd.ReadObject();
+			pRd.Reader.Close();
+
+			Assert.AreEqual(privKey, rdKey);
+		}
 
 		[Test]
 		public void TestPkcs8Plain()
@@ -70,22 +113,22 @@ namespace Org.BouncyCastle.OpenSsl.Tests
 			kpGen.Init(new KeyGenerationParameters(new SecureRandom(), 1024));
 
 			AsymmetricKeyParameter privKey = kpGen.GenerateKeyPair().Private;
-            Pkcs8Generator pkcs8 = new Pkcs8Generator(privKey);
 
-            StringWriter sw = new StringWriter();
-			using (var pWrt = new PemWriter(sw))
-			{
-                pWrt.WriteObject(pkcs8);
-            }
+			StringWriter sw = new StringWriter();
+			PemWriter pWrt = new PemWriter(sw);
+
+			Pkcs8Generator pkcs8 = new Pkcs8Generator(privKey);
+			pWrt.WriteObject(pkcs8);
+			pWrt.Writer.Close();
 
 			string result = sw.ToString();
 
-			using (var pRd = new PemReader(new StringReader(result), new Password("hello".ToCharArray())))
-			{
-                AsymmetricKeyParameter rdKey = (AsymmetricKeyParameter)pRd.ReadObject();
+			PemReader pRd = new PemReader(new StringReader(result), new Password("hello".ToCharArray()));
 
-                Assert.AreEqual(privKey, rdKey);
-            }
-        }
+			AsymmetricKeyParameter rdKey = (AsymmetricKeyParameter)pRd.ReadObject();
+			pRd.Reader.Close();
+
+			Assert.AreEqual(privKey, rdKey);
+		}
 	}
 }

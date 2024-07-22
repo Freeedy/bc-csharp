@@ -1,9 +1,10 @@
+using System;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
 using Org.BouncyCastle.Utilities;
-using Org.BouncyCastle.Utilities.IO.Compression;
+using Org.BouncyCastle.Utilities.Zlib;
 
 namespace Org.BouncyCastle.Cms
 {
@@ -44,7 +45,7 @@ namespace Org.BouncyCastle.Cms
             ContentInfo content = comData.EncapContentInfo;
 
 			Asn1OctetString bytes = (Asn1OctetString) content.Content;
-			Stream zIn = ZLib.DecompressInput(bytes.GetOctetStream());
+			ZInputStream zIn = new ZInputStream(bytes.GetOctetStream());
 
 			try
 			{
@@ -56,7 +57,7 @@ namespace Org.BouncyCastle.Cms
 			}
 			finally
 			{
-                zIn.Dispose();
+                Platform.Dispose(zIn);
 			}
         }
 
@@ -75,7 +76,8 @@ namespace Org.BouncyCastle.Cms
 			ContentInfo     content = comData.EncapContentInfo;
 
 			Asn1OctetString bytes = (Asn1OctetString)content.Content;
-            Stream zIn = ZLib.DecompressInput(bytes.GetOctetStream());
+
+			ZInputStream zIn = new ZInputStream(new MemoryStream(bytes.GetOctets(), false));
 
 			try
 			{

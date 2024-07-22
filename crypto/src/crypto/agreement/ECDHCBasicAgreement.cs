@@ -26,28 +26,29 @@ namespace Org.BouncyCastle.Crypto.Agreement
      * (if you want that just use ECDHBasicAgreement and note they both implement
      * BasicAgreement!).</p>
      */
-    // TODO[api] sealed
     public class ECDHCBasicAgreement
         : IBasicAgreement
     {
         private ECPrivateKeyParameters privKey;
 
-        public virtual void Init(ICipherParameters parameters)
+        public virtual void Init(
+            ICipherParameters parameters)
         {
-            if (parameters is ParametersWithRandom withRandom)
+            if (parameters is ParametersWithRandom)
             {
-                parameters = withRandom.Parameters;
+                parameters = ((ParametersWithRandom) parameters).Parameters;
             }
 
-            if (!(parameters is ECPrivateKeyParameters ecPrivateKeyParameters))
-                throw new ArgumentException("ECDHCBasicAgreement expects ECPrivateKeyParameters");
-
-            this.privKey = ecPrivateKeyParameters;
+            this.privKey = (ECPrivateKeyParameters)parameters;
         }
 
-        public virtual int GetFieldSize() => privKey.Parameters.Curve.FieldElementEncodingLength;
+        public virtual int GetFieldSize()
+        {
+            return (privKey.Parameters.Curve.FieldSize + 7) / 8;
+        }
 
-        public virtual BigInteger CalculateAgreement(ICipherParameters pubKey)
+        public virtual BigInteger CalculateAgreement(
+            ICipherParameters pubKey)
         {
             ECPublicKeyParameters pub = (ECPublicKeyParameters)pubKey;
             ECDomainParameters dp = privKey.Parameters;

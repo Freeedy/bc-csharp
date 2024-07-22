@@ -15,45 +15,65 @@ namespace Org.BouncyCastle.X509
 	/// </remarks>
 	public class X509CertificatePair
 	{
-		private readonly X509Certificate m_forward;
-		private readonly X509Certificate m_reverse;
+		private readonly X509Certificate forward;
+		private readonly X509Certificate reverse;
 
 		/// <summary>Constructor</summary>
 		/// <param name="forward">Certificate from the other CA to this CA.</param>
 		/// <param name="reverse">Certificate from this CA to the other CA.</param>
-		public X509CertificatePair(X509Certificate forward, X509Certificate	reverse)
+		public X509CertificatePair(
+			X509Certificate	forward,
+			X509Certificate	reverse)
 		{
-			if (forward == null && reverse == null)
-				throw new ArgumentException("At least one of the pair shall be present");
-
-			m_forward = forward;
-			m_reverse = reverse;
+			this.forward = forward;
+			this.reverse = reverse;
 		}
 
 		/// <summary>Constructor from a ASN.1 CertificatePair structure.</summary>
 		/// <param name="pair">The <c>CertificatePair</c> ASN.1 object.</param>
-		public X509CertificatePair(CertificatePair pair)
+		public X509CertificatePair(
+			CertificatePair pair)
 		{
-			var forward = pair.Forward;
-			var reverse = pair.Reverse;
-
-            m_forward = forward == null ? null : new X509Certificate(forward);
-            m_reverse = reverse == null ? null : new X509Certificate(reverse);
+			if (pair.Forward != null)
+			{
+				this.forward = new X509Certificate(pair.Forward);
+			}
+			if (pair.Reverse != null)
+			{
+				this.reverse = new X509Certificate(pair.Reverse);
+			}
 		}
 
-		public CertificatePair GetCertificatePair()
-		{
-			return new CertificatePair(m_forward?.CertificateStructure, m_reverse?.CertificateStructure);
-        }
-
-        public byte[] GetEncoded()
+		public byte[] GetEncoded()
 		{
 			try
 			{
-				return GetCertificatePair().GetEncoded(Asn1Encodable.Der);
+				X509CertificateStructure f = null, r = null;
+
+				if (forward != null)
+				{
+					f = X509CertificateStructure.GetInstance(
+						Asn1Object.FromByteArray(forward.GetEncoded()));
+
+					if (f == null)
+						throw new CertificateEncodingException("unable to get encoding for forward");
+				}
+
+				if (reverse != null)
+				{
+					r = X509CertificateStructure.GetInstance(
+						Asn1Object.FromByteArray(reverse.GetEncoded()));
+
+					if (r == null)
+						throw new CertificateEncodingException("unable to get encoding for reverse");
+				}
+
+				return new CertificatePair(f, r).GetDerEncoded();
 			}
 			catch (Exception e)
 			{
+				// TODO
+//				throw new ExtCertificateEncodingException(e.toString(), e);
 				throw new CertificateEncodingException(e.Message, e);
 			}
 		}
@@ -61,38 +81,41 @@ namespace Org.BouncyCastle.X509
 		/// <summary>Returns the certificate from the other CA to this CA.</summary>
 		public X509Certificate Forward
 		{
-			get { return m_forward; }
+			get { return forward; }
 		}
 
 		/// <summary>Returns the certificate from this CA to the other CA.</summary>
 		public X509Certificate Reverse
 		{
-			get { return m_reverse; }
+			get { return reverse; }
 		}
 
-		public override bool Equals(object obj)
+		public override bool Equals(
+			object obj)
 		{
 			if (obj == this)
 				return true;
 
-			if (!(obj is X509CertificatePair that))
+			X509CertificatePair other = obj as X509CertificatePair;
+
+			if (other == null)
 				return false;
 
-			return Objects.Equals(this.m_forward, that.m_forward)
-				&& Objects.Equals(this.m_reverse, that.m_reverse);
+			return Platform.Equals(this.forward, other.forward)
+				&& Platform.Equals(this.reverse, other.reverse);
 		}
 
 		public override int GetHashCode()
 		{
 			int hash = -1;
-			if (m_forward != null)
+			if (forward != null)
 			{
-				hash ^= m_forward.GetHashCode();
+				hash ^= forward.GetHashCode();
 			}
-			if (m_reverse != null)
+			if (reverse != null)
 			{
 				hash *= 17;
-				hash ^= m_reverse.GetHashCode();
+				hash ^= reverse.GetHashCode();
 			}
 			return hash;
 		}

@@ -1,8 +1,10 @@
+using System;
+
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Pkcs;
 
 namespace Org.BouncyCastle.Asn1.Esf
 {
-	// TODO[api] Make static
     public abstract class EsfAttributes
     {
         public static readonly DerObjectIdentifier SigPolicyId = PkcsObjectIdentifiers.IdAAEtsSigPolicyID;

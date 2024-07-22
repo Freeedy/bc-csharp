@@ -1,7 +1,6 @@
 using System;
 
 using Org.BouncyCastle.Crypto.Parameters;
-using Org.BouncyCastle.Crypto.Utilities;
 
 namespace Org.BouncyCastle.Crypto.Engines
 {
@@ -276,6 +275,25 @@ namespace Org.BouncyCastle.Crypto.Engines
 			ki[3 + ioff] = ko[1 + ooff];
 		}
 
+		private static uint bytes2uint(byte[] src, int offset)
+		{
+			uint word = 0;
+			for (int i = 0; i < 4; i++)
+			{
+				word = (word << 8) + (uint)src[i + offset];
+			}
+			return word;
+		}
+
+		private static void uint2bytes(uint word, byte[] dst, int offset)
+		{
+			for (int i = 0; i < 4; i++)
+			{
+				dst[(3 - i) + offset] = (byte)word;
+				word >>= 8;
+			}
+		}
+
 		private static void camelliaF2(uint[] s, uint[] skey, int keyoff)
 		{
 			uint t1, t2, u, v;
@@ -328,23 +346,38 @@ namespace Org.BouncyCastle.Crypto.Engines
 
 			switch (key.Length)
 			{
-			case 16:
-				_keyIs128 = true;
-				Pack.BE_To_UInt32(key, 0, k, 0, 4);
-				k[4] = k[5] = k[6] = k[7] = 0;
-				break;
-			case 24:
-				Pack.BE_To_UInt32(key, 0, k, 0, 6);
-				k[6] = ~k[4];
-				k[7] = ~k[5];
-				_keyIs128 = false;
-				break;
-			case 32:
-				Pack.BE_To_UInt32(key, 0, k, 0, 8);
-				_keyIs128 = false;
-				break;
-			default:
-				throw new ArgumentException("key sizes are only 16/24/32 bytes.");
+				case 16:
+					_keyIs128 = true;
+					k[0] = bytes2uint(key, 0);
+					k[1] = bytes2uint(key, 4);
+					k[2] = bytes2uint(key, 8);
+					k[3] = bytes2uint(key, 12);
+					k[4] = k[5] = k[6] = k[7] = 0;
+					break;
+				case 24:
+					k[0] = bytes2uint(key, 0);
+					k[1] = bytes2uint(key, 4);
+					k[2] = bytes2uint(key, 8);
+					k[3] = bytes2uint(key, 12);
+					k[4] = bytes2uint(key, 16);
+					k[5] = bytes2uint(key, 20);
+					k[6] = ~k[4];
+					k[7] = ~k[5];
+					_keyIs128 = false;
+					break;
+				case 32:
+					k[0] = bytes2uint(key, 0);
+					k[1] = bytes2uint(key, 4);
+					k[2] = bytes2uint(key, 8);
+					k[3] = bytes2uint(key, 12);
+					k[4] = bytes2uint(key, 16);
+					k[5] = bytes2uint(key, 20);
+					k[6] = bytes2uint(key, 24);
+					k[7] = bytes2uint(key, 28);
+					_keyIs128 = false;
+					break;
+				default:
+					throw new ArgumentException("key sizes are only 16/24/32 bytes.");
 			}
 
 			for (int i = 0; i < 4; i++)
@@ -504,78 +537,13 @@ namespace Org.BouncyCastle.Crypto.Engines
 			}
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-		private int ProcessBlock128(ReadOnlySpan<byte> input, Span<byte> output)
-		{
-			uint[] state = new uint[4];
-			Pack.BE_To_UInt32(input, state);
-
-			state[0] ^= kw[0];
-			state[1] ^= kw[1];
-			state[2] ^= kw[2];
-			state[3] ^= kw[3];
-
-			camelliaF2(state, subkey, 0);
-			camelliaF2(state, subkey, 4);
-			camelliaF2(state, subkey, 8);
-			camelliaFLs(state, ke, 0);
-			camelliaF2(state, subkey, 12);
-			camelliaF2(state, subkey, 16);
-			camelliaF2(state, subkey, 20);
-			camelliaFLs(state, ke, 4);
-			camelliaF2(state, subkey, 24);
-			camelliaF2(state, subkey, 28);
-			camelliaF2(state, subkey, 32);
-
-			Pack.UInt32_To_BE(state[2] ^ kw[4], output);
-			Pack.UInt32_To_BE(state[3] ^ kw[5], output[4..]);
-			Pack.UInt32_To_BE(state[0] ^ kw[6], output[8..]);
-			Pack.UInt32_To_BE(state[1] ^ kw[7], output[12..]);
-
-			return BLOCK_SIZE;
-		}
-
-		private int ProcessBlock192or256(ReadOnlySpan<byte> input, Span<byte> output)
-		{
-			uint[] state = new uint[4];
-			Pack.BE_To_UInt32(input, state);
-
-			state[0] ^= kw[0];
-			state[1] ^= kw[1];
-			state[2] ^= kw[2];
-			state[3] ^= kw[3];
-
-			camelliaF2(state, subkey, 0);
-			camelliaF2(state, subkey, 4);
-			camelliaF2(state, subkey, 8);
-			camelliaFLs(state, ke, 0);
-			camelliaF2(state, subkey, 12);
-			camelliaF2(state, subkey, 16);
-			camelliaF2(state, subkey, 20);
-			camelliaFLs(state, ke, 4);
-			camelliaF2(state, subkey, 24);
-			camelliaF2(state, subkey, 28);
-			camelliaF2(state, subkey, 32);
-			camelliaFLs(state, ke, 8);
-			camelliaF2(state, subkey, 36);
-			camelliaF2(state, subkey, 40);
-			camelliaF2(state, subkey, 44);
-
-			Pack.UInt32_To_BE(state[2] ^ kw[4], output);
-			Pack.UInt32_To_BE(state[3] ^ kw[5], output[4..]);
-			Pack.UInt32_To_BE(state[0] ^ kw[6], output[8..]);
-			Pack.UInt32_To_BE(state[1] ^ kw[7], output[12..]);
-
-			return BLOCK_SIZE;
-		}
-#else
-		private int ProcessBlock128(byte[] input, int inOff, byte[] output, int outOff)
+		private int processBlock128(byte[] input, int inOff, byte[] output, int outOff)
 		{
 			uint[] state = new uint[4];
 
 			for (int i = 0; i < 4; i++)
 			{
-				state[i] = Pack.BE_To_UInt32(input, inOff + (i * 4)) ^ kw[i];
+				state[i] = bytes2uint(input, inOff + (i * 4)) ^ kw[i];
 			}
 
 			camelliaF2(state, subkey, 0);
@@ -590,21 +558,26 @@ namespace Org.BouncyCastle.Crypto.Engines
 			camelliaF2(state, subkey, 28);
 			camelliaF2(state, subkey, 32);
 
-			Pack.UInt32_To_BE(state[2] ^ kw[4], output, outOff);
-			Pack.UInt32_To_BE(state[3] ^ kw[5], output, outOff + 4);
-			Pack.UInt32_To_BE(state[0] ^ kw[6], output, outOff + 8);
-			Pack.UInt32_To_BE(state[1] ^ kw[7], output, outOff + 12);
+			state[2] ^= kw[4];
+			state[3] ^= kw[5];
+			state[0] ^= kw[6];
+			state[1] ^= kw[7];
+
+			uint2bytes(state[2], output, outOff);
+			uint2bytes(state[3], output, outOff + 4);
+			uint2bytes(state[0], output, outOff + 8);
+			uint2bytes(state[1], output, outOff + 12);
 
 			return BLOCK_SIZE;
 		}
 
-		private int ProcessBlock192or256(byte[] input, int inOff, byte[] output, int outOff)
+		private int processBlock192or256(byte[] input, int inOff, byte[] output, int outOff)
 		{
 			uint[] state = new uint[4];
 
 			for (int i = 0; i < 4; i++)
 			{
-				state[i] = Pack.BE_To_UInt32(input, inOff + (i * 4)) ^ kw[i];
+				state[i] = bytes2uint(input, inOff + (i * 4)) ^ kw[i];
 			}
 
 			camelliaF2(state, subkey, 0);
@@ -623,14 +596,18 @@ namespace Org.BouncyCastle.Crypto.Engines
 			camelliaF2(state, subkey, 40);
 			camelliaF2(state, subkey, 44);
 
-			Pack.UInt32_To_BE(state[2] ^ kw[4], output, outOff);
-			Pack.UInt32_To_BE(state[3] ^ kw[5], output, outOff + 4);
-			Pack.UInt32_To_BE(state[0] ^ kw[6], output, outOff + 8);
-			Pack.UInt32_To_BE(state[1] ^ kw[7], output, outOff + 12);
+			state[2] ^= kw[4];
+			state[3] ^= kw[5];
+			state[0] ^= kw[6];
+			state[1] ^= kw[7];
+
+			uint2bytes(state[2], output, outOff);
+			uint2bytes(state[3], output, outOff + 4);
+			uint2bytes(state[0], output, outOff + 8);
+			uint2bytes(state[1], output, outOff + 12);
 
 			return BLOCK_SIZE;
 		}
-#endif
 
 		public CamelliaEngine()
 		{
@@ -653,12 +630,21 @@ namespace Org.BouncyCastle.Crypto.Engines
 			get { return "Camellia"; }
 		}
 
+        public virtual bool IsPartialBlockOkay
+		{
+			get { return false; }
+		}
+
         public virtual int GetBlockSize()
 		{
 			return BLOCK_SIZE;
 		}
 
-        public virtual int ProcessBlock(byte[] input, int inOff, byte[] output, int outOff)
+        public virtual int ProcessBlock(
+			byte[]	input,
+			int		inOff,
+			byte[]	output,
+			int		outOff)
 		{
 			if (!initialised)
 				throw new InvalidOperationException("Camellia engine not initialised");
@@ -666,45 +652,19 @@ namespace Org.BouncyCastle.Crypto.Engines
             Check.DataLength(input, inOff, BLOCK_SIZE, "input buffer too short");
             Check.OutputLength(output, outOff, BLOCK_SIZE, "output buffer too short");
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-			if (_keyIs128)
+            if (_keyIs128)
 			{
-				return ProcessBlock128(input.AsSpan(inOff), output.AsSpan(outOff));
+				return processBlock128(input, inOff, output, outOff);
 			}
 			else
 			{
-				return ProcessBlock192or256(input.AsSpan(inOff), output.AsSpan(outOff));
+				return processBlock192or256(input, inOff, output, outOff);
 			}
-#else
-			if (_keyIs128)
-			{
-				return ProcessBlock128(input, inOff, output, outOff);
-			}
-			else
-			{
-				return ProcessBlock192or256(input, inOff, output, outOff);
-			}
-#endif
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-		public virtual int ProcessBlock(ReadOnlySpan<byte> input, Span<byte> output)
+        public virtual void Reset()
 		{
-			if (!initialised)
-				throw new InvalidOperationException("Camellia engine not initialised");
-
-			Check.DataLength(input, BLOCK_SIZE, "input buffer too short");
-			Check.OutputLength(output, BLOCK_SIZE, "output buffer too short");
-
-			if (_keyIs128)
-			{
-				return ProcessBlock128(input, output);
-			}
-			else
-			{
-				return ProcessBlock192or256(input, output);
-			}
+			// nothing
 		}
-#endif
 	}
 }

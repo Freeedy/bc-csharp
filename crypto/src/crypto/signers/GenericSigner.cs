@@ -39,9 +39,9 @@ namespace Org.BouncyCastle.Crypto.Signers
             this.forSigning = forSigning;
 
             AsymmetricKeyParameter k;
-            if (parameters is ParametersWithRandom withRandom)
+            if (parameters is ParametersWithRandom)
             {
-                k = (AsymmetricKeyParameter)withRandom.Parameters;
+                k = (AsymmetricKeyParameter)((ParametersWithRandom)parameters).Parameters;
             }
             else
             {
@@ -59,25 +59,26 @@ namespace Org.BouncyCastle.Crypto.Signers
             engine.Init(forSigning, parameters);
         }
 
+        /**
+        * update the internal digest with the byte b
+        */
         public virtual void Update(byte input)
         {
             digest.Update(input);
         }
 
-        public virtual void BlockUpdate(byte[] input, int inOff, int inLen)
+        /**
+        * update the internal digest with the byte array in
+        */
+        public virtual void BlockUpdate(byte[] input, int inOff, int length)
         {
-            digest.BlockUpdate(input, inOff, inLen);
+            digest.BlockUpdate(input, inOff, length);
         }
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void BlockUpdate(ReadOnlySpan<byte> input)
-        {
-            digest.BlockUpdate(input);
-        }
-#endif
-
-        public virtual int GetMaxSignatureSize() => engine.GetOutputBlockSize();
-
+        /**
+        * Generate a signature for the message we've been loaded with using the key
+        * we were initialised with.
+        */
         public virtual byte[] GenerateSignature()
         {
             if (!forSigning)
@@ -89,6 +90,10 @@ namespace Org.BouncyCastle.Crypto.Signers
             return engine.ProcessBlock(hash, 0, hash.Length);
         }
 
+        /**
+        * return true if the internal state represents the signature described in
+        * the passed in array.
+        */
         public virtual bool VerifySignature(byte[] signature)
         {
             if (forSigning)
@@ -109,7 +114,7 @@ namespace Org.BouncyCastle.Crypto.Signers
                     sig = tmp;
                 }
 
-                return Arrays.FixedTimeEquals(sig, hash);
+                return Arrays.ConstantTimeAreEqual(sig, hash);
             }
             catch (Exception)
             {

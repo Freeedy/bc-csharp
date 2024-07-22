@@ -4,7 +4,6 @@ using System.Text;
 
 using NUnit.Framework;
 
-using Org.BouncyCastle.Utilities.Date;
 using Org.BouncyCastle.Utilities.Test;
 
 namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
@@ -73,40 +72,40 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 		[Test]
 		public void TestGenerateK1024H224()
 		{
-			DoSigGenerateTest("DSA-1024-160.sec", "DSA-1024-160.pub", HashAlgorithmTag.Sha224);
+			doSigGenerateTest("DSA-1024-160.sec", "DSA-1024-160.pub", HashAlgorithmTag.Sha224);
 		}
 
 		[Test]
 		public void TestGenerateK1024H256()
 		{
-			DoSigGenerateTest("DSA-1024-160.sec", "DSA-1024-160.pub", HashAlgorithmTag.Sha256);
+			doSigGenerateTest("DSA-1024-160.sec", "DSA-1024-160.pub", HashAlgorithmTag.Sha256);
 		}
 
 		[Test]
 		public void TestGenerateK1024H384()
 		{
-			DoSigGenerateTest("DSA-1024-160.sec", "DSA-1024-160.pub", HashAlgorithmTag.Sha384);
+			doSigGenerateTest("DSA-1024-160.sec", "DSA-1024-160.pub", HashAlgorithmTag.Sha384);
 		}
 
 		[Test]
 		public void TestGenerateK1024H512()
 		{
-			DoSigGenerateTest("DSA-1024-160.sec", "DSA-1024-160.pub", HashAlgorithmTag.Sha512);
+			doSigGenerateTest("DSA-1024-160.sec", "DSA-1024-160.pub", HashAlgorithmTag.Sha512);
 		}
 
 		[Test]
 		public void TestGenerateK2048H256()
 		{
-			DoSigGenerateTest("DSA-2048-224.sec", "DSA-2048-224.pub", HashAlgorithmTag.Sha256);
+			doSigGenerateTest("DSA-2048-224.sec", "DSA-2048-224.pub", HashAlgorithmTag.Sha256);
 		}
 
 		[Test]
 		public void TestGenerateK2048H512()
 		{
-			DoSigGenerateTest("DSA-2048-224.sec", "DSA-2048-224.pub", HashAlgorithmTag.Sha512);
+			doSigGenerateTest("DSA-2048-224.sec", "DSA-2048-224.pub", HashAlgorithmTag.Sha512);
 		}
 
-		private void DoSigGenerateTest(
+		private void doSigGenerateTest(
 			string				privateKeyFile,
 			string				publicKeyFile,
 			HashAlgorithmTag	digest)
@@ -127,23 +126,25 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
 			PgpLiteralDataGenerator lGen = new PgpLiteralDataGenerator();
 
-			DateTime modificationTime = DateTimeUtilities.UnixMsToDateTime(
-				DateTimeUtilities.CurrentUnixMs() / 1000 * 1000);
+//			Date testDate = new Date((System.currentTimeMillis() / 1000) * 1000);
+			DateTime testDate = new DateTime(
+				(DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond) * TimeSpan.TicksPerSecond);
 
-			using (var lOut = lGen.Open(
+			Stream lOut = lGen.Open(
 				new UncloseableStream(bcOut),
 				PgpLiteralData.Binary,
 				"_CONSOLE",
 				dataBytes.Length,
-				modificationTime))
+				testDate);
+
+			int ch;
+			while ((ch = testIn.ReadByte()) >= 0)
 			{
-                int ch;
-                while ((ch = testIn.ReadByte()) >= 0)
-                {
-                    lOut.WriteByte((byte)ch);
-                    sGen.Update((byte)ch);
-                }
-            }
+				lOut.WriteByte((byte)ch);
+				sGen.Update((byte)ch);
+			}
+
+			lGen.Close();
 
 			sGen.Generate().Encode(bcOut);
 
@@ -155,7 +156,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 			Assert.AreEqual(PublicKeyAlgorithmTag.Dsa, ops.KeyAlgorithm);
 
 			PgpLiteralData          p2 = (PgpLiteralData)pgpFact.NextPgpObject();
-			if (!p2.ModificationTime.Equals(modificationTime))
+			if (!p2.ModificationTime.Equals(testDate))
 			{
 				Assert.Fail("Modification time not preserved");
 			}
@@ -164,15 +165,12 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
 			ops.InitVerify(pubRing.GetPublicKey());
 
+			while ((ch = dIn.ReadByte()) >= 0)
 			{
-				int ch;
-				while ((ch = dIn.ReadByte()) >= 0)
-				{
-					ops.Update((byte)ch);
-				}
-            }
+				ops.Update((byte)ch);
+			}
 
-            PgpSignatureList p3 = (PgpSignatureList)pgpFact.NextPgpObject();
+			PgpSignatureList p3 = (PgpSignatureList)pgpFact.NextPgpObject();
 			PgpSignature sig = p3[0];
 
 			Assert.AreEqual(digest, sig.HashAlgorithm);

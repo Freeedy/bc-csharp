@@ -1,4 +1,7 @@
 using System;
+using System.Collections;
+
+using Org.BouncyCastle.Asn1;
 
 namespace Org.BouncyCastle.Asn1.X509
 {
@@ -25,9 +28,9 @@ namespace Org.BouncyCastle.Asn1.X509
         {
             int i = 0;
 
-            if (seq[0] is Asn1TaggedObject taggedObject)
+            if (seq[0] is Asn1TaggedObject)
             {
-                policyAuthority = GeneralNames.GetInstance(taggedObject, false);
+                policyAuthority = GeneralNames.GetInstance(((Asn1TaggedObject)seq[0]), false);
                 i++;
             }
             else if (seq.Count == 2)
@@ -143,7 +146,7 @@ namespace Org.BouncyCastle.Asn1.X509
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(2);
+            Asn1EncodableVector v = new Asn1EncodableVector();
             v.AddOptionalTagged(true, 0, policyAuthority);
             v.Add(new DerSequence(values));
             return new DerSequence(v);

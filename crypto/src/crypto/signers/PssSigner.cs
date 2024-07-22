@@ -35,22 +35,19 @@ namespace Org.BouncyCastle.Crypto.Signers
 
 		public static PssSigner CreateRawSigner(IAsymmetricBlockCipher cipher, IDigest digest)
 		{
-			return new PssSigner(cipher, Prehash.ForDigest(digest), digest, digest, digest.GetDigestSize(), null,
-				TrailerImplicit);
+			return new PssSigner(cipher, new NullDigest(), digest, digest, digest.GetDigestSize(), null, TrailerImplicit);
 		}
 
 		public static PssSigner CreateRawSigner(IAsymmetricBlockCipher cipher, IDigest contentDigest, IDigest mgfDigest,
 			int saltLen, byte trailer)
 		{
-			return new PssSigner(cipher, Prehash.ForDigest(contentDigest), contentDigest, mgfDigest, saltLen, null,
-				trailer);
+			return new PssSigner(cipher, new NullDigest(), contentDigest, mgfDigest, saltLen, null, trailer);
 		}
 
 		public static PssSigner CreateRawSigner(IAsymmetricBlockCipher cipher, IDigest contentDigest, IDigest mgfDigest,
 			byte[] salt, byte trailer)
 		{
-			return new PssSigner(cipher, Prehash.ForDigest(contentDigest), contentDigest, mgfDigest, salt.Length, salt,
-				trailer);
+			return new PssSigner(cipher, new NullDigest(), contentDigest, mgfDigest, salt.Length, salt, trailer);
 		}
 
 		public PssSigner(
@@ -155,28 +152,35 @@ namespace Org.BouncyCastle.Crypto.Signers
 			get { return mgfDigest.AlgorithmName + "withRSAandMGF1"; }
 		}
 
-		public virtual void Init(bool forSigning, ICipherParameters parameters)
+		public virtual void Init(
+			bool				forSigning,
+			ICipherParameters	parameters)
 		{
-			if (parameters is ParametersWithRandom withRandom)
+			if (parameters is ParametersWithRandom)
 			{
-				parameters = withRandom.Parameters;
-				random = withRandom.Random;
-                cipher.Init(forSigning, withRandom);
-            }
-            else
-			{
-				random = forSigning ? CryptoServicesRegistrar.GetSecureRandom() : null;
-                cipher.Init(forSigning, parameters);
-            }
+				ParametersWithRandom p = (ParametersWithRandom) parameters;
 
-            RsaKeyParameters kParam;
-			if (parameters is RsaBlindingParameters blinding)
-			{
-				kParam = blinding.PublicKey;
+				parameters = p.Parameters;
+				random = p.Random;
 			}
 			else
 			{
-				kParam = (RsaKeyParameters)parameters;
+				if (forSigning)
+				{
+					random = new SecureRandom();
+				}
+			}
+
+			cipher.Init(forSigning, parameters);
+
+			RsaKeyParameters kParam;
+			if (parameters is RsaBlindingParameters)
+			{
+				kParam = ((RsaBlindingParameters) parameters).PublicKey;
+			}
+			else
+			{
+				kParam = (RsaKeyParameters) parameters;
 			}
 
 			emBits = kParam.Modulus.BitLength - 1;
@@ -188,31 +192,38 @@ namespace Org.BouncyCastle.Crypto.Signers
 		}
 
 		/// <summary> clear possible sensitive data</summary>
-		private void ClearBlock(byte[] block)
+		private void ClearBlock(
+			byte[] block)
 		{
 			Array.Clear(block, 0, block.Length);
 		}
 
-		public virtual void Update(byte input)
+		/// <summary> update the internal digest with the byte b</summary>
+		public virtual void Update(
+			byte input)
 		{
 			contentDigest1.Update(input);
 		}
 
-		public virtual void BlockUpdate(byte[] input, int inOff, int inLen)
+		/// <summary> update the internal digest with the byte array in</summary>
+		public virtual void BlockUpdate(
+			byte[]	input,
+			int		inOff,
+			int		length)
 		{
-			contentDigest1.BlockUpdate(input, inOff, inLen);
+			contentDigest1.BlockUpdate(input, inOff, length);
 		}
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-		public virtual void BlockUpdate(ReadOnlySpan<byte> input)
+		/// <summary> reset the internal state</summary>
+		public virtual void Reset()
 		{
-			contentDigest1.BlockUpdate(input);
+			contentDigest1.Reset();
 		}
-#endif
 
-        public virtual int GetMaxSignatureSize() => cipher.GetOutputBlockSize();
-
-        public virtual byte[] GenerateSignature()
+		/// <summary> Generate a signature for the message we've been loaded with using
+		/// the key we were initialised with.
+		/// </summary>
+		public virtual byte[] GenerateSignature()
 		{
 			if (contentDigest1.GetDigestSize() != hLen)
 				throw new InvalidOperationException();
@@ -257,7 +268,11 @@ namespace Org.BouncyCastle.Crypto.Signers
 			return b;
 		}
 
-		public virtual bool VerifySignature(byte[] signature)
+		/// <summary> return true if the internal state represents the signature described
+		/// in the passed in array.
+		/// </summary>
+		public virtual bool VerifySignature(
+			byte[] signature)
 		{
 			if (contentDigest1.GetDigestSize() != hLen)
 				throw new InvalidOperationException();
@@ -329,13 +344,8 @@ namespace Org.BouncyCastle.Crypto.Signers
 			return true;
 		}
 
-        public virtual void Reset()
-        {
-            contentDigest1.Reset();
-        }
-
-        /// <summary> int to octet string.</summary>
-        private void ItoOSP(
+		/// <summary> int to octet string.</summary>
+		private void ItoOSP(
 			int		i,
 			byte[]	sp)
 		{
@@ -345,17 +355,24 @@ namespace Org.BouncyCastle.Crypto.Signers
 			sp[3] = (byte)((uint) i >> 0);
 		}
 
-        private byte[] MaskGeneratorFunction(byte[] Z, int zOff, int zLen, int length)
-        {
-            if (mgfDigest is IXof xof)
+		private byte[] MaskGeneratorFunction(
+			byte[] Z,
+			int zOff,
+			int zLen,
+			int length)
+		{
+			if (mgfDigest is IXof)
 			{
 				byte[] mask = new byte[length];
-				xof.BlockUpdate(Z, zOff, zLen);
-				xof.OutputFinal(mask, 0, mask.Length);
+				mgfDigest.BlockUpdate(Z, zOff, zLen);
+				((IXof)mgfDigest).DoFinal(mask, 0, mask.Length);
+
 				return mask;
 			}
-
-			return MaskGeneratorFunction1(Z, zOff, zLen, length);
+			else
+			{
+				return MaskGeneratorFunction1(Z, zOff, zLen, length);
+			}
 		}
 
 		/// <summary> mask generator function, as described in Pkcs1v2.</summary>

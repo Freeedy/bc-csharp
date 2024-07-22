@@ -1,7 +1,6 @@
 namespace Org.BouncyCastle.Asn1.Oiw
 {
-    // TODO[api] Make static
-    public abstract class OiwObjectIdentifiers
+	public abstract class OiwObjectIdentifiers
 	{
 		public static readonly DerObjectIdentifier MD4WithRsa			= new DerObjectIdentifier("1.3.14.3.2.2");
 		public static readonly DerObjectIdentifier MD5WithRsa			= new DerObjectIdentifier("1.3.14.3.2.3");

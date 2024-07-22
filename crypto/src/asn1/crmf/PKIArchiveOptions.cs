@@ -11,90 +11,70 @@ namespace Org.BouncyCastle.Asn1.Crmf
         public const int keyGenParameters = 1;
         public const int archiveRemGenPrivKey = 2;
 
+        private readonly Asn1Encodable value;
+
         public static PkiArchiveOptions GetInstance(object obj)
         {
-            if (obj == null)
-                return null;
+            if (obj is PkiArchiveOptions)
+                return (PkiArchiveOptions)obj;
 
-            if (obj is Asn1Encodable element)
-            {
-                var result = GetOptional(element);
-                if (result != null)
-                    return result;
-            }
+            if (obj is Asn1TaggedObject)
+                return new PkiArchiveOptions((Asn1TaggedObject)obj);
 
-            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), nameof(obj));
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
         }
 
-        public static PkiArchiveOptions GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetInstanceChoice(taggedObject, declaredExplicit, GetInstance);
-
-        public static PkiArchiveOptions GetOptional(Asn1Encodable element)
+        private PkiArchiveOptions(Asn1TaggedObject tagged)
         {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is PkiArchiveOptions pkiArchiveOptions)
-                return pkiArchiveOptions;
-
-            if (element is Asn1TaggedObject taggedObject)
+            switch (tagged.TagNo)
             {
-                Asn1Encodable baseObject = GetOptionalBaseObject(taggedObject);
-                if (baseObject != null)
-                    return new PkiArchiveOptions(taggedObject.TagNo, baseObject);
-            }
-
-            return null;
-        }
-
-        public static PkiArchiveOptions GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        private static Asn1Encodable GetOptionalBaseObject(Asn1TaggedObject taggedObject)
-        {
-            if (taggedObject.HasContextTag())
-            {
-                switch (taggedObject.TagNo)
-                {
                 case encryptedPrivKey:
-                    // CHOICE so explicit
-                    return EncryptedKey.GetInstance(taggedObject, true);
+                    value = EncryptedKey.GetInstance(tagged.GetObject());
+                    break;
                 case keyGenParameters:
-                    return Asn1OctetString.GetInstance(taggedObject, false);
+                    value = Asn1OctetString.GetInstance(tagged, false);
+                    break;
                 case archiveRemGenPrivKey:
-                    return DerBoolean.GetInstance(taggedObject, false);
-                }
+                    value = DerBoolean.GetInstance(tagged, false);
+                    break;
+                default:
+                    throw new ArgumentException("unknown tag number: " + tagged.TagNo, "tagged");
             }
-            return null;
-        }
-
-        private readonly int m_tagNo;
-        private readonly Asn1Encodable m_obj;
-
-        private PkiArchiveOptions(int tagNo, Asn1Encodable obj)
-        {
-            m_tagNo = tagNo;
-            m_obj = obj ?? throw new ArgumentNullException(nameof(obj));
         }
 
         public PkiArchiveOptions(EncryptedKey encKey)
-            : this(encryptedPrivKey, encKey)
         {
+            this.value = encKey;
         }
 
         public PkiArchiveOptions(Asn1OctetString keyGenParameters)
-            : this(PkiArchiveOptions.keyGenParameters, keyGenParameters)
         {
+            this.value = keyGenParameters;
         }
 
         public PkiArchiveOptions(bool archiveRemGenPrivKey)
-            : this(PkiArchiveOptions.archiveRemGenPrivKey, DerBoolean.GetInstance(archiveRemGenPrivKey))
         {
+            this.value = DerBoolean.GetInstance(archiveRemGenPrivKey);
         }
 
-        public virtual int Type => m_tagNo;
+        public virtual int Type
+        {
+            get
+            {
+                if (value is EncryptedKey)
+                    return encryptedPrivKey;
 
-        public virtual Asn1Encodable Value => m_obj;
+                if (value is Asn1OctetString)
+                    return keyGenParameters;
+
+                return archiveRemGenPrivKey;
+            }
+        }
+
+        public virtual Asn1Encodable Value
+        {
+            get { return value; }
+        }
 
         /**
          * <pre>
@@ -111,8 +91,17 @@ namespace Org.BouncyCastle.Asn1.Crmf
          */
         public override Asn1Object ToAsn1Object()
         {
-            // NOTE: Explicit tagging automatically applied for EncryptedKey (a CHOICE)
-            return new DerTaggedObject(false, m_tagNo, m_obj);
+            if (value is EncryptedKey)
+            {
+                return new DerTaggedObject(true, encryptedPrivKey, value);  // choice
+            }
+
+            if (value is Asn1OctetString)
+            {
+                return new DerTaggedObject(false, keyGenParameters, value);
+            }
+
+            return new DerTaggedObject(false, archiveRemGenPrivKey, value);
         }
     }
 }

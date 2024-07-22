@@ -1,5 +1,8 @@
-﻿using NUnit.Framework;
+﻿using System;
 
+using NUnit.Framework;
+
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Tls.Crypto;
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
 using Org.BouncyCastle.Utilities;
@@ -23,7 +26,7 @@ namespace Org.BouncyCastle.Tls.Tests
 
             byte[] msSeed = Arrays.Concatenate(clientHello_random, serverHello_random);
 
-            BcTlsCrypto crypto = new BcTlsCrypto();
+            BcTlsCrypto crypto = new BcTlsCrypto(new SecureRandom());
             TlsSecret masterSecret = new BcTlsSecret(crypto, pre_master_secret)
                 .DeriveUsingPrf(PrfAlgorithm.tls_prf_legacy, ExporterLabel.master_secret, msSeed, master_secret.Length);
 
@@ -50,7 +53,7 @@ namespace Org.BouncyCastle.Tls.Tests
 
             byte[] msSeed = Arrays.Concatenate(clientHello_random, serverHello_random);
 
-            BcTlsCrypto crypto = new BcTlsCrypto();
+            BcTlsCrypto crypto = new BcTlsCrypto(new SecureRandom());
             TlsSecret masterSecret = new BcTlsSecret(crypto, pre_master_secret)
                 .DeriveUsingPrf(PrfAlgorithm.tls_prf_sha256, ExporterLabel.master_secret, msSeed, master_secret.Length);
 
@@ -77,7 +80,7 @@ namespace Org.BouncyCastle.Tls.Tests
 
             byte[] msSeed = Arrays.Concatenate(clientHello_random, serverHello_random);
 
-            BcTlsCrypto crypto = new BcTlsCrypto();
+            BcTlsCrypto crypto = new BcTlsCrypto(new SecureRandom());
             TlsSecret masterSecret = new BcTlsSecret(crypto, pre_master_secret)
                 .DeriveUsingPrf(PrfAlgorithm.tls_prf_sha384, ExporterLabel.master_secret, msSeed, master_secret.Length);
 

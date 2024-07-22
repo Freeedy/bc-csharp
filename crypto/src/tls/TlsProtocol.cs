@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto;
@@ -146,10 +146,11 @@ namespace Org.BouncyCastle.Tls
 
         protected byte[] m_retryCookie = null;
         protected int m_retryGroup = -1;
-        protected IDictionary<int, byte[]> m_clientExtensions = null;
-        protected IDictionary<int, byte[]> m_serverExtensions = null;
+        protected IDictionary m_clientExtensions = null;
+        protected IDictionary m_serverExtensions = null;
 
         protected short m_connectionState = CS_START;
+        protected bool m_resumedSession = false;
         protected bool m_selectedPsk13 = false;
         protected bool m_receivedChangeCipherSpec = false;
         protected bool m_expectSessionTicket = false;
@@ -273,8 +274,6 @@ namespace Org.BouncyCastle.Tls
                 RaiseAlertWarning(AlertDescription.close_notify, "Connection closed");
 
                 CloseConnection();
-
-                TlsUtilities.NotifyConnectionClosed(Peer);
             }
         }
 
@@ -312,8 +311,6 @@ namespace Org.BouncyCastle.Tls
             }
 
             CloseConnection();
-
-            TlsUtilities.NotifyConnectionClosed(Peer);
         }
 
         /// <exception cref="IOException"/>
@@ -364,6 +361,7 @@ namespace Org.BouncyCastle.Tls
 
             this.m_handshakeHash = new DeferredHash(context);
             this.m_connectionState = CS_START;
+            this.m_resumedSession = false;
             this.m_selectedPsk13 = false;
 
             context.HandshakeBeginning(peer);
@@ -394,6 +392,7 @@ namespace Org.BouncyCastle.Tls
             this.m_clientExtensions = null;
             this.m_serverExtensions = null;
 
+            this.m_resumedSession = false;
             this.m_selectedPsk13 = false;
             this.m_receivedChangeCipherSpec = false;
             this.m_expectSessionTicket = false;
@@ -711,9 +710,6 @@ namespace Org.BouncyCastle.Tls
         {
             Streams.ValidateBufferArguments(buffer, offset, count);
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            return ReadApplicationData(buffer.AsSpan(offset, count));
-#else
             if (!m_appDataReady)
                 throw new InvalidOperationException("Cannot read application data until initial handshake completed.");
 
@@ -724,7 +720,7 @@ namespace Org.BouncyCastle.Tls
                     if (this.m_failedWithError)
                         throw new IOException("Cannot read application data on failed TLS connection");
 
-                    return 0;
+                    return -1;
                 }
 
                 /*
@@ -740,41 +736,7 @@ namespace Org.BouncyCastle.Tls
                 m_applicationDataQueue.RemoveData(buffer, offset, count, 0);
             }
             return count;
-#endif
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual int ReadApplicationData(Span<byte> buffer)
-        {
-            if (!m_appDataReady)
-                throw new InvalidOperationException("Cannot read application data until initial handshake completed.");
-
-            while (m_applicationDataQueue.Available < 1)
-            {
-                if (this.m_closed)
-                {
-                    if (this.m_failedWithError)
-                        throw new IOException("Cannot read application data on failed TLS connection");
-
-                    return 0;
-                }
-
-                /*
-                 * NOTE: Only called more than once when empty records are received, so no special
-                 * InterruptedIOException handling is necessary.
-                 */
-                SafeReadRecord();
-            }
-
-            int count = buffer.Length;
-            if (count > 0)
-            {
-                count = System.Math.Min(count, m_applicationDataQueue.Available);
-                m_applicationDataQueue.RemoveData(buffer[..count], 0);
-            }
-            return count;
-        }
-#endif
 
         /// <exception cref="IOException"/>
         protected virtual RecordPreview SafePreviewRecordHeader(byte[] recordHeader)
@@ -786,12 +748,12 @@ namespace Org.BouncyCastle.Tls
             catch (TlsFatalAlert e)
             {
                 HandleException(e.AlertDescription, "Failed to read record", e);
-                throw;
+                throw e;
             }
             catch (IOException e)
             {
                 HandleException(AlertDescription.internal_error, "Failed to read record", e);
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
@@ -817,20 +779,20 @@ namespace Org.BouncyCastle.Tls
                     return;
                 }
             }
-            catch (TlsFatalAlertReceived)
+            catch (TlsFatalAlertReceived e)
             {
                 // Connection failure already handled at source
-                throw;
+                throw e;
             }
             catch (TlsFatalAlert e)
             {
                 HandleException(e.AlertDescription, "Failed to read record", e);
-                throw;
+                throw e;
             }
             catch (IOException e)
             {
                 HandleException(AlertDescription.internal_error, "Failed to read record", e);
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
@@ -853,12 +815,12 @@ namespace Org.BouncyCastle.Tls
             catch (TlsFatalAlert e)
             {
                 HandleException(e.AlertDescription, "Failed to process record", e);
-                throw;
+                throw e;
             }
             catch (IOException e)
             {
                 HandleException(AlertDescription.internal_error, "Failed to process record", e);
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
@@ -877,12 +839,12 @@ namespace Org.BouncyCastle.Tls
             catch (TlsFatalAlert e)
             {
                 HandleException(e.AlertDescription, "Failed to write record", e);
-                throw;
+                throw e;
             }
             catch (IOException e)
             {
                 HandleException(AlertDescription.internal_error, "Failed to write record", e);
-                throw;
+                throw e;
             }
             catch (Exception e)
             {
@@ -890,32 +852,6 @@ namespace Org.BouncyCastle.Tls
                 throw new TlsFatalAlert(AlertDescription.internal_error, e);
             }
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        /// <exception cref="IOException"/>
-        protected virtual void SafeWriteRecord(short type, ReadOnlySpan<byte> buffer)
-        {
-            try
-            {
-                m_recordStream.WriteRecord(type, buffer);
-            }
-            catch (TlsFatalAlert e)
-            {
-                HandleException(e.AlertDescription, "Failed to write record", e);
-                throw;
-            }
-            catch (IOException e)
-            {
-                HandleException(AlertDescription.internal_error, "Failed to write record", e);
-                throw;
-            }
-            catch (Exception e)
-            {
-                HandleException(AlertDescription.internal_error, "Failed to write record", e);
-                throw new TlsFatalAlert(AlertDescription.internal_error, e);
-            }
-        }
-#endif
 
         /// <summary>Write some application data.</summary>
         /// <remarks>
@@ -936,9 +872,6 @@ namespace Org.BouncyCastle.Tls
         {
             Streams.ValidateBufferArguments(buffer, offset, count);
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            WriteApplicationData(buffer.AsSpan(offset, count));
-#else
             if (!m_appDataReady)
                 throw new InvalidOperationException(
                     "Cannot write application data until initial handshake completed.");
@@ -1008,81 +941,7 @@ namespace Org.BouncyCastle.Tls
                     count -= toWrite;
                 }
             }
-#endif
         }
-
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-        public virtual void WriteApplicationData(ReadOnlySpan<byte> buffer)
-        {
-            if (!m_appDataReady)
-                throw new InvalidOperationException(
-                    "Cannot write application data until initial handshake completed.");
-
-            lock (m_recordWriteLock)
-            {
-                while (!buffer.IsEmpty)
-                {
-                    if (m_closed)
-                        throw new IOException("Cannot write application data on closed/failed TLS connection");
-
-                    /*
-                     * RFC 5246 6.2.1. Zero-length fragments of Application data MAY be sent as they are
-                     * potentially useful as a traffic analysis countermeasure.
-                     * 
-                     * NOTE: Actually, implementations appear to have settled on 1/n-1 record splitting.
-                     */
-                    if (m_appDataSplitEnabled)
-                    {
-                        /*
-                         * Protect against known IV attack!
-                         * 
-                         * DO NOT REMOVE THIS CODE, EXCEPT YOU KNOW EXACTLY WHAT YOU ARE DOING HERE.
-                         */
-                        switch (m_appDataSplitMode)
-                        {
-                        case ADS_MODE_0_N_FIRSTONLY:
-                        {
-                            this.m_appDataSplitEnabled = false;
-                            SafeWriteRecord(ContentType.application_data, TlsUtilities.EmptyBytes, 0, 0);
-                            break;
-                        }
-                        case ADS_MODE_0_N:
-                        {
-                            SafeWriteRecord(ContentType.application_data, TlsUtilities.EmptyBytes, 0, 0);
-                            break;
-                        }
-                        case ADS_MODE_1_Nsub1:
-                        default:
-                        {
-                            if (buffer.Length > 1)
-                            {
-                                SafeWriteRecord(ContentType.application_data, buffer[..1]);
-                                buffer = buffer[1..];
-                            }
-                            break;
-                        }
-                        }
-                    }
-                    else if (m_keyUpdateEnabled)
-                    {
-                        if (m_keyUpdatePendingSend)
-                        {
-                            Send13KeyUpdate(false);
-                        }
-                        else if (m_recordStream.NeedsKeyUpdate())
-                        {
-                            Send13KeyUpdate(true);
-                        }
-                    }
-
-                    // Fragment data according to the current fragment limit.
-                    int toWrite = System.Math.Min(buffer.Length, m_recordStream.PlaintextLimit);
-                    SafeWriteRecord(ContentType.application_data, buffer[..toWrite]);
-                    buffer = buffer[toWrite..];
-                }
-            }
-        }
-#endif
 
         public virtual int AppDataSplitMode
         {
@@ -1368,7 +1227,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <summary>Gets the amount of received application data.</summary>
-        /// <remarks>A call to <see cref="ReadInput(byte[], int, int)"/> is guaranteed to be able to return at least
+        /// <remarks>A call to <see cref="readInput(byte[], int, int)"/> is guaranteed to be able to return at least
         /// this much data.<br/><br/>
         /// Only allowed in non-blocking mode.
         /// </remarks>
@@ -1454,18 +1313,21 @@ namespace Org.BouncyCastle.Tls
             if (null == sessionParameters)
                 return false;
 
-            ProtocolVersion sessionVersion = sessionParameters.NegotiatedVersion;
-            if (null == sessionVersion || !sessionVersion.IsTls)
-                return false;
-
-            if (!TlsUtilities.IsExtendedMasterSecretOptional(sessionVersion))
+            if (!sessionParameters.IsExtendedMasterSecret)
             {
-                if (sessionParameters.IsExtendedMasterSecret == sessionVersion.IsSsl)
+                TlsPeer peer = Peer;
+                if (!peer.AllowLegacyResumption() || peer.RequiresExtendedMasterSecret())
                     return false;
+
+                /*
+                 * NOTE: For session resumption without extended_master_secret, renegotiation MUST be
+                 * disabled (see RFC 7627 5.4). We currently do not implement renegotiation and it is
+                 * unlikely we ever would since it was removed in TLS 1.3.
+                 */
             }
 
-            TlsCrypto crypto = Context.Crypto;
-            TlsSecret sessionMasterSecret = TlsUtilities.GetSessionMasterSecret(crypto, sessionParameters.MasterSecret);
+            TlsSecret sessionMasterSecret = TlsUtilities.GetSessionMasterSecret(Context.Crypto,
+                sessionParameters.MasterSecret);
             if (null == sessionMasterSecret)
                 return false;
 
@@ -1476,7 +1338,7 @@ namespace Org.BouncyCastle.Tls
             return true;
         }
 
-        protected virtual void CancelSession()
+        protected virtual void InvalidateSession()
         {
             if (m_sessionMasterSecret != null)
             {
@@ -1490,17 +1352,11 @@ namespace Org.BouncyCastle.Tls
                 this.m_sessionParameters = null;
             }
 
-            this.m_tlsSession = null;
-        }
-
-        protected virtual void InvalidateSession()
-        {
             if (m_tlsSession != null)
             {
                 m_tlsSession.Invalidate();
+                this.m_tlsSession = null;
             }
-
-            CancelSession();
         }
 
         /// <exception cref="IOException"/>
@@ -1510,12 +1366,7 @@ namespace Org.BouncyCastle.Tls
             SecurityParameters securityParameters = context.SecurityParameters;
             bool isServerContext = context.IsServer;
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> verify_data = stackalloc byte[securityParameters.VerifyDataLength];
-            TlsUtilities.ReadFully(verify_data, buf);
-#else
             byte[] verify_data = TlsUtilities.ReadFully(securityParameters.VerifyDataLength, buf);
-#endif
 
             AssertEmpty(buf);
 
@@ -1524,7 +1375,7 @@ namespace Org.BouncyCastle.Tls
             /*
              * Compare both checksums.
              */
-            if (!Arrays.FixedTimeEquals(expected_verify_data, verify_data))
+            if (!Arrays.ConstantTimeAreEqual(expected_verify_data, verify_data))
             {
                 /*
                  * Wrong checksum in the finished message.
@@ -1534,7 +1385,7 @@ namespace Org.BouncyCastle.Tls
 
             securityParameters.m_peerVerifyData = expected_verify_data;
 
-            if (!securityParameters.IsResumedSession || securityParameters.IsExtendedMasterSecret)
+            if (!m_resumedSession || securityParameters.IsExtendedMasterSecret)
             {
                 if (null == securityParameters.LocalVerifyData)
                 {
@@ -1550,12 +1401,7 @@ namespace Org.BouncyCastle.Tls
             SecurityParameters securityParameters = context.SecurityParameters;
             bool isServerContext = context.IsServer;
 
-#if NETCOREAPP2_1_OR_GREATER || NETSTANDARD2_1_OR_GREATER
-            Span<byte> verify_data = stackalloc byte[securityParameters.VerifyDataLength];
-            TlsUtilities.ReadFully(verify_data, buf);
-#else
             byte[] verify_data = TlsUtilities.ReadFully(securityParameters.VerifyDataLength, buf);
-#endif
 
             AssertEmpty(buf);
 
@@ -1564,7 +1410,7 @@ namespace Org.BouncyCastle.Tls
             /*
              * Compare both checksums.
              */
-            if (!Arrays.FixedTimeEquals(expected_verify_data, verify_data))
+            if (!Arrays.ConstantTimeAreEqual(expected_verify_data, verify_data))
             {
                 /*
                  * Wrong checksum in the finished message.
@@ -1707,7 +1553,7 @@ namespace Org.BouncyCastle.Tls
 
             securityParameters.m_localVerifyData = verify_data;
 
-            if (!securityParameters.IsResumedSession || securityParameters.IsExtendedMasterSecret)
+            if (!m_resumedSession || securityParameters.IsExtendedMasterSecret)
             {
                 if (null == securityParameters.PeerVerifyData)
                 {
@@ -1755,7 +1601,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        protected virtual void SendSupplementalDataMessage(IList<SupplementalDataEntry> supplementalData)
+        protected virtual void SendSupplementalDataMessage(IList supplementalData)
         {
             HandshakeMessageOutput message = new HandshakeMessageOutput(HandshakeType.supplemental_data);
             WriteSupplementalData(message, supplementalData);
@@ -1808,11 +1654,20 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        [Obsolete("Will be removed")]
-        protected virtual short ProcessMaxFragmentLengthExtension(IDictionary<int, byte[]> clientExtensions,
-            IDictionary<int, byte[]> serverExtensions, short alertDescription)
+        protected virtual short ProcessMaxFragmentLengthExtension(IDictionary clientExtensions,
+            IDictionary serverExtensions, short alertDescription)
         {
-            return TlsUtilities.ProcessMaxFragmentLengthExtension(clientExtensions, serverExtensions, alertDescription);
+            short maxFragmentLength = TlsExtensionsUtilities.GetMaxFragmentLengthExtension(serverExtensions);
+            if (maxFragmentLength >= 0)
+            {
+                if (!MaxFragmentLength.IsValid(maxFragmentLength)
+                    || (!m_resumedSession &&
+                        maxFragmentLength != TlsExtensionsUtilities.GetMaxFragmentLengthExtension(clientExtensions)))
+                {
+                    throw new TlsFatalAlert(alertDescription);
+                }
+            }
+            return maxFragmentLength;
         }
 
         /// <exception cref="IOException"/>
@@ -1877,7 +1732,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static IDictionary<int, byte[]> ReadExtensions(MemoryStream input)
+        internal static IDictionary ReadExtensions(MemoryStream input)
         {
             if (input.Position >= input.Length)
                 return null;
@@ -1890,10 +1745,10 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static IDictionary<int, byte[]> ReadExtensionsData(byte[] extBytes)
+        internal static IDictionary ReadExtensionsData(byte[] extBytes)
         {
             // Int32 -> byte[]
-            var extensions = new Dictionary<int, byte[]>();
+            IDictionary extensions = Platform.CreateHashtable();
 
             if (extBytes.Length > 0)
             {
@@ -1907,11 +1762,12 @@ namespace Org.BouncyCastle.Tls
                     /*
                      * RFC 3546 2.3 There MUST NOT be more than one extension of the same type.
                      */
-                    if (extensions.ContainsKey(extension_type))
+                    Int32 key = extension_type;
+                    if (extensions.Contains(key))
                         throw new TlsFatalAlert(AlertDescription.illegal_parameter,
                             "Repeated extension: " + ExtensionType.GetText(extension_type));
 
-                    extensions.Add(extension_type, extension_data);
+                    extensions.Add(key, extension_data);
                 }
                 while (buf.Position < buf.Length);
             }
@@ -1920,10 +1776,10 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static IDictionary<int, byte[]> ReadExtensionsData13(int handshakeType, byte[] extBytes)
+        internal static IDictionary ReadExtensionsData13(int handshakeType, byte[] extBytes)
         {
             // Int32 -> byte[]
-            var extensions = new Dictionary<int, byte[]>();
+            IDictionary extensions = Platform.CreateHashtable();
 
             if (extBytes.Length > 0)
             {
@@ -1944,11 +1800,12 @@ namespace Org.BouncyCastle.Tls
                     /*
                      * RFC 3546 2.3 There MUST NOT be more than one extension of the same type.
                      */
-                    if (extensions.ContainsKey(extension_type))
+                    Int32 key = extension_type;
+                    if (extensions.Contains(key))
                         throw new TlsFatalAlert(AlertDescription.illegal_parameter,
                             "Repeated extension: " + ExtensionType.GetText(extension_type));
 
-                    extensions.Add(extension_type, extension_data);
+                    extensions.Add(key, extension_data);
                 }
                 while (buf.Position < buf.Length);
             }
@@ -1957,7 +1814,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static IDictionary<int, byte[]> ReadExtensionsDataClientHello(byte[] extBytes)
+        internal static IDictionary ReadExtensionsDataClientHello(byte[] extBytes)
         {
             /*
              * TODO[tls13] We are currently allowing any extensions to appear in ClientHello. It is
@@ -1967,7 +1824,7 @@ namespace Org.BouncyCastle.Tls
              */
 
             // Int32 -> byte[]
-            var extensions = new Dictionary<int, byte[]>();
+            IDictionary extensions = Platform.CreateHashtable();
 
             if (extBytes.Length > 0)
             {
@@ -1984,11 +1841,12 @@ namespace Org.BouncyCastle.Tls
                     /*
                      * RFC 3546 2.3 There MUST NOT be more than one extension of the same type.
                      */
-                    if (extensions.ContainsKey(extension_type))
+                    Int32 key = extension_type;
+                    if (extensions.Contains(key))
                         throw new TlsFatalAlert(AlertDescription.illegal_parameter,
                             "Repeated extension: " + ExtensionType.GetText(extension_type));
 
-                    extensions.Add(extension_type, extension_data);
+                    extensions.Add(key, extension_data);
 
                     pre_shared_key_found |= (ExtensionType.pre_shared_key == extension_type);
                 }
@@ -2003,7 +1861,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static IList<SupplementalDataEntry> ReadSupplementalDataMessage(MemoryStream input)
+        internal static IList ReadSupplementalDataMessage(MemoryStream input)
         {
             byte[] supp_data = TlsUtilities.ReadOpaque24(input, 1);
 
@@ -2011,7 +1869,7 @@ namespace Org.BouncyCastle.Tls
 
             MemoryStream buf = new MemoryStream(supp_data, false);
 
-            var supplementalData = new List<SupplementalDataEntry>();
+            IList supplementalData = Platform.CreateArrayList();
 
             while (buf.Position < buf.Length)
             {
@@ -2025,13 +1883,13 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static void WriteExtensions(Stream output, IDictionary<int, byte[]> extensions)
+        internal static void WriteExtensions(Stream output, IDictionary extensions)
         {
             WriteExtensions(output, extensions, 0);
         }
 
         /// <exception cref="IOException"/>
-        internal static void WriteExtensions(Stream output, IDictionary<int, byte[]> extensions, int bindersSize)
+        internal static void WriteExtensions(Stream output, IDictionary extensions, int bindersSize)
         {
             if (null == extensions || extensions.Count < 1)
                 return;
@@ -2045,13 +1903,13 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static byte[] WriteExtensionsData(IDictionary<int, byte[]> extensions)
+        internal static byte[] WriteExtensionsData(IDictionary extensions)
         {
             return WriteExtensionsData(extensions, 0);
         }
 
         /// <exception cref="IOException"/>
-        internal static byte[] WriteExtensionsData(IDictionary<int, byte[]> extensions, int bindersSize)
+        internal static byte[] WriteExtensionsData(IDictionary extensions, int bindersSize)
         {
             MemoryStream buf = new MemoryStream();
             WriteExtensionsData(extensions, buf, bindersSize);
@@ -2059,13 +1917,13 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static void WriteExtensionsData(IDictionary<int, byte[]> extensions, MemoryStream buf)
+        internal static void WriteExtensionsData(IDictionary extensions, MemoryStream buf)
         {
             WriteExtensionsData(extensions, buf, 0);
         }
 
         /// <exception cref="IOException"/>
-        internal static void WriteExtensionsData(IDictionary<int, byte[]> extensions, MemoryStream buf, int bindersSize)
+        internal static void WriteExtensionsData(IDictionary extensions, MemoryStream buf, int bindersSize)
         {
             /*
              * NOTE: There are reports of servers that don't accept a zero-length extension as the last
@@ -2077,10 +1935,10 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static void WritePreSharedKeyExtension(MemoryStream buf, IDictionary<int, byte[]> extensions,
-            int bindersSize)
+        internal static void WritePreSharedKeyExtension(MemoryStream buf, IDictionary extensions, int bindersSize)
         {
-            if (extensions.TryGetValue(ExtensionType.pre_shared_key, out var extension_data))
+            byte[] extension_data = (byte[])extensions[ExtensionType.pre_shared_key];
+            if (null != extension_data)
             {
                 TlsUtilities.CheckUint16(ExtensionType.pre_shared_key);
                 TlsUtilities.WriteUint16(ExtensionType.pre_shared_key, buf);
@@ -2093,18 +1951,17 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static void WriteSelectedExtensions(Stream output, IDictionary<int, byte[]> extensions,
-            bool selectEmpty)
+        internal static void WriteSelectedExtensions(Stream output, IDictionary extensions, bool selectEmpty)
         {
-            foreach (var extension in extensions)
+            foreach (Int32 key in extensions.Keys)
             {
-                int extension_type = extension.Key;
+                int extension_type = key;
 
                 // NOTE: Must be last; handled by 'WritePreSharedKeyExtension'
                 if (ExtensionType.pre_shared_key == extension_type)
                     continue;
 
-                byte[] extension_data = extension.Value;
+                byte[] extension_data = (byte[])extensions[key];
 
                 if (selectEmpty == (extension_data.Length == 0))
                 {
@@ -2116,7 +1973,7 @@ namespace Org.BouncyCastle.Tls
         }
 
         /// <exception cref="IOException"/>
-        internal static void WriteSupplementalData(Stream output, IList<SupplementalDataEntry> supplementalData)
+        internal static void WriteSupplementalData(Stream output, IList supplementalData)
         {
             MemoryStream buf = new MemoryStream();
 

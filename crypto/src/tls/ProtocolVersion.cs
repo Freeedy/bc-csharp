@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 
 using Org.BouncyCastle.Utilities;
 
@@ -169,7 +169,7 @@ namespace Org.BouncyCastle.Tls
             if (!IsEqualOrLaterVersionOf(min))
                 throw new ArgumentException("must be an equal or earlier version of this one", "min");
 
-            var result = new List<ProtocolVersion>();
+            IList result = Platform.CreateArrayList();
             result.Add(this);
 
             ProtocolVersion current = this;
@@ -179,7 +179,12 @@ namespace Org.BouncyCastle.Tls
                 result.Add(current);
             }
 
-            return result.ToArray();
+            ProtocolVersion[] versions = new ProtocolVersion[result.Count];
+            for (int i = 0; i < result.Count; ++i)
+            {
+                versions[i] = (ProtocolVersion)result[i];
+            }
+            return versions;
         }
 
         public int FullVersion
@@ -412,7 +417,7 @@ namespace Org.BouncyCastle.Tls
             CheckUint8(minor);
 
             int v = (major << 8) | minor;
-            string hex = Convert.ToString(0x10000 | v, 16).Substring(1).ToUpperInvariant();
+            string hex = Platform.ToUpperInvariant(Convert.ToString(0x10000 | v, 16).Substring(1));
             return new ProtocolVersion(v, prefix + " 0x" + hex);
         }
     }

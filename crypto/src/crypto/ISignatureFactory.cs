@@ -1,13 +1,14 @@
+using System;
+
 namespace Org.BouncyCastle.Crypto
 {
     /// <summary>
     /// Base interface for operators that serve as stream-based signature calculators.
     /// </summary>
-    // TODO[api] Add 'out A' type parameter for AlgorithmDetails return type
     public interface ISignatureFactory
 	{
         /// <summary>The algorithm details object for this calculator.</summary>
-        object AlgorithmDetails { get; }
+        Object AlgorithmDetails { get ; }
 
         /// <summary>
         /// Create a stream calculator for this signature calculator. The stream
@@ -15,6 +16,8 @@ namespace Org.BouncyCastle.Crypto
         /// and producing the signature block.
         /// </summary>
         /// <returns>A calculator producing an IBlockResult with a signature in it.</returns>
-        IStreamCalculator<IBlockResult> CreateCalculator();
+        IStreamCalculator CreateCalculator();
     }
 }
+
+

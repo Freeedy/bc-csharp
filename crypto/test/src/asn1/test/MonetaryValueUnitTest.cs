@@ -82,6 +82,12 @@ namespace Org.BouncyCastle.Asn1.Tests
             }
         }
 
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new MonetaryValueUnitTest());
+        }
+
         [Test]
         public void TestFunction()
         {

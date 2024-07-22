@@ -1,30 +1,24 @@
 using System;
 using System.IO;
-using System.Runtime.Serialization;
 
 namespace Org.BouncyCastle.Security
 {
+#if !(NETCF_1_0 || NETCF_2_0 || SILVERLIGHT || PORTABLE)
     [Serializable]
+#endif
     public class EncryptionException
 		: IOException
 	{
-		public EncryptionException()
-			: base()
-		{
-		}
-
-		public EncryptionException(string message)
+		public EncryptionException(
+			string message)
 			: base(message)
 		{
 		}
 
-		public EncryptionException(string message, Exception innerException)
-			: base(message, innerException)
-		{
-		}
-
-		protected EncryptionException(SerializationInfo info, StreamingContext context)
-			: base(info, context)
+		public EncryptionException(
+			string		message,
+			Exception	exception)
+			: base(message, exception)
 		{
 		}
 	}

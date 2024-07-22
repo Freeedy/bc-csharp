@@ -27,21 +27,7 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		public static readonly PkiStatusEncodable revocationNotification = new PkiStatusEncodable(PkiStatus.RevocationNotification);
 		public static readonly PkiStatusEncodable keyUpdateWaiting = new PkiStatusEncodable(PkiStatus.KeyUpdateWarning);
 
-        public static PkiStatusEncodable GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is PkiStatusEncodable pkiStatusEncodable)
-                return pkiStatusEncodable;
-            return new PkiStatusEncodable(DerInteger.GetInstance(obj));
-        }
-
-        public static PkiStatusEncodable GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return GetInstance(DerInteger.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly DerInteger m_status;
+		private readonly DerInteger status;
 
 		private PkiStatusEncodable(PkiStatus status)
 			: this(new DerInteger((int)status))
@@ -50,11 +36,28 @@ namespace Org.BouncyCastle.Asn1.Cmp
 
 		private PkiStatusEncodable(DerInteger status)
 		{
-			m_status = status;
+			this.status = status;
 		}
 
-		public virtual BigInteger Value => m_status.Value;
+		public static PkiStatusEncodable GetInstance(object obj)
+		{
+			if (obj is PkiStatusEncodable)
+				return (PkiStatusEncodable)obj;
 
-		public override Asn1Object ToAsn1Object() => m_status;
+			if (obj is DerInteger)
+				return new PkiStatusEncodable((DerInteger)obj);
+
+            throw new ArgumentException("Invalid object: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public virtual BigInteger Value
+		{
+			get { return status.Value; }
+		}
+
+		public override Asn1Object ToAsn1Object()
+		{
+			return status;
+		}
 	}
 }

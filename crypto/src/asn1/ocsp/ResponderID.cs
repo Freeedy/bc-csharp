@@ -1,5 +1,6 @@
 using System;
 
+using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.X509;
 
 namespace Org.BouncyCastle.Asn1.Ocsp
@@ -7,50 +8,67 @@ namespace Org.BouncyCastle.Asn1.Ocsp
     public class ResponderID
         : Asn1Encodable, IAsn1Choice
     {
-		public static ResponderID GetInstance(object obj)
+        private readonly Asn1Encodable id;
+
+		public static ResponderID GetInstance(
+			object obj)
 		{
-			if (obj == null)
-				return null;
-
-			if (obj is ResponderID responderID)
-				return responderID;
-
-			if (obj is Asn1OctetString asn1OctetString)
-				return new ResponderID(asn1OctetString);
-
-			if (obj is Asn1TaggedObject taggedObject)
+			if (obj == null || obj is ResponderID)
 			{
-				if (taggedObject.HasContextTag(1))
-					return new ResponderID(X509Name.GetInstance(taggedObject, true));
+				return (ResponderID)obj;
+			}
 
-				return new ResponderID(Asn1OctetString.GetInstance(taggedObject, true));
+			if (obj is DerOctetString)
+			{
+				return new ResponderID((DerOctetString)obj);
+			}
+
+			if (obj is Asn1TaggedObject)
+			{
+				Asn1TaggedObject o = (Asn1TaggedObject)obj;
+
+				if (o.TagNo == 1)
+				{
+					return new ResponderID(X509Name.GetInstance(o, true));
+				}
+
+				return new ResponderID(Asn1OctetString.GetInstance(o, true));
 			}
 
 			return new ResponderID(X509Name.GetInstance(obj));
 		}
 
-        public static ResponderID GetInstance(Asn1TaggedObject obj, bool isExplicit) =>
-            Asn1Utilities.GetInstanceChoice(obj, isExplicit, GetInstance);
-
-        public static ResponderID GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            Asn1Utilities.GetTaggedChoice(taggedObject, declaredExplicit, GetInstance);
-
-        private readonly Asn1Encodable m_id;
-
-        public ResponderID(Asn1OctetString id)
+		public ResponderID(
+            Asn1OctetString id)
         {
-			m_id = id ?? throw new ArgumentNullException(nameof(id));
+			if (id == null)
+				throw new ArgumentNullException("id");
+
+			this.id = id;
         }
 
-		public ResponderID(X509Name id)
+		public ResponderID(
+            X509Name id)
         {
-            m_id = id ?? throw new ArgumentNullException(nameof(id));
+			if (id == null)
+				throw new ArgumentNullException("id");
+
+			this.id = id;
         }
+
+		public static ResponderID GetInstance(
+			Asn1TaggedObject	obj,
+			bool				isExplicit)
+		{
+			return GetInstance(obj.GetObject()); // must be explicitly tagged
+		}
 
 		public virtual byte[] GetKeyHash()
 		{
-			if (m_id is Asn1OctetString asn1OctetString)
-				return asn1OctetString.GetOctets();
+			if (id is Asn1OctetString)
+			{
+				return ((Asn1OctetString)id).GetOctets();
+			}
 
 			return null;
 		}
@@ -59,10 +77,12 @@ namespace Org.BouncyCastle.Asn1.Ocsp
 		{
 			get
 			{
-				if (m_id is Asn1OctetString)
+				if (id is Asn1OctetString)
+				{
 					return null;
+				}
 
-				return X509Name.GetInstance(m_id);
+				return X509Name.GetInstance(id);
 			}
 		}
 
@@ -76,10 +96,12 @@ namespace Org.BouncyCastle.Asn1.Ocsp
          */
         public override Asn1Object ToAsn1Object()
         {
-            if (m_id is Asn1OctetString asn1OctetString)
-                return new DerTaggedObject(true, 2, asn1OctetString);
+            if (id is Asn1OctetString)
+            {
+                return new DerTaggedObject(true, 2, id);
+            }
 
-			return new DerTaggedObject(true, 1, m_id);
+			return new DerTaggedObject(true, 1, id);
         }
     }
 }

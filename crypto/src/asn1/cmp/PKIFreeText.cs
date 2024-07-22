@@ -1,79 +1,72 @@
 using System;
+using System.Collections;
+
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Cmp
 {
 	public class PkiFreeText
 		: Asn1Encodable
 	{
-		public static PkiFreeText GetInstance(object obj)
+		internal Asn1Sequence strings;
+
+		public static PkiFreeText GetInstance(
+			Asn1TaggedObject	obj,
+			bool				isExplicit)
 		{
-			if (obj == null)
-				return null;
-			if (obj is PkiFreeText pkiFreeText)
-				return pkiFreeText;
-            return new PkiFreeText(Asn1Sequence.GetInstance(obj));
+			return GetInstance(Asn1Sequence.GetInstance(obj, isExplicit));
 		}
 
-        public static PkiFreeText GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new PkiFreeText(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-
-        public static PkiFreeText GetOptional(Asn1Encodable element)
-        {
-            if (element == null)
-                throw new ArgumentNullException(nameof(element));
-
-            if (element is PkiFreeText pkiFreeText)
-                return pkiFreeText;
-
-            Asn1Sequence asn1Sequence = Asn1Sequence.GetOptional(element);
-            if (asn1Sequence != null)
-                return new PkiFreeText(asn1Sequence);
-
-            return null;
-        }
-
-        public static PkiFreeText GetTagged(Asn1TaggedObject taggedObject, bool declaredExplicit) =>
-            new PkiFreeText(Asn1Sequence.GetTagged(taggedObject, declaredExplicit));
-
-        private readonly Asn1Sequence m_strings;
-
-        internal PkiFreeText(Asn1Sequence seq)
+		public static PkiFreeText GetInstance(
+			object obj)
 		{
-			foreach (var element in seq)
+			if (obj is PkiFreeText)
 			{
-				if (!(element is DerUtf8String))
+				return (PkiFreeText)obj;
+			}
+			else if (obj is Asn1Sequence)
+			{
+				return new PkiFreeText((Asn1Sequence)obj);
+			}
+
+            throw new ArgumentException("Unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public PkiFreeText(
+			Asn1Sequence seq)
+		{
+			foreach (object o in seq)
+			{
+				if (!(o is DerUtf8String))
+				{
 					throw new ArgumentException("attempt to insert non UTF8 STRING into PkiFreeText");
+				}
 			}
 
-			m_strings = seq;
+			this.strings = seq;
 		}
 
-		public PkiFreeText(DerUtf8String p)
+		public PkiFreeText(
+			DerUtf8String p)
 		{
-			m_strings = new DerSequence(p);
+			strings = new DerSequence(p);
 		}
 
-		public PkiFreeText(string p)
-			: this(new DerUtf8String(p))
+		/**
+		 * Return the number of string elements present.
+		 *
+		 * @return number of elements present.
+		 */
+		[Obsolete("Use 'Count' property instead")]
+		public int Size
 		{
+			get { return strings.Count; }
 		}
 
-		public PkiFreeText(DerUtf8String[] strs)
+		public int Count
 		{
-			m_strings = new DerSequence(strs);
+			get { return strings.Count; }
 		}
-
-		public PkiFreeText(string[] strs)
-		{
-			Asn1EncodableVector v = new Asn1EncodableVector(strs.Length);
-			for (int i = 0; i < strs.Length; i++)
-			{
-				v.Add(new DerUtf8String(strs[i]));
-			}
-			m_strings = new DerSequence(v);
-		}
-
-		public virtual int Count => m_strings.Count;
 
 		/**
 		 * Return the UTF8STRING at index.
@@ -81,13 +74,26 @@ namespace Org.BouncyCastle.Asn1.Cmp
 		 * @param index index of the string of interest
 		 * @return the string at index.
 		 */
-		public DerUtf8String this[int index] => (DerUtf8String)m_strings[index];
+		public DerUtf8String this[int index]
+		{
+			get { return (DerUtf8String) strings[index]; }
+		}
+
+		[Obsolete("Use 'object[index]' syntax instead")]
+		public DerUtf8String GetStringAt(
+			int index)
+		{
+			return this[index];
+		}
 
 		/**
 		 * <pre>
 		 * PkiFreeText ::= SEQUENCE SIZE (1..MAX) OF UTF8String
 		 * </pre>
 		 */
-		public override Asn1Object ToAsn1Object() => m_strings;
+		public override Asn1Object ToAsn1Object()
+		{
+			return strings;
+		}
 	}
 }

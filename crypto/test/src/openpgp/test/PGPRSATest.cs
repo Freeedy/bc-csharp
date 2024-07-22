@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.IO;
 using System.Text;
 
@@ -325,12 +326,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
             PgpPublicKey pubKey = pgpPub.GetPublicKey();
 
-            byte[] expectedVersion3 = Hex.Decode("4FFB9F0884266C715D1CEAC804A3BBFA");
-            if (!Arrays.AreEqual(pubKey.GetFingerprint(), expectedVersion3))
-            {
-                Fail("version 3 fingerprint test failed");
-            }
-            if (!pubKey.HasFingerprint(expectedVersion3))
+            if (!Arrays.AreEqual(pubKey.GetFingerprint(), Hex.Decode("4FFB9F0884266C715D1CEAC804A3BBFA")))
             {
                 Fail("version 3 fingerprint test failed");
             }
@@ -342,14 +338,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
             pubKey = pgpPub.GetPublicKey();
 
-            byte[] expectedVersion4 = Hex.Decode("3062363c1046a01a751946bb35586146fdf3f373");
-            if (!Arrays.AreEqual(pubKey.GetFingerprint(), expectedVersion4))
+            if (!Arrays.AreEqual(pubKey.GetFingerprint(), Hex.Decode("3062363c1046a01a751946bb35586146fdf3f373")))
             {
                Fail("version 4 fingerprint test failed");
-            }
-            if (!pubKey.HasFingerprint(expectedVersion4))
-            {
-                Fail("version 4 fingerprint test failed");
             }
         }
 
@@ -364,15 +355,16 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             //
             MemoryStream bOut = new MemoryStream();
             PgpLiteralDataGenerator lGen = new PgpLiteralDataGenerator();
-            using (var lOut = lGen.Open(
+            Stream lOut = lGen.Open(
                 bOut,
                 PgpLiteralData.Binary,
                 PgpLiteralData.Console,
                 text.Length,
-                DateTime.UtcNow))
-            {
-                lOut.Write(text, 0, text.Length);
-            }
+                DateTime.UtcNow);
+
+            lOut.Write(text, 0, text.Length);
+
+            lGen.Close();
 
             byte[] bytes = bOut.ToArray();
 
@@ -547,14 +539,14 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
             AsymmetricKeyParameter pubKey = pgpPub.GetPublicKey().GetKey();
 
-            var enumerator1= pgpPub.GetPublicKey().GetUserIds().GetEnumerator();
-            enumerator1.MoveNext();
-            string uid = enumerator1.Current;
+            IEnumerator enumerator = pgpPub.GetPublicKey().GetUserIds().GetEnumerator();
+            enumerator.MoveNext();
+            string uid = (string) enumerator.Current;
 
 
-            var enumerator2 = pgpPub.GetPublicKey().GetSignaturesForId(uid).GetEnumerator();
-            enumerator2.MoveNext();
-            PgpSignature sig = enumerator2.Current;
+            enumerator = pgpPub.GetPublicKey().GetSignaturesForId(uid).GetEnumerator();
+            enumerator.MoveNext();
+            PgpSignature sig = (PgpSignature) enumerator.Current;
 
             sig.InitVerify(pgpPub.GetPublicKey());
 
@@ -838,14 +830,14 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             PgpPublicKey key = secretKey.PublicKey;
 
 
-            var enumerator3 = key.GetUserIds().GetEnumerator();
-            enumerator3.MoveNext();
-            uid = enumerator3.Current;
+            enumerator = key.GetUserIds().GetEnumerator();
+            enumerator.MoveNext();
+            uid = (string) enumerator.Current;
 
 
-            var enumerator4 = key.GetSignaturesForId(uid).GetEnumerator();
-            enumerator4.MoveNext();
-            sig = enumerator4.Current;
+            enumerator = key.GetSignaturesForId(uid).GetEnumerator();
+            enumerator.MoveNext();
+            sig = (PgpSignature) enumerator.Current;
 
             sig.InitVerify(key);
 
@@ -883,9 +875,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
             key = tmpRing.GetPublicKey();
 
-            var sgEnum = key.GetSignaturesOfType(PgpSignature.KeyRevocation).GetEnumerator();
+            IEnumerator sgEnum = key.GetSignaturesOfType(PgpSignature.KeyRevocation).GetEnumerator();
             sgEnum.MoveNext();
-            sig = sgEnum.Current;
+            sig = (PgpSignature) sgEnum.Current;
 
             sig.InitVerify(key);
 
@@ -934,14 +926,14 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             key.Encode(new UncloseableMemoryStream());
 
 
-            var enumerator5 = key.GetUserIds().GetEnumerator();
-            enumerator5.MoveNext();
-            uid = enumerator5.Current;
+            enumerator = key.GetUserIds().GetEnumerator();
+            enumerator.MoveNext();
+            uid = (string) enumerator.Current;
 
 
-            var enumerator6 = key.GetSignaturesForId(uid).GetEnumerator();
-            enumerator6.MoveNext();
-            sig = enumerator6.Current;
+            enumerator = key.GetSignaturesForId(uid).GetEnumerator();
+            enumerator.MoveNext();
+            sig = (PgpSignature) enumerator.Current;
 
             sig.InitVerify(key);
 
@@ -976,9 +968,9 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
 
             PgpLiteralDataGenerator lGen = new PgpLiteralDataGenerator();
 
-            DateTime modificationTime = new DateTime(1973, 7, 27, 0, 0, 0, DateTimeKind.Utc);
+            DateTime testDateTime = new DateTime(1973, 7, 27);
             Stream lOut = lGen.Open(new UncloseableStream(bcOut), PgpLiteralData.Binary, "_CONSOLE",
-                dataBytes.Length, modificationTime);
+                dataBytes.Length, testDateTime);
 
             // TODO Need a stream object to automatically call Update?
             // (via ISigner implementation of PgpSignatureGenerator)
@@ -1008,7 +1000,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             ops = p1[0];
 
             p2 = (PgpLiteralData)pgpFact.NextPgpObject();
-            if (!p2.ModificationTime.Equals(modificationTime))
+            if (!p2.ModificationTime.Equals(testDateTime))
             {
                 Fail("Modification time not preserved");
             }
@@ -1054,7 +1046,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
                 PgpLiteralData.Binary,
                 "_CONSOLE",
                 dataBytes.Length,
-                modificationTime);
+                testDateTime);
 
             // TODO Need a stream object to automatically call Update?
             // (via ISigner implementation of PgpSignatureGenerator)
@@ -1084,7 +1076,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             ops = p1[0];
 
             p2 = (PgpLiteralData)pgpFact.NextPgpObject();
-            if (!p2.ModificationTime.Equals(modificationTime))
+            if (!p2.ModificationTime.Equals(testDateTime))
             {
                 Fail("Modification time not preserved");
             }
@@ -1148,15 +1140,13 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             sGen.GenerateOnePassVersion(false).Encode(bcOut);
 
             PgpLiteralDataGenerator lGen = new PgpLiteralDataGenerator();
-
-            DateTime modificationTime = new DateTime(1973, 7, 27, 0, 0, 0, DateTimeKind.Utc);
-
+            DateTime testDateTime = new DateTime(1973, 7, 27);
             Stream lOut = lGen.Open(
                 new UncloseableStream(bcOut),
                 PgpLiteralData.Binary,
                 "_CONSOLE",
                 dataBytes.Length,
-                modificationTime);
+                testDateTime);
 
             // TODO Need a stream object to automatically call Update?
             // (via ISigner implementation of PgpSignatureGenerator)
@@ -1187,7 +1177,7 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             PgpOnePassSignature ops = p1[0];
 
             PgpLiteralData p2 = (PgpLiteralData)pgpFact.NextPgpObject();
-            if (!p2.ModificationTime.Equals(modificationTime))
+            if (!p2.ModificationTime.Equals(testDateTime))
             {
                 Fail("Modification time not preserved");
             }
@@ -1218,17 +1208,16 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp.Tests
             {
                 throw new Exception("Close() called on underlying stream");
             }
-
-            protected override void Dispose(bool disposing)
-            {
-                if (disposing)
-                    throw new Exception("Dispose() called on underlying stream");
-            }
         }
 
         public override string Name
         {
             get { return "PgpRsaTest"; }
+        }
+
+        public static void Main(string[] args)
+        {
+            RunTest(new PgpRsaTest());
         }
 
         [Test]

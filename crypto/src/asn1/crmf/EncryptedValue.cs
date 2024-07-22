@@ -7,85 +7,108 @@ namespace Org.BouncyCastle.Asn1.Crmf
     public class EncryptedValue
         : Asn1Encodable
     {
-        public static EncryptedValue GetInstance(object obj)
-        {
-            if (obj == null)
-                return null;
-            if (obj is EncryptedValue encryptedValue)
-                return encryptedValue;
-            return new EncryptedValue(Asn1Sequence.GetInstance(obj));
-        }
-
-        public static EncryptedValue GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new EncryptedValue(Asn1Sequence.GetInstance(taggedObject, declaredExplicit));
-        }
-
-        private readonly AlgorithmIdentifier m_intendedAlg;
-        private readonly AlgorithmIdentifier m_symmAlg;
-        private readonly DerBitString m_encSymmKey;
-        private readonly AlgorithmIdentifier m_keyAlg;
-        private readonly Asn1OctetString m_valueHint;
-        private readonly DerBitString m_encValue;
+        private readonly AlgorithmIdentifier intendedAlg;
+        private readonly AlgorithmIdentifier symmAlg;
+        private readonly DerBitString encSymmKey;
+        private readonly AlgorithmIdentifier keyAlg;
+        private readonly Asn1OctetString valueHint;
+        private readonly DerBitString encValue;
 
         private EncryptedValue(Asn1Sequence seq)
         {
             int index = 0;
-            while (seq[index] is Asn1TaggedObject tObj)
+            while (seq[index] is Asn1TaggedObject)
             {
+                Asn1TaggedObject tObj = (Asn1TaggedObject)seq[index];
+
                 switch (tObj.TagNo)
                 {
-                case 0:
-                    m_intendedAlg = AlgorithmIdentifier.GetInstance(tObj, false);
-                    break;
-                case 1:
-                    m_symmAlg = AlgorithmIdentifier.GetInstance(tObj, false);
-                    break;
-                case 2:
-                    m_encSymmKey = DerBitString.GetInstance(tObj, false);
-                    break;
-                case 3:
-                    m_keyAlg = AlgorithmIdentifier.GetInstance(tObj, false);
-                    break;
-                case 4:
-                    m_valueHint = Asn1OctetString.GetInstance(tObj, false);
-                    break;
+                    case 0:
+                        intendedAlg = AlgorithmIdentifier.GetInstance(tObj, false);
+                        break;
+                    case 1:
+                        symmAlg = AlgorithmIdentifier.GetInstance(tObj, false);
+                        break;
+                    case 2:
+                        encSymmKey = DerBitString.GetInstance(tObj, false);
+                        break;
+                    case 3:
+                        keyAlg = AlgorithmIdentifier.GetInstance(tObj, false);
+                        break;
+                    case 4:
+                        valueHint = Asn1OctetString.GetInstance(tObj, false);
+                        break;
                 }
                 ++index;
             }
 
-            m_encValue = DerBitString.GetInstance(seq[index]);
+            encValue = DerBitString.GetInstance(seq[index]);
         }
 
-        public EncryptedValue(AlgorithmIdentifier intendedAlg, AlgorithmIdentifier symmAlg, DerBitString encSymmKey,
-            AlgorithmIdentifier keyAlg, Asn1OctetString valueHint, DerBitString encValue)
+        public static EncryptedValue GetInstance(object obj)
+        {
+            if (obj is EncryptedValue)
+                return (EncryptedValue)obj;
+
+            if (obj != null)
+                return new EncryptedValue(Asn1Sequence.GetInstance(obj));
+
+            return null;
+        }
+
+        public EncryptedValue(
+            AlgorithmIdentifier intendedAlg,
+            AlgorithmIdentifier symmAlg,
+            DerBitString encSymmKey,
+            AlgorithmIdentifier keyAlg,
+            Asn1OctetString valueHint,
+            DerBitString encValue)
         {
             if (encValue == null)
-                throw new ArgumentNullException(nameof(encValue));
+            {
+                throw new ArgumentNullException("encValue");
+            }
 
-            m_intendedAlg = intendedAlg;
-            m_symmAlg = symmAlg;
-            m_encSymmKey = encSymmKey;
-            m_keyAlg = keyAlg;
-            m_valueHint = valueHint;
-            m_encValue = encValue;
+            this.intendedAlg = intendedAlg;
+            this.symmAlg = symmAlg;
+            this.encSymmKey = encSymmKey;
+            this.keyAlg = keyAlg;
+            this.valueHint = valueHint;
+            this.encValue = encValue;
         }
 
-        public virtual AlgorithmIdentifier IntendedAlg => m_intendedAlg;
+        public virtual AlgorithmIdentifier IntendedAlg
+        {
+            get { return intendedAlg; }
+        }
 
-        public virtual AlgorithmIdentifier SymmAlg => m_symmAlg;
+        public virtual AlgorithmIdentifier SymmAlg
+        {
+            get { return symmAlg; }
+        }
 
-        public virtual DerBitString EncSymmKey => m_encSymmKey;
+        public virtual DerBitString EncSymmKey
+        {
+            get { return encSymmKey; }
+        }
 
-        public virtual AlgorithmIdentifier KeyAlg => m_keyAlg;
+        public virtual AlgorithmIdentifier KeyAlg
+        {
+            get { return keyAlg; }
+        }
 
-        public virtual Asn1OctetString ValueHint => m_valueHint;
+        public virtual Asn1OctetString ValueHint
+        {
+            get { return valueHint; }
+        }
 
-        public virtual DerBitString EncValue => m_encValue;
+        public virtual DerBitString EncValue
+        {
+            get { return encValue; }
+        }
 
         /**
          * <pre>
-         * (IMPLICIT TAGS)
          * EncryptedValue ::= SEQUENCE {
          *                     intendedAlg   [0] AlgorithmIdentifier  OPTIONAL,
          *                     -- the intended algorithm for which the value will be used
@@ -107,13 +130,13 @@ namespace Org.BouncyCastle.Asn1.Crmf
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(6);
-            v.AddOptionalTagged(false, 0, m_intendedAlg);
-            v.AddOptionalTagged(false, 1, m_symmAlg);
-            v.AddOptionalTagged(false, 2, m_encSymmKey);
-            v.AddOptionalTagged(false, 3, m_keyAlg);
-            v.AddOptionalTagged(false, 4, m_valueHint);
-            v.Add(m_encValue);
+            Asn1EncodableVector v = new Asn1EncodableVector();
+            v.AddOptionalTagged(false, 0, intendedAlg);
+            v.AddOptionalTagged(false, 1, symmAlg);
+            v.AddOptionalTagged(false, 2, encSymmKey);
+            v.AddOptionalTagged(false, 3, keyAlg);
+            v.AddOptionalTagged(false, 4, valueHint);
+            v.Add(encValue);
             return new DerSequence(v);
         }
     }

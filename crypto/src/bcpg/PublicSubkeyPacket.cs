@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-
 namespace Org.BouncyCastle.Bcpg
 {
 	/// <remarks>Basic packet for a PGP public subkey</remarks>
@@ -22,9 +21,10 @@ namespace Org.BouncyCastle.Bcpg
         {
         }
 
-		public override void Encode(BcpgOutputStream bcpgOut)
+		public override void Encode(
+            BcpgOutputStream bcpgOut)
         {
-            bcpgOut.WritePacket(PacketTag.PublicSubkey, GetEncodedContents());
+            bcpgOut.WritePacket(PacketTag.PublicSubkey, GetEncodedContents(), true);
         }
     }
 }

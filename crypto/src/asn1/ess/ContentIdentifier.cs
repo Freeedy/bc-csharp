@@ -1,43 +1,54 @@
 using System;
 
+using Org.BouncyCastle.Utilities;
+
 namespace Org.BouncyCastle.Asn1.Ess
 {
-    public class ContentIdentifier
+	public class ContentIdentifier
 		: Asn1Encodable
 	{
-        public static ContentIdentifier GetInstance(object o)
-        {
-            if (o == null)
-                return null;
-            if (o is ContentIdentifier contentIdentifier)
-                return contentIdentifier;
-            return new ContentIdentifier(Asn1OctetString.GetInstance(o));
-        }
+		private Asn1OctetString value;
 
-        public static ContentIdentifier GetInstance(Asn1TaggedObject taggedObject, bool declaredExplicit)
-        {
-            return new ContentIdentifier(Asn1OctetString.GetInstance(taggedObject, declaredExplicit));
-        }
+		public static ContentIdentifier GetInstance(
+			object o)
+		{
+			if (o == null || o is ContentIdentifier)
+			{
+				return (ContentIdentifier) o;
+			}
 
-        private readonly Asn1OctetString m_value;
+			if (o is Asn1OctetString)
+			{
+				return new ContentIdentifier((Asn1OctetString) o);
+			}
 
-        /**
+			throw new ArgumentException(
+				"unknown object in 'ContentIdentifier' factory : "
+                + Platform.GetTypeName(o) + ".");
+		}
+
+		/**
 		 * Create from OCTET STRING whose octets represent the identifier.
 		 */
-        public ContentIdentifier(Asn1OctetString value)
-        {
-            m_value = value ?? throw new ArgumentNullException(nameof(value));
-        }
+		public ContentIdentifier(
+			Asn1OctetString value)
+		{
+			this.value = value;
+		}
 
-        /**
+		/**
 		 * Create from byte array representing the identifier.
 		 */
-        public ContentIdentifier(byte[] value)
+		public ContentIdentifier(
+			byte[] value)
 			: this(new DerOctetString(value))
 		{
 		}
 
-		public Asn1OctetString Value => m_value;
+		public Asn1OctetString Value
+		{
+			get { return value; }
+		}
 
 		/**
 		 * The definition of ContentIdentifier is
@@ -48,6 +59,9 @@ namespace Org.BouncyCastle.Asn1.Ess
 		 *  member-body(2) us(840) rsadsi(113549) pkcs(1) pkcs9(9)
 		 *  smime(16) id-aa(2) 7 }
 		 */
-		public override Asn1Object ToAsn1Object() => m_value;
+		public override Asn1Object ToAsn1Object()
+		{
+			return value;
+		}
 	}
 }

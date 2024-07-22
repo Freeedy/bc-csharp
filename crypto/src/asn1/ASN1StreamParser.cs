@@ -71,7 +71,12 @@ namespace Org.BouncyCastle.Asn1
 
                 int tagClass = tagHdr & Asn1Tags.Private;
                 if (0 != tagClass)
+                {
+                    if (Asn1Tags.Application == tagClass)
+                        return new BerApplicationSpecificParser(tagNo, sp);
+
                     return new BerTaggedObjectParser(tagClass, tagNo, sp);
+                }
 
                 return sp.ParseImplicitConstructedIL(tagNo);
 			}
@@ -88,6 +93,13 @@ namespace Org.BouncyCastle.Asn1
                 if (0 != tagClass)
                 {
                     bool isConstructed = (tagHdr & Asn1Tags.Constructed) != 0;
+
+                    // TODO[asn1] Special handling can be removed once ASN1ApplicationSpecific types removed.
+                    if (Asn1Tags.Application == tagClass)
+                    {
+                        // This cast is ensuring the current user-expected return type.
+                        return (DLApplicationSpecific)sp.LoadTaggedDL(tagClass, tagNo, isConstructed);
+                    }
 
                     return new DLTaggedObjectParser(tagClass, tagNo, isConstructed, sp);
                 }
@@ -122,18 +134,13 @@ namespace Org.BouncyCastle.Asn1
                 // TODO[asn1] DLConstructedBitStringParser
                 return new BerBitStringParser(this);
             case Asn1Tags.External:
-                // TODO[asn1] DLExternalParser
                 return new DerExternalParser(this);
-#pragma warning disable CS0618 // Type or member is obsolete
             case Asn1Tags.OctetString:
                 // TODO[asn1] DLConstructedOctetStringParser
                 return new BerOctetStringParser(this);
-#pragma warning restore CS0618 // Type or member is obsolete
             case Asn1Tags.Set:
-                // TODO[asn1] DLSetParser
                 return new DerSetParser(this);
             case Asn1Tags.Sequence:
-                // TODO[asn1] DLSequenceParser
                 return new DerSequenceParser(this);
             default:
 				throw new Asn1Exception("unknown DL object encountered: 0x" + univTagNo.ToString("X"));
@@ -149,14 +156,12 @@ namespace Org.BouncyCastle.Asn1
             case Asn1Tags.External:
                 // TODO[asn1] BERExternalParser
                 return new DerExternalParser(this);
-#pragma warning disable CS0618 // Type or member is obsolete
             case Asn1Tags.OctetString:
                 return new BerOctetStringParser(this);
             case Asn1Tags.Sequence:
                 return new BerSequenceParser(this);
             case Asn1Tags.Set:
                 return new BerSetParser(this);
-#pragma warning restore CS0618 // Type or member is obsolete
             default:
                 throw new Asn1Exception("unknown BER object encountered: 0x" + univTagNo.ToString("X"));
             }
@@ -212,7 +217,7 @@ namespace Org.BouncyCastle.Asn1
         internal Asn1TaggedObjectParser ParseTaggedObject()
         {
             int tagHdr = _in.ReadByte();
-            if (tagHdr < 0)
+            if (tagHdr< 0)
                 return null;
 
             int tagClass = tagHdr & Asn1Tags.Private;
@@ -242,9 +247,9 @@ namespace Org.BouncyCastle.Asn1
 
 		private void Set00Check(bool enabled)
 		{
-			if (_in is IndefiniteLengthInputStream indef)
+			if (_in is IndefiniteLengthInputStream)
 			{
-				indef.SetEofOn00(enabled);
+				((IndefiniteLengthInputStream)_in).SetEofOn00(enabled);
 			}
 		}
 	}

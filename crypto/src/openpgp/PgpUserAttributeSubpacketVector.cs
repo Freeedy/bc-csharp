@@ -4,7 +4,6 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
 {
 	/// <remarks>Container for a list of user attribute subpackets.</remarks>
     public class PgpUserAttributeSubpacketVector
-        : IUserDataPacket
     {
         public static PgpUserAttributeSubpacketVector FromSubpackets(UserAttributeSubpacket[] packets)
         {
@@ -23,12 +22,15 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             this.packets = packets;
         }
 
-		public UserAttributeSubpacket GetSubpacket(UserAttributeSubpacketTag type)
+		public UserAttributeSubpacket GetSubpacket(
+            UserAttributeSubpacketTag type)
         {
             for (int i = 0; i != packets.Length; i++)
             {
                 if (packets[i].SubpacketType == type)
+                {
                     return packets[i];
+                }
             }
 
 			return null;
@@ -46,21 +48,28 @@ namespace Org.BouncyCastle.Bcpg.OpenPgp
             return packets;
         }
 
-		public override bool Equals(object obj)
+		public override bool Equals(
+            object obj)
         {
             if (obj == this)
                 return true;
 
-            if (!(obj is PgpUserAttributeSubpacketVector other))
+			PgpUserAttributeSubpacketVector other = obj as PgpUserAttributeSubpacketVector;
+
+			if (other == null)
 				return false;
 
 			if (other.packets.Length != packets.Length)
+            {
                 return false;
+            }
 
 			for (int i = 0; i != packets.Length; i++)
             {
                 if (!other.packets[i].Equals(packets[i]))
+                {
                     return false;
+                }
             }
 
 			return true;

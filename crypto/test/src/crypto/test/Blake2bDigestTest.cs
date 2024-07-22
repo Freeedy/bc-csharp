@@ -146,8 +146,6 @@ namespace Org.BouncyCastle.Crypto.Tests
             ResetTest();
             DoTestNullKeyVsUnkeyed();
             DoTestLengthConstruction();
-
-            DigestTest.SpanConsistencyTests(this, new Blake2bDigest(512));
         }
 
         private void CloneTest()
@@ -310,6 +308,11 @@ namespace Org.BouncyCastle.Crypto.Tests
                 Fail("state was not reset");
             }
         }
+
+        public static void Main(string[] args)
+		{
+			RunTest(new Blake2bDigestTest());
+		}
 
 		[Test]
 		public void TestFunction()

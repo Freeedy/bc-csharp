@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 namespace Org.BouncyCastle.Tls
@@ -20,15 +20,15 @@ namespace Org.BouncyCastle.Tls
 
         /// <summary>Return the <see cref="TlsPskExternal">external PSKs</see> to offer in the ClientHello.</summary>
         /// <remarks>This will only be called when TLS 1.3 or higher is amongst the offered protocol versions.</remarks>
-        /// <returns>an <see cref="IList{T}"/> of <see cref="TlsPskExternal"/> instances, or null if none should be
+        /// <returns>an <see cref="IList"/> of <see cref="TlsPskExternal"/> instances, or null if none should be
         /// offered.</returns>
-        IList<TlsPskExternal> GetExternalPsks();
+        IList GetExternalPsks();
 
         bool IsFallback();
 
         /// <returns>(Int32 -> byte[])</returns>
         /// <exception cref="IOException"/>
-        IDictionary<int, byte[]> GetClientExtensions();
+        IDictionary GetClientExtensions();
 
         /// <summary>If this client is offering TLS 1.3 or higher, this method may be called to determine for which
         /// groups a key share should be included in the initial ClientHello.</summary>
@@ -36,13 +36,9 @@ namespace Org.BouncyCastle.Tls
         /// Groups that were not included in the supported_groups extension (by <see cref="GetClientExtensions"/> will
         /// be ignored. The protocol will then add a suitable key_share extension to the ClientHello extensions.
         /// </remarks>
-        /// <returns>an <see cref="IList{T}"/> of <see cref="NamedGroup">named group</see> values, possibly empty or
-        /// null.
+        /// <returns>an <see cref="IList"/> of <see cref="NamedGroup">named group</see> values, possibly empty or null.
         /// </returns>
-        IList<int> GetEarlyKeyShareGroups();
-
-        // TODO[api]
-        //bool ShouldUseCompatibilityMode();
+        IList GetEarlyKeyShareGroups();
 
         /// <exception cref="IOException"/>
         void NotifyServerVersion(ProtocolVersion selectedVersion);
@@ -76,11 +72,11 @@ namespace Org.BouncyCastle.Tls
         /// </remarks>
         /// <param name="serverExtensions">(Int32 -> byte[])</param>
         /// <exception cref="IOException"/>
-        void ProcessServerExtensions(IDictionary<int, byte[]> serverExtensions);
+        void ProcessServerExtensions(IDictionary serverExtensions);
 
         /// <param name="serverSupplementalData">(SupplementalDataEntry)</param>
         /// <exception cref="IOException"/>
-        void ProcessServerSupplementalData(IList<SupplementalDataEntry> serverSupplementalData);
+        void ProcessServerSupplementalData(IList serverSupplementalData);
 
         /// <exception cref="IOException"/>
         TlsPskIdentity GetPskIdentity();
@@ -99,7 +95,7 @@ namespace Org.BouncyCastle.Tls
 
         /// <returns>(SupplementalDataEntry)</returns>
         /// <exception cref="IOException"/>
-        IList<SupplementalDataEntry> GetClientSupplementalData();
+        IList GetClientSupplementalData();
 
         /// <summary>RFC 5077 3.3. NewSessionTicket Handshake Message</summary>
         /// <remarks>

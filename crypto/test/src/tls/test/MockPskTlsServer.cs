@@ -1,8 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Tls.Crypto.Impl.BC;
+using Org.BouncyCastle.Security;
 using Org.BouncyCastle.Utilities;
 using Org.BouncyCastle.Utilities.Encoders;
 
@@ -12,13 +13,13 @@ namespace Org.BouncyCastle.Tls.Tests
         : PskTlsServer
     {
         internal MockPskTlsServer()
-            : base(new BcTlsCrypto(), new MyIdentityManager())
+            : base(new BcTlsCrypto(new SecureRandom()), new MyIdentityManager())
         {
         }
 
-        protected override IList<ProtocolName> GetProtocolNames()
+        protected override IList GetProtocolNames()
         {
-            var protocolNames = new List<ProtocolName>();
+            IList protocolNames = new ArrayList();
             protocolNames.Add(ProtocolName.Http_2_Tls);
             protocolNames.Add(ProtocolName.Http_1_1);
             return protocolNames;
@@ -80,7 +81,7 @@ namespace Org.BouncyCastle.Tls.Tests
             }
         }
 
-        public override void ProcessClientExtensions(IDictionary<int, byte[]> clientExtensions)
+        public override void ProcessClientExtensions(IDictionary clientExtensions)
         {
             if (m_context.SecurityParameters.ClientRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -88,7 +89,7 @@ namespace Org.BouncyCastle.Tls.Tests
             base.ProcessClientExtensions(clientExtensions);
         }
 
-        public override IDictionary<int, byte[]> GetServerExtensions()
+        public override IDictionary GetServerExtensions()
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -96,7 +97,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return base.GetServerExtensions();
         }
 
-        public override void GetServerExtensionsForConnection(IDictionary<int, byte[]> serverExtensions)
+        public override void GetServerExtensionsForConnection(IDictionary serverExtensions)
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);

@@ -196,18 +196,19 @@ namespace Org.BouncyCastle.Math.EC.Abc
 			}
 			string leftOfPoint = floorBigInt.ToString();
 
-			char[] rightOfPoint = new char[scale];
-			string fractStr = fract.ToString(2);
+			char[] fractCharArr = new char[scale];
+				string fractStr = fract.ToString(2);
 			int fractLen = fractStr.Length;
 			int zeroes = scale - fractLen;
 			for (int i = 0; i < zeroes; i++)
 			{
-				rightOfPoint[i] = '0';
+				fractCharArr[i] = '0';
 			}
 			for (int j = 0; j < fractLen; j++)
 			{
-				rightOfPoint[zeroes + j] = fractStr[j];
+				fractCharArr[zeroes + j] = fractStr[j];
 			}
+			string rightOfPoint = new string(fractCharArr);
 
 			StringBuilder sb = new StringBuilder(leftOfPoint);
 			sb.Append(".");

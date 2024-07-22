@@ -1,5 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.IO;
 
 using Org.BouncyCastle.Asn1;
@@ -18,22 +18,22 @@ namespace Org.BouncyCastle.Tls.Tests
             /*
              * TLS 1.3
              */
-            CipherSuite.TLS_AES_128_GCM_SHA256,
             CipherSuite.TLS_CHACHA20_POLY1305_SHA256,
+            CipherSuite.TLS_AES_128_GCM_SHA256,
 
             /*
              * pre-TLS 1.3
              */
-            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
             CipherSuite.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+            CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
             CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
             CipherSuite.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-            CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
             CipherSuite.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+            CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
             CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
             CipherSuite.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-            CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
             CipherSuite.TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+            CipherSuite.TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
             CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
             CipherSuite.TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
             CipherSuite.TLS_RSA_WITH_AES_128_GCM_SHA256,
@@ -68,12 +68,12 @@ namespace Org.BouncyCastle.Tls.Tests
             get { return m_firstFatalAlertDescription; }
         }
 
-        public override IDictionary<int, byte[]> GetClientExtensions()
+        public override IDictionary GetClientExtensions()
         {
             if (m_context.SecurityParameters.ClientRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
 
-            var clientExtensions = base.GetClientExtensions();
+            IDictionary clientExtensions = base.GetClientExtensions();
             if (clientExtensions != null)
             {
                 if (!m_config.clientSendSignatureAlgorithms)
@@ -90,7 +90,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return clientExtensions;
         }
 
-        public override IList<int> GetEarlyKeyShareGroups()
+        public override IList GetEarlyKeyShareGroups()
         {
             if (m_config.clientEmptyKeyShare)
                 return null;
@@ -98,7 +98,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return base.GetEarlyKeyShareGroups();
         }
 
-        protected override IList<SignatureAndHashAlgorithm> GetSupportedSignatureAlgorithms()
+        protected override IList GetSupportedSignatureAlgorithms()
         {
             if (m_config.clientCHSigAlgs != null)
                 return TlsUtilities.GetSupportedSignatureAlgorithms(m_context, m_config.clientCHSigAlgs);
@@ -190,7 +190,7 @@ namespace Org.BouncyCastle.Tls.Tests
             return new MyTlsAuthentication(this, m_context);
         }
 
-        public override void ProcessServerExtensions(IDictionary<int, byte[]> serverExtensions)
+        public override void ProcessServerExtensions(IDictionary serverExtensions)
         {
             if (m_context.SecurityParameters.ServerRandom == null)
                 throw new TlsFatalAlert(AlertDescription.internal_error);
@@ -326,7 +326,7 @@ namespace Org.BouncyCastle.Tls.Tests
                         return null;
                 }
 
-                var supportedSigAlgs = certificateRequest.SupportedSignatureAlgorithms;
+                IList supportedSigAlgs = certificateRequest.SupportedSignatureAlgorithms;
                 if (supportedSigAlgs != null && config.clientAuthSigAlg != null)
                 {
                     supportedSigAlgs = TlsUtilities.VectorOfOne(config.clientAuthSigAlg);

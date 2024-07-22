@@ -11,7 +11,7 @@ namespace Org.BouncyCastle.Crypto.Fpe
         : FpeEngine
     {
         public FpeFf3_1Engine()
-            : this(AesUtilities.CreateEngine())
+            : this(new AesEngine())
         {
         }
 
@@ -19,7 +19,9 @@ namespace Org.BouncyCastle.Crypto.Fpe
             : base(baseCipher)
         {
             if (IsOverrideSet(SP80038G.FPE_DISABLED))
+            {
                 throw new InvalidOperationException("FPE disabled");
+            }
         }
 
         public override void Init(bool forEncryption, ICipherParameters parameters)
@@ -27,7 +29,7 @@ namespace Org.BouncyCastle.Crypto.Fpe
             this.forEncryption = forEncryption;
             this.fpeParameters = (FpeParameters)parameters;
 
-            baseCipher.Init(!fpeParameters.UseInverseFunction, fpeParameters.Key.Reverse());
+            baseCipher.Init(!fpeParameters.UseInverseFunction, new KeyParameter(Arrays.Reverse(fpeParameters.Key.GetKey())));
 
             if (fpeParameters.GetTweak().Length != 7)
                 throw new ArgumentException("tweak should be 56 bits");

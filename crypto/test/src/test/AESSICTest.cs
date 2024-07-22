@@ -130,6 +130,12 @@ namespace Org.BouncyCastle.Tests
 			}
 		}
 
+		public static void Main(
+			string[] args)
+		{
+			RunTest(new AesSicTest());
+		}
+
 		[Test]
 		public void TestFunction()
 		{

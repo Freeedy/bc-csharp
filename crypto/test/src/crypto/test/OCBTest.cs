@@ -193,7 +193,7 @@ namespace Org.BouncyCastle.Crypto.Tests
 
         private IBlockCipher CreateUnderlyingCipher()
         {
-            return AesUtilities.CreateEngine();
+            return new AesEngine();
         }
 
         private IAeadBlockCipher CreateOcbCipher()
@@ -496,6 +496,12 @@ namespace Org.BouncyCastle.Crypto.Tests
             while (bits - value + (n - 1) < 0);
 
             return value;
+        }
+
+        public static void Main(
+            string[] args)
+        {
+            RunTest(new OcbTest());
         }
 
         [Test]

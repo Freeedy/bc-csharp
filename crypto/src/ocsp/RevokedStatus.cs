@@ -6,53 +6,52 @@ using Org.BouncyCastle.Asn1.X509;
 
 namespace Org.BouncyCastle.Ocsp
 {
-    /// <summary>Wrapper for the RevokedInfo object</summary>
-    public class RevokedStatus
+	/**
+	 * wrapper for the RevokedInfo object
+	 */
+	public class RevokedStatus
 		: CertificateStatus
 	{
-		private readonly RevokedInfo m_revokedInfo;
+		internal readonly RevokedInfo info;
 
-		public RevokedStatus(RevokedInfo revokedInfo)
+		public RevokedStatus(
+			RevokedInfo info)
 		{
-			m_revokedInfo = revokedInfo;
+			this.info = info;
 		}
 
-		public RevokedStatus(DateTime revocationDate)
+		public RevokedStatus(
+			DateTime	revocationDate,
+			int			reason)
 		{
-			var revocationTime = Rfc5280Asn1Utilities.CreateGeneralizedTime(revocationDate);
-
-            m_revokedInfo = new RevokedInfo(revocationTime);
-		}
-
-        public RevokedStatus(DateTime revocationDate, int reason)
-		{
-            var revocationTime = Rfc5280Asn1Utilities.CreateGeneralizedTime(revocationDate);
-
-            m_revokedInfo = new RevokedInfo(revocationTime, new CrlReason(reason));
+			this.info = new RevokedInfo(new DerGeneralizedTime(revocationDate), new CrlReason(reason));
 		}
 
 		public DateTime RevocationTime
 		{
-			get { return m_revokedInfo.RevocationTime.ToDateTime(); }
+			get { return info.RevocationTime.ToDateTime(); }
 		}
 
 		public bool HasRevocationReason
 		{
-			get { return m_revokedInfo.RevocationReason != null; }
+			get { return (info.RevocationReason != null); }
 		}
 
-        /// <summary>Return the revocation reason, if there is one.</summary>
-		/// <remarks>This field is optional; test for it with <see cref="HasRevocationReason"/> first.</remarks>
-		/// <returns>The revocation reason, if available.</returns>
-		/// <exception cref="InvalidOperationException">If no revocation reason is available.</exception>
-        public int RevocationReason
+		/**
+		 * return the revocation reason. Note: this field is optional, test for it
+		 * with hasRevocationReason() first.
+		 * @exception InvalidOperationException if a reason is asked for and none is avaliable
+		 */
+		public int RevocationReason
 		{
 			get
 			{
-				if (m_revokedInfo.RevocationReason == null)
+				if (info.RevocationReason == null)
+				{
 					throw new InvalidOperationException("attempt to get a reason where none is available");
+				}
 
-                return m_revokedInfo.RevocationReason.IntValueExact;
+                return info.RevocationReason.IntValueExact;
 			}
 		}
 	}

@@ -1,73 +1,114 @@
 using System;
 
 using Org.BouncyCastle.Asn1.X509;
+using Org.BouncyCastle.Utilities;
 
 namespace Org.BouncyCastle.Asn1.Ocsp
 {
     public class TbsRequest
         : Asn1Encodable
     {
-        public static TbsRequest GetInstance(object obj)
+		private static readonly DerInteger V1 = new DerInteger(0);
+
+		private readonly DerInteger      version;
+        private readonly GeneralName     requestorName;
+        private readonly Asn1Sequence    requestList;
+        private readonly X509Extensions  requestExtensions;
+
+		private bool versionSet;
+
+		public static TbsRequest GetInstance(
+			Asn1TaggedObject	obj,
+			bool				explicitly)
+		{
+			return GetInstance(Asn1Sequence.GetInstance(obj, explicitly));
+		}
+
+		public static TbsRequest GetInstance(
+			object obj)
+		{
+			if (obj == null || obj is TbsRequest)
+			{
+				return (TbsRequest)obj;
+			}
+
+			if (obj is Asn1Sequence)
+			{
+				return new TbsRequest((Asn1Sequence)obj);
+			}
+
+            throw new ArgumentException("unknown object in factory: " + Platform.GetTypeName(obj), "obj");
+		}
+
+		public TbsRequest(
+            GeneralName     requestorName,
+            Asn1Sequence    requestList,
+            X509Extensions  requestExtensions)
         {
-            if (obj == null)
-                return null;
-            if (obj is TbsRequest tbsRequest)
-                return tbsRequest;
-            return new TbsRequest(Asn1Sequence.GetInstance(obj));
+            this.version = V1;
+            this.requestorName = requestorName;
+            this.requestList = requestList;
+            this.requestExtensions = requestExtensions;
         }
 
-        public static TbsRequest GetInstance(Asn1TaggedObject obj, bool explicitly)
+		private TbsRequest(
+            Asn1Sequence seq)
         {
-            return new TbsRequest(Asn1Sequence.GetInstance(obj, explicitly));
-        }
+            int index = 0;
 
-        private static readonly DerInteger V1 = DerInteger.Zero;
-
-        private readonly DerInteger m_version;
-        private readonly bool m_versionPresent;
-        private readonly GeneralName m_requestorName;
-        private readonly Asn1Sequence m_requestList;
-        private readonly X509Extensions m_requestExtensions;
-
-        public TbsRequest(GeneralName requestorName, Asn1Sequence requestList, X509Extensions requestExtensions)
-        {
-            m_version = V1;
-            m_versionPresent = false;
-            m_requestorName = requestorName;
-            m_requestList = requestList ?? throw new ArgumentNullException(nameof(requestList));
-            m_requestExtensions = requestExtensions;
-        }
-
-        private TbsRequest(Asn1Sequence seq)
-        {
-            int count = seq.Count;
-            if (count < 1 || count > 4)
-                throw new ArgumentException("Bad sequence size: " + count, nameof(seq));
-
-            int pos = 0;
-
+			Asn1Encodable enc = seq[0];
+			if (enc is Asn1TaggedObject)
             {
-                DerInteger version = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 0, true, DerInteger.GetTagged);
+                Asn1TaggedObject o = (Asn1TaggedObject) enc;
 
-                m_version = version ?? V1;
-                m_versionPresent = version != null;
+				if (o.TagNo == 0)
+                {
+					versionSet = true;
+					version = DerInteger.GetInstance(o, true);
+                    index++;
+                }
+                else
+                {
+                    version = V1;
+                }
+            }
+            else
+            {
+                version = V1;
             }
 
-            m_requestorName = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 1, true, GeneralName.GetTagged);
-			m_requestList = Asn1Sequence.GetInstance(seq[pos++]);
-            m_requestExtensions = Asn1Utilities.ReadOptionalContextTagged(seq, ref pos, 2, true, X509Extensions.GetTagged);
+			if (seq[index] is Asn1TaggedObject)
+            {
+                requestorName = GeneralName.GetInstance((Asn1TaggedObject) seq[index++], true);
+            }
 
-            if (pos != count)
-                throw new ArgumentException("Unexpected elements in sequence", nameof(seq));
+			requestList = (Asn1Sequence) seq[index++];
+
+			if (seq.Count == (index + 1))
+            {
+                requestExtensions = X509Extensions.GetInstance((Asn1TaggedObject) seq[index], true);
+            }
         }
 
-        public DerInteger Version => m_version;
+		public DerInteger Version
+		{
+			get { return version; }
+		}
 
-        public GeneralName RequestorName => m_requestorName;
+		public GeneralName RequestorName
+		{
+			get { return requestorName; }
+		}
 
-        public Asn1Sequence RequestList => m_requestList;
+		public Asn1Sequence RequestList
+		{
+			get { return requestList; }
+		}
 
-        public X509Extensions RequestExtensions => m_requestExtensions;
+		public X509Extensions RequestExtensions
+		{
+			get { return requestExtensions; }
+		}
 
 		/**
          * Produce an object suitable for an Asn1OutputStream.
@@ -81,20 +122,20 @@ namespace Org.BouncyCastle.Asn1.Ocsp
          */
         public override Asn1Object ToAsn1Object()
         {
-            Asn1EncodableVector v = new Asn1EncodableVector(4);
+            Asn1EncodableVector v = new Asn1EncodableVector();
 
             //
             // if default don't include - unless explicitly provided. Not strictly correct
             // but required for some requests
             //
-            if (m_versionPresent || !V1.Equals(m_version))
+            if (!version.Equals(V1) || versionSet)
             {
-                v.Add(new DerTaggedObject(true, 0, m_version));
+                v.Add(new DerTaggedObject(true, 0, version));
             }
 
-            v.AddOptionalTagged(true, 1, m_requestorName);
-            v.Add(m_requestList);
-            v.AddOptionalTagged(true, 2, m_requestExtensions);
+            v.AddOptionalTagged(true, 1, requestorName);
+            v.Add(requestList);
+            v.AddOptionalTagged(true, 2, requestExtensions);
             return new DerSequence(v);
         }
     }
