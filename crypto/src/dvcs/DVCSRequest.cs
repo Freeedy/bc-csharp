@@ -48,7 +48,7 @@ namespace Org.BouncyCastle.dvcs
                 }
                 else
                 {
-                    this.asn1 = Org.BouncyCastle.asn1.dvcs.DVCSRequest.GetInstance(Asn1OctetString.GetInstance(contentInfo.Content).GetOctets());
+                   this.asn1 = Org.BouncyCastle.asn1.dvcs.DVCSRequest.GetInstance(Asn1OctetString.GetInstance(contentInfo.Content).GetOctets());
                 }
             }
             catch (Exception e)
@@ -84,7 +84,7 @@ namespace Org.BouncyCastle.dvcs
 
         public override Asn1Encodable GetContent()
         {
-            throw new NotImplementedException();
+            return asn1;
         }
     }
 }

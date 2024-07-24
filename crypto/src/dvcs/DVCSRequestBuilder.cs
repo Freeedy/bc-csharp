@@ -74,7 +74,6 @@ namespace Org.BouncyCastle.dvcs
         }
 
         protected DVCSRequest CreateDVCRequest(Data data)
-
         {
             if (!extGenerator.IsEmpty)
             {
@@ -83,7 +82,7 @@ namespace Org.BouncyCastle.dvcs
 
             Org.BouncyCastle.asn1.dvcs.DVCSRequest request = new Org.BouncyCastle.asn1.dvcs.DVCSRequest(requestInformationBuilder.Build(), data);
 
-            return new DVCSRequest(new ContentInfo(DVCSObjectIdentifiers.id_ct_DVCSRequestData, request));
+            return new DVCSRequest(new ContentInfo(DVCSObjectIdentifiers.id_ct_DVCSRequestData, request.ToASN1Primitive()));
         }
 
     }
