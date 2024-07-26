@@ -80,7 +80,8 @@ namespace Org.BouncyCastle.dvcs
                 requestInformationBuilder.Extensions = extGenerator.Generate();
             }
 
-            Org.BouncyCastle.asn1.dvcs.DVCSRequest request = new Org.BouncyCastle.asn1.dvcs.DVCSRequest(requestInformationBuilder.Build(), data);
+            var requestinfo = requestInformationBuilder.Build(); 
+            Org.BouncyCastle.asn1.dvcs.DVCSRequest request = new Org.BouncyCastle.asn1.dvcs.DVCSRequest(requestinfo, data);
 
             return new DVCSRequest(new ContentInfo(DVCSObjectIdentifiers.id_ct_DVCSRequestData, request.ToASN1Primitive()));
         }

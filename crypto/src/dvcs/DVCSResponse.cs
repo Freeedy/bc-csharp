@@ -7,7 +7,7 @@ using Org.BouncyCastle.Cms;
 
 namespace Org.BouncyCastle.dvcs
 {
-    internal class DVCSResponse : DVCSMessage
+    public class DVCSResponse : DVCSMessage
     {
         private Org.BouncyCastle.asn1.dvcs.DVCSResponse asn1;
 
