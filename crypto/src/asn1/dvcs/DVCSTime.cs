@@ -22,7 +22,7 @@ namespace Org.BouncyCastle.asn1.dvcs
         private readonly ContentInfo timeStampToken;
 
 
-        public DVCSTime(DateTime time) : this(new Asn1GeneralizedTime(time))
+        public DVCSTime(DateTime time) : this(new DerGeneralizedTime(time))
         {
 
         }
