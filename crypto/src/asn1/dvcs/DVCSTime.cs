@@ -27,6 +27,11 @@ namespace Org.BouncyCastle.asn1.dvcs
 
         }
 
+        public DVCSTime(string time) : this(new DerGeneralizedTime(time))
+        {
+
+        }
+
         public DVCSTime(Asn1GeneralizedTime genTime)
         {
             this.genTime = genTime;

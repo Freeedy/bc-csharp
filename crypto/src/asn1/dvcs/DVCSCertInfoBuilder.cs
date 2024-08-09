@@ -120,6 +120,10 @@ namespace Org.BouncyCastle.asn1.dvcs
             this.responseTime = responseTime;
         }
 
+        public void SetCerts(TargetEtcChain[] certs)
+        {
+            this.certs = new DerSequence(certs);
+        }
 
         public DVCSCertInfo Build()
         {
