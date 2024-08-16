@@ -62,7 +62,7 @@
     -->
     <NoWarn>$(NoWarn);CP0002;CP0005;CP0006</NoWarn>
     <RunAnalyzersDuringBuild>False</RunAnalyzersDuringBuild>
-    <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
