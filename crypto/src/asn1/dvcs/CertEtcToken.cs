@@ -52,6 +52,12 @@ namespace Org.BouncyCastle.asn1.dvcs
         private Asn1Encodable value;
         private X509Extensions extension;
 
+
+        public int TagNo => tagNo;
+        public Asn1Encodable Value => value;
+
+        public X509Extensions Extension => extension;
+
         public CertEtcToken(int tagNo, Asn1Encodable value)
         {
             this.tagNo = tagNo;
