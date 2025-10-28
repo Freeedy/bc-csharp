@@ -43,4 +43,9 @@
       <SetTargetFramework Condition="'$(TargetFramework)' == 'net472'">TargetFramework=netstandard2.0</SetTargetFramework>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Update="data\dvcs\testdvcs">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </EmbeddedResource>
+  </ItemGroup>
 </Project>
