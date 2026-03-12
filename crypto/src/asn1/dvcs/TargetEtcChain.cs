@@ -4,6 +4,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Org.BouncyCastle.Asn1;
+using Org.BouncyCastle.Asn1.Cmp;
+using Org.BouncyCastle.Asn1.Ocsp;
+using Org.BouncyCastle.Asn1.X509;
+using CertStatus = Org.BouncyCastle.Asn1.Ocsp.CertStatus;
 
 namespace Org.BouncyCastle.asn1.dvcs
 {
@@ -194,6 +198,79 @@ namespace Org.BouncyCastle.asn1.dvcs
             return ToASN1Primitive().CallAsn1GetHashCode();
         }
 
+
+        /// <summary>
+        /// Returns the target's X509CertificateStructure if the target token
+        /// is a Certificate (tag 0), or null otherwise.
+        /// </summary>
+        public X509CertificateStructure GetTargetCertificate()
+        {
+            return target?.GetCertificate();
+        }
+
+        /// <summary>
+        /// Searches the chain for the first token containing a PKIStatusInfo (tag 2).
+        /// Returns null if chain is null or no matching token is found.
+        /// </summary>
+        public PkiStatusInfo GetChainPkiStatus()
+        {
+            if (chain == null) return null;
+            foreach (var item in chain)
+            {
+                var token = CertEtcToken.GetInstance(item);
+                var result = token?.GetPkiStatus();
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Searches the chain for the first token containing an OCSPResponse (tag 7).
+        /// Returns null if chain is null or no matching token is found.
+        /// </summary>
+        public OcspResponse GetChainOcspResponse()
+        {
+            if (chain == null) return null;
+            foreach (var item in chain)
+            {
+                var token = CertEtcToken.GetInstance(item);
+                var result = token?.GetOcspResponse();
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Searches the chain for the first token containing a CertificateList / CRL (tag 4).
+        /// Returns null if chain is null or no matching token is found.
+        /// </summary>
+        public CertificateList GetChainCrl()
+        {
+            if (chain == null) return null;
+            foreach (var item in chain)
+            {
+                var token = CertEtcToken.GetInstance(item);
+                var result = token?.GetCrl();
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Searches the chain for the first token containing a CertStatus (tag 5).
+        /// Returns null if chain is null or no matching token is found.
+        /// </summary>
+        public CertStatus GetChainCertStatus()
+        {
+            if (chain == null) return null;
+            foreach (var item in chain)
+            {
+                var token = CertEtcToken.GetInstance(item);
+                var result = token?.GetOcspCertStatus();
+                if (result != null) return result;
+            }
+            return null;
+        }
 
         public override string ToString()
         {
