@@ -120,17 +120,21 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Remove Nerdbank.GitVersioning from csproj
+        run: |
+          sed -i '/<PackageReference Include="Nerdbank.GitVersioning"/,/<\/PackageReference>/d' ${{ env.PROJECT_PATH }}
+          sed -i '/<Target Name="FixAssemblyAttributes"/,/<\/Target>/d' ${{ env.PROJECT_PATH }}
+          echo "Nerdbank references removed from csproj"
+
       - name: Restore
-        run: dotnet restore ${{ env.PROJECT_PATH }} -p:NerdbankGitVersioningEnabled=false
+        run: dotnet restore ${{ env.PROJECT_PATH }}
 
       - name: Pack
         run: |
           dotnet pack ${{ env.PROJECT_PATH }} \
             -c Release \
-            -p:NerdbankGitVersioningEnabled=false \
             -p:Version=${{ needs.setup.outputs.final_version }} \
             -p:PackageVersion=${{ needs.setup.outputs.final_version }} \
-            -p:AssemblyVersion=${{ needs.setup.outputs.final_version }} \
             -p:SymbolPackageFormat=snupkg \
             -o ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
 
