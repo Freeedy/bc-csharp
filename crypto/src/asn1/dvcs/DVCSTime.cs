@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Org.BouncyCastle.Asn1;
 using Org.BouncyCastle.Asn1.Cms;
+using Org.BouncyCastle.Tsp;
 
 namespace Org.BouncyCastle.asn1.dvcs
 {
@@ -125,6 +126,17 @@ namespace Org.BouncyCastle.asn1.dvcs
         public ContentInfo GetTimeStampToken()
         {
             return timeStampToken;
+        }
+
+        public DateTime ToDateTime()
+        {
+            if (genTime != null)
+            {
+                return genTime.ToDateTime();
+            }
+
+            var token = new TimeStampToken(timeStampToken);
+            return token.TimeStampInfo.GenTime;
         }
 
         public override string ToString()

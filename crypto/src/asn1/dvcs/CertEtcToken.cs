@@ -50,13 +50,13 @@ namespace Org.BouncyCastle.asn1.dvcs
 
         private int tagNo;
         private Asn1Encodable value;
-        private X509Extensions extension;
+        private Asn1Sequence extension;
 
 
         public int TagNo => tagNo;
         public Asn1Encodable Value => value;
 
-        public X509Extensions Extension => extension;
+        public Asn1Sequence Extension => extension;
 
         public CertEtcToken(int tagNo, Asn1Encodable value)
         {
@@ -64,7 +64,7 @@ namespace Org.BouncyCastle.asn1.dvcs
             this.value = value;
         }
 
-        public CertEtcToken(X509Extensions extension)
+        public CertEtcToken(Asn1Sequence extension)
         {
             this.tagNo = -1;
             this.extension = extension;
@@ -119,7 +119,7 @@ namespace Org.BouncyCastle.asn1.dvcs
             }
             else if (obj != null)
             {
-                return new CertEtcToken(X509Extensions.GetInstance(obj));
+                return new CertEtcToken(Asn1Sequence.GetInstance(obj));
             }
 
             return null;
@@ -177,6 +177,81 @@ namespace Org.BouncyCastle.asn1.dvcs
         protected override int Asn1GetHashCode()
         {
             return ToASN1Primitive().GetHashCode();
+        }
+
+        public X509CertificateStructure GetCertificate()
+        {
+            if (tagNo == TAG_CERTIFICATE) return (X509CertificateStructure)value;
+            return null;
+        }
+
+        public EssCertID GetEssCertId()
+        {
+            if (tagNo == TAG_ESSCERTID) return (EssCertID)value;
+            return null;
+        }
+
+        public PkiStatusInfo GetPkiStatus()
+        {
+            if (tagNo == TAG_PKISTATUS) return (PkiStatusInfo)value;
+            return null;
+        }
+
+        public ContentInfo GetAssertion()
+        {
+            if (tagNo == TAG_ASSERTION) return (ContentInfo)value;
+            return null;
+        }
+
+        public CertificateList GetCrl()
+        {
+            if (tagNo == TAG_CRL) return (CertificateList)value;
+            return null;
+        }
+
+        public CertStatus GetOcspCertStatus()
+        {
+            if (tagNo == TAG_OCSPCERTSTATUS) return (CertStatus)value;
+            return null;
+        }
+
+        public CertID GetOcspCertId()
+        {
+            if (tagNo == TAG_OCSPCERTID) return (CertID)value;
+            return null;
+        }
+
+        public OcspResponse GetOcspResponse()
+        {
+            if (tagNo == TAG_OCSPRESPONSE) return (OcspResponse)value;
+            return null;
+        }
+
+        public SmimeCapabilities GetCapabilities()
+        {
+            if (tagNo == TAG_CAPABILITIES) return (SmimeCapabilities)value;
+            return null;
+        }
+
+        public X509Extension GetExtension()
+        {
+            if (extension == null) return null;
+
+            // Extension ::= SEQUENCE { extnID OID, critical BOOLEAN DEFAULT FALSE, extnValue OCTET STRING }
+            int idx = 1; // skip extnID (OID) at index 0
+            bool critical = false;
+            if (idx < extension.Count && extension[idx] is DerBoolean)
+            {
+                critical = DerBoolean.GetInstance(extension[idx++]).IsTrue;
+            }
+            Asn1OctetString extnValue = Asn1OctetString.GetInstance(extension[idx]);
+            return new X509Extension(critical, extnValue);
+        }
+
+        public DerObjectIdentifier GetExtensionOid()
+        {
+            if (extension == null) return null;
+            return DerObjectIdentifier.GetInstance(extension[0]);
         }
 
         public override string ToString()
