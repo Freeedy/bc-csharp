@@ -128,6 +128,7 @@ jobs:
           dotnet pack ${{ env.PROJECT_PATH }} \
             -c Release \
             -p:PackageVersion=${{ needs.setup.outputs.final_version }} \
+            -p:NerdbankGitVersioningEnabled=false \
             -p:SymbolPackageFormat=snupkg \
             -o ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
 
