@@ -121,14 +121,16 @@ jobs:
           dotnet-version: '8.0.x'
 
       - name: Restore
-        run: dotnet restore ${{ env.PROJECT_PATH }}
+        run: dotnet restore ${{ env.PROJECT_PATH }} -p:NerdbankGitVersioningEnabled=false
 
       - name: Pack
         run: |
           dotnet pack ${{ env.PROJECT_PATH }} \
             -c Release \
-            -p:PackageVersion=${{ needs.setup.outputs.final_version }} \
             -p:NerdbankGitVersioningEnabled=false \
+            -p:Version=${{ needs.setup.outputs.final_version }} \
+            -p:PackageVersion=${{ needs.setup.outputs.final_version }} \
+            -p:AssemblyVersion=${{ needs.setup.outputs.final_version }} \
             -p:SymbolPackageFormat=snupkg \
             -o ${{ env.PACKAGE_OUTPUT_DIRECTORY }}
 
